@@ -43,6 +43,7 @@ var lights: Array[Light3D] = []
 var emergency_lights: Array[Light3D] = []
 var interactables := {}
 var props: Array[Node3D] = []
+var carried := {}                       # prop index -> an apparition has hold of it
 var prop_spin: Array[Vector3] = []
 var prop_vel: Array[Vector3] = []
 var power_led: OmniLight3D
@@ -77,6 +78,7 @@ func regenerate(seed_: int) -> void:
 	props.clear()
 	prop_spin.clear()
 	prop_vel.clear()
+	carried.clear()
 	_path_cache.clear()
 	power_led = null
 	layout = StationLayout.new()
@@ -506,6 +508,8 @@ func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	for i in props.size():
+		if carried.has(i):
+			continue          # something else is moving this one
 		var p := props[i]
 		p.rotation += prop_spin[i] * delta
 		p.position += prop_vel[i] * delta
@@ -547,6 +551,40 @@ func _on_task_completed(id: String) -> void:
 	Game.on_task_completed(id)
 
 ## Nudge every prop (paranormal "something moved").
+# ---------------------------------------------------------------- props on loan
+## Nearest loose prop to `point` that nothing else has hold of, or -1. `visible_from` (when given)
+## also requires line of sight from there, for events that want to be watched.
+func find_prop_near(point: Vector3, max_dist := 9.0, visible_from := Vector3.INF) -> int:
+	var best := -1
+	var best_d := max_dist
+	for i in props.size():
+		if carried.has(i):
+			continue
+		var d := props[i].global_position.distance_to(point)
+		if d >= best_d:
+			continue
+		if visible_from != Vector3.INF and not has_line_of_sight(visible_from, props[i].global_position):
+			continue
+		best = i
+		best_d = d
+	return best
+
+## Take a prop out of the drift: whoever asked is moving it now.
+func take_prop(i: int) -> Node3D:
+	if i < 0 or i >= props.size():
+		return null
+	carried[i] = true
+	prop_vel[i] = Vector3.ZERO
+	return props[i]
+
+## Give it back, with a shove. This is what an object flying across a corridor is.
+func release_prop(i: int, velocity: Vector3, spin := Vector3.ZERO) -> void:
+	if i < 0 or i >= props.size():
+		return
+	carried.erase(i)
+	prop_vel[i] = velocity
+	prop_spin[i] = spin
+
 func shove_props(strength := 0.6) -> void:
 	for i in props.size():
 		prop_vel[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * strength

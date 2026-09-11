@@ -299,30 +299,27 @@ def ghoul_figure(seed=11):
 
 
 # ------------------------------------------------------------------ the good neighbours
-def fae_figure(seed=13, count=13, radius=0.95, centre_y=1.52):
-    """The old fae. Not the Victorian kind with wings - the kind you did not name, did not thank
-    and did not follow, and called the Good Neighbours in the hope they were listening kindly.
+def fae_figure(seed=13, count=13, shell=0.42):
+    """The old fae. Not the Victorian kind with wings on a flower - the kind nobody would name out
+    loud, so they got called the Good Neighbours in the hope they were listening kindly.
 
-    Two pieces of that folklore drive this one. The **will-o'-the-wisp**: lights out over the bog
-    that look like a lantern on the path and are not, and that people followed into water because
-    a light in the dark is very hard to argue with. And the **ring**: the circle you do not step
-    into, because what is inside it keeps its own time, and people who came back out of one came
-    back to a year they did not recognise.
+    The folklore this one is built on is not the ring. It is the older, pettier business the Fair
+    Folk were actually blamed for: things moved. Tools that were where you did not leave them.
+    Something thrown across a barn with nobody in it. A light in the yard, and in the morning the
+    gate is off its hinges and lying in the field.
 
-    So this is not a figure at all, it is a **host** - thirteen small cold lights turning in a
-    ring, hanging across the corridor at about chest height in a station where nothing has to sit
-    on a floor. It is the prettiest thing in the game. `morph` is the glamour coming off: the
-    lights shrink to pinpricks and what was holding each one resolves - a small thin body, too
-    long in the arm, too many joints in it, with a pale face turned toward you.
+    So this figure is not a body and not a ring - it is a **swarm that envelops something**.
+    Thirteen cold gold-green lights, the wrong colour for anything on this station, gathered into
+    a shell around a loose crate or a helmet or a drum, holding it while it drifts, and then
+    letting it go hard. `morph` is the glamour coming off: each light collapses to a pinprick, and
+    what is holding the thing is still there - a small long-armed body hanging off it, arms
+    reaching in, pale face turned outward at whoever is watching.
 
-    Cold iron is the other half of the story, and here the whole hull is iron: the ring never
-    touches it. It hangs in the middle of the corridor with a clear hand's width all round, which
-    is exactly the gap you would try to swim through.
+    The layout is centred on the carried object, so `Fae` can simply park the node on the prop.
     """
     f = Figure(
         "fae",
-        # the little bodies are not smoke-black like the vulto: each one is standing next to its
-        # own light, so it is lit, and what the light shows is a grey-green thing the size of a cat
+        # the little bodies are lit by their own wisps, so they are not smoke-black like the vulto
         core=[0.165, 0.180, 0.140],
         haze=[0.050, 0.068, 0.046],
         embers_by_key={
@@ -332,47 +329,59 @@ def fae_figure(seed=13, count=13, radius=0.95, centre_y=1.52):
         plateau=0.55,
     )
     rng = random.Random(seed)
-    # The ring stands in the corridor's cross-section - upright, hanging in the middle of the
-    # passage with a clear half metre of air between it and the iron on every side. In a station
-    # with no floor a ring is not something you step into. It is something you swim through.
+
+    # wisps spread over a shell around the object, deliberately uneven - a swarm, not a lattice
     for i in range(count):
-        a = i * math.tau / count + rng.uniform(-0.05, 0.05)
-        cx = math.cos(a) * radius
-        cy = centre_y + math.sin(a) * radius
-        cz = rng.uniform(-0.05, 0.05)
-        y = cy
-        out = [math.cos(a), math.sin(a), 0.2]           # they scatter outward along the ring
-        fx, fz = 0.0, 1.0                               # the little bodies face down the corridor
+        # golden-angle points so they cover the sphere without clumping, then knocked off it
+        z = 1.0 - 2.0 * (i + 0.5) / count
+        rad = math.sqrt(max(0.0, 1.0 - z * z))
+        a = i * 2.39996 + rng.uniform(-0.25, 0.25)
+        d = [math.cos(a) * rad, z * 0.8 + rng.uniform(-0.08, 0.08), math.sin(a) * rad]
+        n = math.sqrt(sum(v * v for v in d)) or 1.0
+        d = [v / n for v in d]
+        r = shell * rng.uniform(0.82, 1.18)
+        cx, cy, cz = (d[0] * r, d[1] * r, d[2] * r)
 
-        # the wisp itself: bright and round while the glamour holds, a pinprick after
-        f.ember((cx, y, cz), rng.uniform(0.085, 0.115), rng.uniform(0.75, 1.0), key="wisp",
-                pos2=(cx, y + 0.02, cz), size2=0.022, energy2=0.5)
+        # a tangent to hang the body's arms off
+        up = [0.0, 1.0, 0.0] if abs(d[1]) < 0.9 else [1.0, 0.0, 0.0]
+        tx = [up[1] * d[2] - up[2] * d[1], up[2] * d[0] - up[0] * d[2], up[0] * d[1] - up[1] * d[0]]
+        tn = math.sqrt(sum(v * v for v in tx)) or 1.0
+        tx = [v / tn for v in tx]
 
-        # what is actually holding it - invisible at morph 0, resolved at morph 1
-        def body(dx, dy, dz, size, alpha, tint="core", drift=0.02, spin=0.3):
-            f.puff((cx, y, cz), 0.02, 0.0, drift=drift, spin=spin, out=out, tint=tint,
-                   pos2=(cx + dx, y + dy, cz + dz), size2=size)
+        def at(out, tan, drop):
+            """A point `out` further from the object, `tan` sideways, `drop` toward -Y."""
+            return (cx + d[0] * out + tx[0] * tan,
+                    cy + d[1] * out + tx[1] * tan - drop,
+                    cz + d[2] * out + tx[2] * tan)
+
+        # the wisp: a round light while the glamour holds, a pinprick after
+        f.ember((cx, cy, cz), rng.uniform(0.085, 0.115), rng.uniform(0.75, 1.0), key="wisp",
+                pos2=at(0.02, 0.0, 0.0), size2=0.022, energy2=0.5)
+
+        def body(out, tan, drop, size, alpha, tint="core"):
+            f.puff((cx, cy, cz), 0.02, 0.0, drift=0.02, spin=0.35, tint=tint,
+                   out=[d[0], d[1] + 0.25, d[2]], pos2=at(out, tan, drop), size2=size)
             f.puffs[-1]["alpha2"] = alpha
 
-        body(0.0, -0.058, 0.0, 0.115, 0.96)                       # head
-        body(0.0, -0.072, 0.060, 0.058, 0.92, tint="pale")        # face, turned your way
-        body(0.0, -0.150, 0.0, 0.125, 0.96)                       # a small body, hanging
-        body(0.0, -0.230, 0.0, 0.115, 0.94)
-        for sx in (-1, 1):
-            # arms: held out and down, and far too long for something that size
-            body(sx * 0.105, -0.135, -0.01, 0.050, 0.93)
-            body(sx * 0.155, -0.225, -0.02, 0.044, 0.91)
-            body(sx * 0.195, -0.320, -0.02, 0.038, 0.89)
-            body(sx * 0.215, -0.415, -0.02, 0.032, 0.86)
-            body(sx * 0.058, -0.315, 0.01, 0.075, 0.92)           # legs, tucked up under it
-            body(sx * 0.062, -0.390, 0.02, 0.058, 0.88)
+        # hanging off the object: head and body outward, arms reaching back in to hold on
+        body(0.085, 0.0, 0.0, 0.105, 0.96)                        # head
+        body(0.115, 0.0, 0.025, 0.055, 0.92, tint="pale")         # face, turned outward at you
+        body(0.150, 0.0, 0.075, 0.120, 0.96)                      # small body, trailing
+        body(0.190, 0.0, 0.145, 0.100, 0.93)
+        for sx in (-1, 1):                                        # arms, far too long for it
+            body(0.055, sx * 0.075, 0.030, 0.048, 0.93)
+            body(-0.010, sx * 0.105, 0.045, 0.042, 0.91)
+            body(-0.070, sx * 0.115, 0.050, 0.036, 0.88)          # hands, in on the thing itself
+            body(0.215, sx * 0.045, 0.215, 0.060, 0.90)           # legs, tucked up behind
+            body(0.240, sx * 0.050, 0.285, 0.048, 0.86)
 
-    # the ring itself: a faint circle of lit dust the lights are turning inside
-    for i in range(count * 3):
-        a = i * math.tau / (count * 3)
-        f.puff((math.cos(a) * radius, centre_y + math.sin(a) * radius, rng.uniform(-0.08, 0.08)),
-               0.26, 0.07, drift=0.045, spin=0.25, tint="haze",
-               out=[math.cos(a), math.sin(a), 0.2])
+    # the haze the swarm sits in: a soft glow around whatever it has got hold of
+    for i in range(10):
+        a = rng.uniform(0, math.tau)
+        b = rng.uniform(-1.0, 1.0)
+        rr = math.sqrt(max(0.0, 1.0 - b * b)) * shell * 0.7
+        f.puff((math.cos(a) * rr, b * shell * 0.6, math.sin(a) * rr), 0.40, 0.06,
+               drift=0.05, spin=0.25, tint="haze")
     return f
 
 

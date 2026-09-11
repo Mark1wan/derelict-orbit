@@ -61,7 +61,7 @@ func _day_tick(delta: float) -> void:
 func _fire_day_event(I: float) -> void:
 	var options: Array = ["shadow", "shadow", "bang"]
 	if I >= 2.0:
-		options.append_array(["flicker", "flicker", "ring"])
+		options.append_array(["flicker", "flicker", "thrown", "thrown"])
 	if I >= 3.0:
 		options.append_array(["whisper", "watcher", "shadow", "ghoul"])
 	if I >= 4.0:
@@ -90,9 +90,9 @@ func _fire_day_event(I: float) -> void:
 		"ghoul":
 			if not _ghoul():
 				_whisper()
-		"ring":
+		"thrown":
 			if not _fae():
-				_whisper()
+				_bang()
 		"drift":
 			Game.station.shove_props(0.8)
 			Sfx.play_at("bang", Game.player.camera.global_position + Vector3(randf_range(-3, 3), 0, randf_range(-3, 3)), -10.0, 20.0, 1.4)
@@ -209,9 +209,9 @@ func _clear_figures() -> void:
 			c.queue_free()
 	watcher = null
 
-## The ring: thirteen lights across a corridor ahead of you, hanging in the middle of the
-## passage. Wants to be somewhere you are likely to swim through, so it takes a crossing spot,
-## and it wants to be seen from a distance first - that is the whole trick of it.
+## The Good Neighbours: they take hold of something loose and throw it. Wants a prop the player
+## can actually see move - or, half the time, one they cannot see being carried at all, so all
+## they get is a crate crossing the corridor at head height with nothing holding it.
 func _fae() -> bool:
 	for c in get_children():
 		if c is Fae:
@@ -220,22 +220,23 @@ func _fae() -> bool:
 	var cam: Camera3D = Game.player.camera
 	var eye := cam.global_position
 	var fwd := -cam.global_transform.basis.z
-	var best := []
-	for spot: Array in st.crossing_spots():
-		var p: Vector3 = spot[0]
-		var to := p - eye
-		if to.length() < 6.0 or fwd.dot(to.normalized()) < 0.5:
-			continue
-		if not st.has_line_of_sight(eye, p):
-			continue
-		best.append(spot)
-	if best.is_empty():
+	# somewhere ahead of the player, and a loose prop near it
+	var target := eye + fwd * randf_range(6.0, 12.0)
+	var index := st.find_prop_near(target, 7.0, eye)
+	if index < 0:
+		index = st.find_prop_near(eye, 14.0, eye)
+	if index < 0:
 		return false
-	var c: Array = best.pick_random()
 	var f := Fae.new()
+	f.seen = randf() < Fae.SEEN_CHANCE
 	add_child(f)
-	f.hang(c[0], c[1])
-	Sfx.play_at("beep", c[0], -16.0, 30.0, 1.9)
+	# carried across the player's view, not along it: the point is that it crosses in front of you
+	var across := fwd.cross(Vector3.UP).normalized()
+	if not f.take(index, across, eye):
+		f.queue_free()
+		return false
+	if f.seen:
+		Sfx.play_at("beep", f.global_position, -18.0, 26.0, 1.9)
 	return true
 
 ## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.

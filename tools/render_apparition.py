@@ -71,6 +71,21 @@ def corridor(rend, cam, length=16.0, half=1.5, height=3.0, lit_end=True, doorway
                           (sx * (half - 0.22), 0, z + 0.02), [0.10, 0.10, 0.12])
 
 
+def crate(rend, cam, pos, size=0.52, tumble=0.5):
+    """A stand-in for whatever the swarm has got hold of - one of the kit's loose crates."""
+    h = size / 2.0
+    c, s_ = math.cos(tumble), math.sin(tumble)
+
+    def p(x, y, z):
+        return (pos[0] + x * c - z * s_, pos[1] + y, pos[2] + x * s_ + z * c)
+
+    corners = [p(x * h, y * h, z * h) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
+    faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    for a, b, cc, d in faces:
+        rend.triangle(cam, corners[a], corners[b], corners[cc], [0.30, 0.27, 0.20])
+        rend.triangle(cam, corners[a], corners[cc], corners[d], [0.30, 0.27, 0.20])
+
+
 def splat(rend, cam, center, radius, alpha, color, tex, additive=False):
     """One camera-facing puff, alpha-composited. Godot does this with a billboarded quad."""
     pr = cam.project(center, rend.w, rend.h)
@@ -159,13 +174,15 @@ def draw(rend, cam, fig, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, 
 
 
 def scene(path, w, h, eye, target, fov, origin, form=1.0, t=0.0, ember=1.0, yaw=0.0, corr=True,
-          lean=0.0, fig=None, morph=0.0):
+          lean=0.0, fig=None, morph=0.0, carrying=None):
     fig = fig or spec.corridor_figure()
     rend = Renderer(w, h, (6, 6, 8))
     cam = Camera(eye, target, fov=fov)
     rend.scale = cam.scale
     if corr:
         corridor(rend, cam)
+    if carrying is not None:
+        crate(rend, cam, carrying)
     draw(rend, cam, fig, origin, form, t, ember, yaw, lean, morph)
     rend.save(path)
     return path
@@ -222,25 +239,30 @@ def main():
     print(os.path.join(o, "ghoul_turn.png"))
 
     fae = spec.fae_figure()
-    print(scene(os.path.join(o, "fae_ring.png"), 900, 640, (0.25, 1.5, -2.4), (0, 1.45, -8.0),
-                42, (0, 0, -8.2), t=3.0, fig=fae, morph=0.0))
-    print(scene(os.path.join(o, "fae_true.png"), 900, 640, (0.25, 1.5, -3.0), (0, 1.45, -8.0),
-                38, (0, 0, -8.2), t=3.0, fig=fae, morph=1.0))
-    print(scene(os.path.join(o, "fae_close.png"), 780, 700, (0.95, 1.95, -11.2), (-0.85, 1.30, -13.9),
-                24, (0, 0, -13.9), t=3.0, fig=fae, morph=1.0))
-    # the glamour coming off
-    rend = Renderer(1150, 600, (6, 6, 8))
-    for i, m in enumerate([0.0, 0.35, 0.7, 1.0]):
-        sub = Renderer(287, 600, (6, 6, 8))
-        cam = Camera((0, 1.52, -0.4), (0, 1.45, -8.2), fov=34)
+    held = (0, 1.45, -7.6)
+    print(scene(os.path.join(o, "fae_carry.png"), 900, 640, (0.3, 1.55, -2.0), (0, 1.45, -7.6),
+                38, held, t=3.0, fig=fae, morph=0.0, carrying=held))
+    print(scene(os.path.join(o, "fae_glamour_off.png"), 900, 640, (0.3, 1.55, -2.0), (0, 1.45, -7.6),
+                38, held, t=3.0, fig=fae, morph=1.0, carrying=held))
+    print(scene(os.path.join(o, "fae_close.png"), 820, 700, (0.85, 1.75, -5.9), (0, 1.42, -7.6),
+                20, held, t=3.0, fig=fae, morph=1.0, carrying=held))
+    # gather, carry, throw: the crate crosses the corridor and the lights let go of it
+    rend = Renderer(1240, 560, (6, 6, 8))
+    frames = [(-1.10, 0.25, 0.5), (-0.45, 1.0, 1.0), (0.35, 1.0, 1.0), (1.05, 0.0, 0.0)]
+    for i, (x, form, ember_e) in enumerate(frames):
+        sub = Renderer(310, 560, (6, 6, 8))
+        cam = Camera((0.1, 1.55, -3.4), (0, 1.42, -8.0), fov=40)
         sub.scale = cam.scale
         corridor(sub, cam)
-        draw(sub, cam, fae, (0, 0, -8.2), t=3.0 + i * 0.8, morph=m)
-        for y in range(600):
-            rend.color[y][i * 287:(i + 1) * 287] = sub.color[y]
-            rend.color[y][i * 287] = (30, 30, 34)
-    rend.save(os.path.join(o, "fae_glamour.png"))
-    print(os.path.join(o, "fae_glamour.png"))
+        pos = (x, 1.45 + 0.05 * i, -7.9)
+        crate(sub, cam, pos, tumble=0.4 + i * 0.5)
+        if form > 0.0:
+            draw(sub, cam, fae, pos, form=form, t=3.0 + i * 0.7, ember=ember_e, morph=0.0)
+        for y in range(560):
+            rend.color[y][i * 310:(i + 1) * 310] = sub.color[y]
+            rend.color[y][i * 310] = (30, 30, 34)
+    rend.save(os.path.join(o, "fae_throw.png"))
+    print(os.path.join(o, "fae_throw.png"))
 
 
 if __name__ == "__main__":

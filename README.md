@@ -78,8 +78,8 @@ scripts/apparition.gd  the apparitions: smoke figures built from kit/apparition_
                        corridor vulto (jinn crossed with the Brazilian shadow person) and the ghul
 scripts/ghoul.gd       the ghul: wears a crew member down a corridor to draw you off your shift,
                        unlit until it stops pretending (docs/APPARITIONS.md)
-scripts/fae.gd         the Good Neighbours: a ring of thirteen wisps hung across a corridor -
-                       swim through it and it takes 22 seconds of your shift
+scripts/fae.gd         the Good Neighbours: thirteen wisps envelop a loose prop, carry it, and
+                       throw it across the corridor - and half the time you never see the lights
 scripts/stalker.gd     the night stalker
 scripts/creature.gd    the night stalker's body: a posable rig built from kit/creature_rig.json -
                        belly-up crawl, contortions, upright when immobile (see docs/CREATURE.md)

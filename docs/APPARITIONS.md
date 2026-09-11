@@ -108,59 +108,64 @@ It never touches you. The day is not when this station kills you.
 
 ## The Good Neighbours
 
-![the ring](fae_ring.png)
+![carrying a crate](fae_carry.png)
 
-*Thirteen lights turning in a ring across the corridor. It is the prettiest thing in the game.*
+*Thirteen cold lights with a crate inside them, going somewhere with it.*
 
 Not the Victorian fairy with wings on a flower - the older kind, the ones nobody would name out
 loud. You called them the Good Neighbours, or Themselves, or the Fair Folk, because a name is a
-way of getting someone's attention. Two pieces of that folklore are in this one.
+way of getting someone's attention.
 
-The **will-o'-the-wisp**: lights out over the bog that look like a lantern on the path and are
-not, and that people followed into the water anyway, because a light in the dark is very hard to
-argue with. And the **ring**: the circle you do not step inside, because what is in there keeps
-its own time, and people who came back out of one came back to a year they did not recognise.
+What they were actually blamed for, before anyone drew them, was small and constant and
+infuriating: **things moved**. Tools not where you left them. Something thrown across a barn with
+nobody in it. Lights in the yard at night, and in the morning the gate is off its hinges and
+lying out in the field.
 
-So it is not a figure at all - it is a **host**. Thirteen cold lights, pale gold-green, the wrong
-colour for anything on this station, turning slowly in a ring that hangs across the middle of the
-corridor at chest height. It keeps a clear half-metre of air between itself and the hull the whole
-way round, because the ship is cold iron and they do not touch it - which leaves exactly the
-shape of a hoop you would swim through.
+So this one does not stand anywhere and it does not look at you. It takes hold of something loose
+- one of the kit's crates, a helmet, a drum - wraps itself round it as a shell of thirteen cold
+gold-green lights, carries it a few metres, unhurried and wandering, the way you carry something
+you are not in a rush with. And then it throws it.
 
-### The glamour
+### Envelop, carry, throw
 
-![the glamour coming off](fae_glamour.png)
+![the sequence](fae_throw.png)
 
-*Four frames of getting closer. The lights shrink to pinpricks, and what was holding each one is
-still there.*
+*It arrives, takes hold, carries the crate across the corridor, and lets go. The crate leaves at
+about four metres a second. The lights go out half a second later.*
 
-`morph` here is the glamour coming off. Every wisp is an ember that collapses to a pinprick, and
-under it hangs a body about the size of a cat: long in the arm, hung from its own light, with a
-pale face turned up the corridor toward you. They are lit by their own wisps, which is the only
-reason you can see them at all.
+The station's loose props were always drifting on their own integrator; `Station` now lends one
+out. `take_prop()` pulls it out of the drift so an apparition can move it, `release_prop()` hands
+it back with a velocity, and `find_prop_near()` picks one close to wherever the event wants it.
+Nothing else about the props changed - it is still the same crate you could have grabbed.
 
-| | |
-|---|---|
-| ![true](fae_true.png) | ![close](fae_close.png) |
-| The ring, once you are close enough | Closer than anyone should get |
+The throw is always aimed **across** your view rather than down it, and never back at the face of
+whoever is watching.
 
-### Swimming through it
+### The half you never see
 
-`scripts/fae.gd`. It hangs across a corridor cell you are facing, from intensity 2, and turns the
-whole time it is there - that is the dance. Inside 3.2 m the glamour comes off and does not go
-back on. It never chases you and it never touches you.
+`seen` is decided per event, and it is false more often than not: **the lights only show up about
+45% of the time.** The rest of the time the swarm is there, doing exactly the same thing, at zero
+opacity.
 
-If you go **through the hoop**, it takes what these things take, which is time: **22 seconds of
-your 150-second shift**, gone, your thruster tank empty, and a line on your wrist display saying
-the clock has moved on without you. Then the ring is not there any more.
+What you get then is the real one. A crate comes out of a side passage at head height doing four
+metres a second, crosses in front of you, hits the far wall - and there is nothing there, and
+there was never anything there.
 
-That is the whole trap, and it is an old one: the light is in the middle of the corridor, going
-round it costs you nothing, and going through it is *so* much more convenient.
+### Up close
+
+![the glamour off](fae_glamour_off.png)
+
+Inside 3.4 m the glamour comes off, the way it does with all of these. Each light collapses to a
+pinprick and what was holding the crate is still holding it: a small long-armed body hanging off
+the side of it, arms reaching in, pale face turned out at you. They are lit by their own wisps,
+which is the only reason you can see them at all.
+
+![closer](fae_close.png)
 
 
 ## Cost
 
-Two draw calls per apparition however many puffs it has - the ring's 247 included: one `MultiMesh`
+Two draw calls per apparition however many puffs it has - the swarm's 192 included: one `MultiMesh`
 of billboarded quads for the smoke, one for the embers, with per-instance colour carrying the
 alpha. The sprite texture is generated once from
 a hash-based value noise and shared. No particle system, no shader.
@@ -174,11 +179,11 @@ a hash-based value noise and shared. No particle system, no shader.
 | `tools/render_apparition.py` | the reference renders |
 | `kit/apparition_corridor.json` | the vulto: 47 puffs, 2 embers |
 | `kit/apparition_ghoul.json` | the ghul: 62 puffs (8 of them hooves), 2 embers, all of it morphing |
-| `kit/apparition_fae.json` | the ring: 247 puffs, 13 wisps, 13 little bodies under them |
+| `kit/apparition_fae.json` | the swarm: 192 puffs, 13 wisps, 13 little bodies hanging off them |
 | `scripts/apparition.gd` | builds and animates any of them - one class, one JSON per figure |
 | `scripts/shadow_figure.gd` | the two vulto events (crossing, watching) |
 | `scripts/ghoul.gd` | the lure |
-| `scripts/fae.gd` | the ring, and what going through it costs |
+| `scripts/fae.gd` | the swarm: takes a prop, carries it, throws it |
 
     python3 tools/build_apparition.py
 
