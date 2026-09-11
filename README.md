@@ -65,8 +65,9 @@ scripts/palette.gd     the materials the kit's glTF names are remapped to (textu
 scripts/station.gd     builds a deck from the layout: hull, lights, terminals per room type, name plates, props,
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
-kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) plus the loose props
-                       (prop_*.glb: crates, canisters, helmets, debris) - see kit/KIT_README.md
+kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) plus the props
+                       (prop_*.glb), classed wall attachment / floating / room equipment
+                       - see kit/KIT_README.md
 scripts/geo.gd         SurfaceTool batcher: one mesh per material (+ trimesh collider); used by the classic map and small extras
 scripts/tex.gd         procedural textures: riveted plating + normal maps, grating, hazard stripes,
                        vents, telemetry screens, LED rows, starfield, planet, solar cells

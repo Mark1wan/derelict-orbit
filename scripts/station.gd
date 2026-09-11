@@ -159,38 +159,100 @@ func _place_rooms() -> void:
 		_sign(ROOM_LABEL[t], plate + toward_room * 0.035, toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 		_sign(ROOM_LABEL[t], plate - toward_room * 0.035, -toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 
-## The loose objects drifting through the deck: kit/prop_*.glb, one MeshInstance3D each with
-## the kit materials remapped onto the palette, and a box collider so they can be grabbed.
-const CORRIDOR_PROPS := ["prop_crate", "prop_canister", "prop_toolbox", "prop_slate",
-	"prop_debris", "prop_handhold", "prop_ration", "prop_helmet"]
-const ROOM_PROPS := {
-	"power": ["prop_power_cell", "prop_toolbox", "prop_extinguisher"],
-	"plant": ["prop_canister", "prop_drum", "prop_extinguisher"],
-	"control": ["prop_slate", "prop_ration", "prop_medkit"],
-	"laboratory": ["prop_slate", "prop_medkit", "prop_canister"],
-	"observation": ["prop_ration", "prop_slate", "prop_helmet"],
-	"exercise": ["prop_ration", "prop_medkit", "prop_toolbox"],
-	"server": ["prop_power_cell", "prop_slate", "prop_toolbox"],
-	"eva": ["prop_helmet", "prop_crate_large", "prop_canister"],
+## Every prop in kit/prop_*.glb belongs to one of three classes:
+##
+##   "wall"       bolted flush to a wall surface - upright on its mount, does not tumble and the
+##                haunting cannot shove it. Extinguishers, medkits and spare grab bars.
+##   "floating"   loose in the corridors: tumbling, drifting, shoveable. Crates, debris, rations.
+##   "equipment"  floating too, but kept in the work area of the room it belongs to (EQUIPMENT).
+##
+## A prop is placed by its class, so adding one is a single line here.
+const PROP_CLASS := {
+	"prop_extinguisher": "wall",
+	"prop_medkit": "wall",
+	"prop_handhold": "wall",
+	"prop_crate": "floating",
+	"prop_crate_large": "floating",
+	"prop_debris": "floating",
+	"prop_ration": "floating",
+	"prop_canister": "equipment",
+	"prop_drum": "equipment",
+	"prop_toolbox": "equipment",
+	"prop_power_cell": "equipment",
+	"prop_helmet": "equipment",
+	"prop_slate": "equipment",
 }
 
+## Wall attachments, split by where they belong. Grab bars are a corridor fitting; safety gear
+## hangs in both, next to the way out.
+const WALL_CORRIDOR := ["prop_handhold", "prop_extinguisher", "prop_medkit"]
+const WALL_ROOM := ["prop_extinguisher", "prop_medkit"]
+
+## The loose stuff that has drifted out of somebody's hands and never been collected.
+const FLOATING := ["prop_crate", "prop_crate_large", "prop_debris", "prop_ration"]
+
+## Equipment by room type: what that workstation actually works with.
+const EQUIPMENT := {
+	"control": ["prop_slate", "prop_toolbox"],
+	"power": ["prop_power_cell", "prop_toolbox"],
+	"plant": ["prop_canister", "prop_drum"],
+	"laboratory": ["prop_canister", "prop_slate"],
+	"observation": ["prop_slate", "prop_helmet"],
+	"exercise": ["prop_toolbox", "prop_slate"],
+	"server": ["prop_power_cell", "prop_slate"],
+	"eva": ["prop_helmet", "prop_canister"],
+}
+
+## Corridor pieces with both side walls intact - the ones a wall fitting can hang on.
+const PLAIN_CORRIDOR := {"corridor_straight": true, "corridor_door": true}
+
+const CORRIDOR_HW := 1.5    # interior half-width of a corridor cell
+const ROOM_HW := 5.5        # inner face of a room wall
+
 func _place_props() -> void:
-	var cells: Array = []
-	for c: Vector2i in layout.corridor:
-		if layout.corridor[c]["open"].size() == 2:
-			cells.append(c)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = layout.seed_ + 77
-	var n := mini(7, cells.size())
-	for i in n:
-		var c: Vector2i = cells[rng.randi() % cells.size()]
+
+	var straight: Array[Vector2i] = []
+	for c: Vector2i in layout.corridor:
+		if layout.corridor[c]["open"].size() == 2:
+			straight.append(c)
+	if straight.is_empty():
+		return
+
+	# floating: loose in the corridors, tumbling
+	for i in mini(7, straight.size()):
+		var c: Vector2i = straight[rng.randi() % straight.size()]
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
-		_prop(String(CORRIDOR_PROPS[rng.randi() % CORRIDOR_PROPS.size()]), p, rng)
+		_prop(String(FLOATING[rng.randi() % FLOATING.size()]), p, rng)
+
+	# wall: bolted to a corridor side wall (only where the piece still has both side walls)
+	for c: Vector2i in straight:
+		var cell: Dictionary = layout.corridor[c]
+		if not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.35:
+			continue
+		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
+		var side := 1.0 if rng.randf() < 0.5 else -1.0
+		# clear of the bulkhead frame at the middle of the cell
+		var along := rng.randf_range(0.7, 1.3) * (1.0 if rng.randf() < 0.5 else -1.0)
+		var local := Vector3(side * CORRIDOR_HW, rng.randf_range(0.9, 2.1), along)
+		_mount(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]), xf, local, Vector3(-side, 0, 0), Vector3(0, 0, 1))
+
 	for r: Dictionary in layout.rooms:
-		var pool: Array = ROOM_PROPS.get(r["type"], CORRIDOR_PROPS)
-		for i in 2:
-			var p := StationLayout.world(r["center"], 2.0) + Vector3(rng.randf_range(-3, 3), rng.randf_range(-1.2, 1.2), rng.randf_range(-3, 3))
-			_prop(String(pool[rng.randi() % pool.size()]), p, rng)
+		var t: String = r["type"]
+		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
+
+		# equipment: floating inside one work area of the room, not scattered across it
+		var pool: Array = EQUIPMENT.get(t, FLOATING)
+		var anchor := Vector3(rng.randf_range(-1.0, 1.0) * 3.2, 1.6, (1.0 if rng.randf() < 0.5 else -1.0) * 3.2)
+		for i in pool.size():
+			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.8, 1.0), rng.randf_range(-1.1, 1.1))
+			_prop(String(pool[i]), xf * p, rng)
+
+		# wall: safety gear on the two side walls, flanking the door wall
+		for side: float in [-1.0, 1.0]:
+			var local := Vector3(side * ROOM_HW, rng.randf_range(1.1, 2.3), rng.randf_range(-3.0, 3.0))
+			_mount(String(WALL_ROOM[rng.randi() % WALL_ROOM.size()]), xf, local, Vector3(-side, 0, 0), Vector3(0, 0, 1))
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -341,6 +403,7 @@ func _sign(text: String, pos: Vector3, facing: Vector3, size := 48, col := Color
 ## names, so the same palette remap the hull uses applies here. The glb rests on y = 0, so the
 ## mesh is offset inside a pivot node and the pivot is what spins.
 func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	assert(PROP_CLASS.get(piece, "") != "wall", "%s is a wall attachment - use _mount()" % piece)
 	var mesh := Kit.mesh(piece)
 	var names := Kit.material_names(piece)
 	var pivot := Node3D.new()
@@ -372,6 +435,37 @@ func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
 	props.append(pivot)
 	prop_spin.append(Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2)))
 	prop_vel.append(Vector3.ZERO)
+
+## A wall attachment: the prop's base sits flat on the wall surface, `normal` pointing off it
+## into the room and `tangent` giving the direction its front faces. `xf` is the piece transform,
+## `local` a point on the wall in that piece's own frame - so a rolled cell mounts it on what is
+## now the ceiling, which is the whole point of a station with no floor.
+func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tangent: Vector3) -> void:
+	assert(PROP_CLASS.get(piece, "") == "wall", "%s is not a wall attachment - use _prop()" % piece)
+	var mesh := Kit.mesh(piece)
+	var names := Kit.material_names(piece)
+	var aabb := mesh.get_aabb()
+	var up := (xf.basis * normal).normalized()
+	var fwd := (xf.basis * tangent).normalized()
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.name = piece
+	for s in mesh.get_surface_count():
+		var key: String = Palette.KIT_MAP.get(names[s], "metal")
+		mi.set_surface_override_material(s, pal.get_mat(key))
+	root.add_child(mi)
+	mi.transform = Transform3D(Basis(up.cross(fwd), up, fwd), xf * local)
+
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = aabb.size
+	cs.shape = shape
+	cs.position = aabb.get_center()
+	body.add_child(cs)
+	mi.add_child(body)
 
 func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false) -> void:
 	var it := Interactable.new()

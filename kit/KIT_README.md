@@ -68,25 +68,34 @@ is centred on X/Z with its base at **y = 0**, fits inside a 1 m box (so it clear
 at any tumble angle) and reuses the same material names as the modules, so a palette remap
 applied to the kit covers the props too.
 
-| File | Tris | Notes |
-|---|---|---|
-| `prop_crate.glb` | 240 | ribbed supply crate, corner cage, hazard edge |
-| `prop_crate_large.glb` | 240 | pallet-sized box with a lid seam and catches |
-| `prop_canister.glb` | 500 | pressure cylinder, valve under a collar cage |
-| `prop_drum.glb` | 260 | fluid drum with rolling hoops and bung caps |
-| `prop_toolbox.glb` | 96 | hinged case, carry handle, charge LED |
-| `prop_medkit.glb` | 108 | first aid pack, red cross panel, status light |
-| `prop_extinguisher.glb` | 344 | fire bottle, squeeze handle, hose |
-| `prop_power_cell.glb` | 156 | finned battery pack with charge LEDs |
-| `prop_helmet.glb` | 532 | EVA helmet, tinted visor, neck ring, lamp |
-| `prop_slate.glb` | 72 | crew tablet with a lit screen |
-| `prop_ration.glb` | 60 | sealed food pouch |
-| `prop_debris.glb` | 120 | torn-off hull panel, bent ribs, cut cable |
-| `prop_handhold.glb` | 132 | grab bar knocked off a wall |
+Every prop is filed under one of three **classes**, which is what decides how the game places it:
 
-About 2,900 triangles for the set. `scripts/station.gd` scatters them per room type (canisters and
-drums in life support, power cells in the plant and the server room, helmets in the EVA airlock)
-and gives each one a box collider, so a prop is also something you can grab and pull off.
+- **wall** — bolted flush to a wall surface, upright on its mount. It does not tumble and the
+  haunting cannot shove it. Because the deck's cells are rolled about their axis, "wall" means
+  whichever surface the cell's roll has turned into one.
+- **floating** — loose in the corridors: tumbling, drifting, shoveable.
+- **equipment** — floating too, but kept in the work area of the room type it belongs to.
+
+| File | Tris | Class | Room | Notes |
+|---|---|---|---|---|
+| `prop_extinguisher.glb` | 344 | wall | corridors, all rooms | fire bottle, squeeze handle, hose |
+| `prop_medkit.glb` | 108 | wall | corridors, all rooms | first aid pack, red cross panel, status light |
+| `prop_handhold.glb` | 132 | wall | corridors | grab bar knocked off a wall |
+| `prop_crate.glb` | 240 | floating | corridors | ribbed supply crate, corner cage, hazard edge |
+| `prop_crate_large.glb` | 240 | floating | corridors | pallet-sized box with a lid seam and catches |
+| `prop_debris.glb` | 120 | floating | corridors | torn-off hull panel, bent ribs, cut cable |
+| `prop_ration.glb` | 60 | floating | corridors | sealed food pouch |
+| `prop_canister.glb` | 500 | equipment | life support, laboratory, EVA airlock | pressure cylinder, valve under a collar cage |
+| `prop_drum.glb` | 260 | equipment | life support | fluid drum with rolling hoops and bung caps |
+| `prop_toolbox.glb` | 96 | equipment | control room, power plant, gym | hinged case, carry handle, charge LED |
+| `prop_power_cell.glb` | 156 | equipment | power plant, server room | finned battery pack with charge LEDs |
+| `prop_helmet.glb` | 532 | equipment | EVA airlock, observation deck | EVA helmet, tinted visor, neck ring, lamp |
+| `prop_slate.glb` | 72 | equipment | control, laboratory, observation, gym, server | crew tablet with a lit screen |
+
+About 2,900 triangles for the set. `scripts/station.gd` holds that classification in
+`PROP_CLASS`, with `WALL_CORRIDOR`, `WALL_ROOM`, `FLOATING` and `EQUIPMENT` (keyed by room
+type) saying where each class is drawn from. Every prop gets a box collider either way, so a prop is also something you can grab and
+pull yourself along by — which is the whole point of the wall attachments.
 
 They are built by `tools/build_props.py`, which is self-contained — pure Python, no Blender and no
 third-party modules:
