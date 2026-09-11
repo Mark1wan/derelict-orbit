@@ -178,6 +178,15 @@ const PROP_CLASS := {
 	"prop_extinguisher": "wall",
 	"prop_medkit": "wall",
 	"prop_handhold": "wall",
+	"prop_ladder": "wall",
+	"prop_grab_loop": "wall",
+	"prop_foot_restraint": "wall",
+	"prop_valve": "wall",
+	"prop_locker": "wall",
+	"prop_control_box": "wall",
+	"prop_cable_reel": "wall",
+	"prop_tool_rack": "wall",
+	"prop_hose_reel": "wall",
 	"prop_crate": "floating",
 	"prop_crate_large": "floating",
 	"prop_debris": "floating",
@@ -190,10 +199,27 @@ const PROP_CLASS := {
 	"prop_slate": "equipment",
 }
 
-## Wall attachments, split by where they belong. Grab bars are a corridor fitting; safety gear
-## hangs in both, next to the way out.
-const WALL_CORRIDOR := ["prop_handhold", "prop_extinguisher", "prop_medkit"]
-const WALL_ROOM := ["prop_extinguisher", "prop_medkit"]
+## Wall attachments, split by where they belong. Every one of these is a handhold before it is
+## anything else: in a station with no floor, a wall with nothing on it is a wall you cannot cross,
+## so the fittings are the furniture and the route at the same time.
+const WALL_CORRIDOR := ["prop_ladder", "prop_ladder", "prop_grab_loop", "prop_grab_loop",
+	"prop_handhold", "prop_handhold", "prop_foot_restraint", "prop_control_box",
+	"prop_extinguisher", "prop_medkit", "prop_cable_reel"]
+const WALL_ROOM := ["prop_locker", "prop_control_box", "prop_grab_loop", "prop_handhold",
+	"prop_extinguisher", "prop_medkit", "prop_tool_rack", "prop_foot_restraint"]
+
+## Fittings that belong to particular work: the valve where there is something to shut off, the
+## tool rack where something is maintained, the hose where something can burn.
+const WALL_BY_ROOM := {
+	"power": ["prop_valve", "prop_tool_rack", "prop_hose_reel", "prop_control_box"],
+	"plant": ["prop_valve", "prop_valve", "prop_hose_reel", "prop_cable_reel"],
+	"control": ["prop_control_box", "prop_locker", "prop_tool_rack"],
+	"laboratory": ["prop_hose_reel", "prop_locker", "prop_control_box", "prop_valve"],
+	"observation": ["prop_grab_loop", "prop_handhold", "prop_locker"],
+	"exercise": ["prop_foot_restraint", "prop_foot_restraint", "prop_grab_loop", "prop_handhold"],
+	"server": ["prop_tool_rack", "prop_control_box", "prop_cable_reel", "prop_hose_reel"],
+	"eva": ["prop_locker", "prop_tool_rack", "prop_valve", "prop_cable_reel", "prop_ladder"],
+}
 
 ## The loose stuff that has drifted out of somebody's hands and never been collected.
 const FLOATING := ["prop_crate", "prop_crate_large", "prop_debris", "prop_ration"]
@@ -213,6 +239,7 @@ const EQUIPMENT := {
 ## Corridor pieces with both side walls intact - the ones a wall fitting can hang on.
 const PLAIN_CORRIDOR := {"corridor_straight": true, "corridor_door": true}
 
+const GRAB_MARGIN := 0.06   # how much fatter than the mesh a wall fitting's collider is
 const CORRIDOR_HW := 1.5    # interior half-width of a corridor cell
 const ROOM_HW := 5.5        # inner face of a room wall
 
@@ -233,17 +260,23 @@ func _place_props() -> void:
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
 		_prop(String(FLOATING[rng.randi() % FLOATING.size()]), p, rng)
 
-	# wall: bolted to a corridor side wall (only where the piece still has both side walls)
+	# wall: bolted to a corridor side wall (only where the piece still has both side walls). Two
+	# thirds of cells get something, and a third of those get a fitting on each side - a corridor
+	# you can cross hand over hand without letting go is the difference between a route and a gap
 	for c: Vector2i in straight:
 		var cell: Dictionary = layout.corridor[c]
-		if not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.35:
+		if not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.62:
 			continue
 		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
-		var side := 1.0 if rng.randf() < 0.5 else -1.0
-		# clear of the bulkhead frame at the middle of the cell
-		var along := rng.randf_range(0.7, 1.3) * (1.0 if rng.randf() < 0.5 else -1.0)
-		var local := Vector3(side * CORRIDOR_HW, rng.randf_range(0.9, 2.1), along)
-		_mount(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]), xf, local, Vector3(-side, 0, 0), Vector3(0, 0, 1))
+		var sides := [1.0 if rng.randf() < 0.5 else -1.0]
+		if rng.randf() < 0.33:
+			sides.append(-sides[0])
+		for side: float in sides:
+			# clear of the bulkhead frame at the middle of the cell
+			var along := rng.randf_range(0.7, 1.3) * (1.0 if rng.randf() < 0.5 else -1.0)
+			var local := Vector3(side * CORRIDOR_HW, rng.randf_range(0.8, 2.2), along)
+			_mount(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]), xf, local,
+				Vector3(-side, 0, 0), Vector3(0, 0, 1))
 
 	for r: Dictionary in layout.rooms:
 		var t: String = r["type"]
@@ -256,10 +289,20 @@ func _place_props() -> void:
 			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.8, 1.0), rng.randf_range(-1.1, 1.1))
 			_prop(String(pool[i]), xf * p, rng)
 
-		# wall: safety gear on the two side walls, flanking the door wall
+		# wall: two or three fittings on each side wall, plus a couple on the back wall. Half of
+		# them are drawn from what this room is actually for.
+		var trade: Array = WALL_BY_ROOM.get(t, WALL_ROOM)
 		for side: float in [-1.0, 1.0]:
-			var local := Vector3(side * ROOM_HW, rng.randf_range(1.1, 2.3), rng.randf_range(-3.0, 3.0))
-			_mount(String(WALL_ROOM[rng.randi() % WALL_ROOM.size()]), xf, local, Vector3(-side, 0, 0), Vector3(0, 0, 1))
+			for i in 2 + (1 if rng.randf() < 0.5 else 0):
+				var pool: Array = trade if rng.randf() < 0.5 else WALL_ROOM
+				var local := Vector3(side * ROOM_HW, rng.randf_range(0.9, 2.6), rng.randf_range(-3.4, 3.4))
+				_mount(String(pool[rng.randi() % pool.size()]), xf, local,
+					Vector3(-side, 0, 0), Vector3(0, 0, 1))
+		for i in 2:
+			var pool: Array = trade if rng.randf() < 0.6 else WALL_ROOM
+			var local := Vector3(rng.randf_range(-3.4, 3.4), rng.randf_range(0.9, 2.6), ROOM_HW)
+			_mount(String(pool[rng.randi() % pool.size()]), xf, local,
+				Vector3(0, 0, -1), Vector3(1, 0, 0))
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -463,12 +506,17 @@ func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tan
 	root.add_child(mi)
 	mi.transform = Transform3D(Basis(up.cross(fwd), up, fwd), xf * local)
 
+	# Every wall fitting is grabbable, and deliberately forgiving about it: the collider is the
+	# piece's box plus a 6 cm margin, so a hand that comes near a rail or a strap catches it rather
+	# than passing through the gap in the middle of it. The player's grab is a 0.18 m sphere against
+	# layer 1 (see player.gd), which is the same layer the hull is on - so grabbing a fitting and
+	# grabbing the wall behind it feel identical, which is the point.
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = aabb.size
+	shape.size = aabb.size + Vector3.ONE * GRAB_MARGIN
 	cs.shape = shape
 	cs.position = aabb.get_center()
 	body.add_child(cs)

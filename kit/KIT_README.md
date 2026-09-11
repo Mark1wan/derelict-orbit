@@ -73,14 +73,30 @@ Every prop is filed under one of three **classes**, which is what decides how th
 - **wall** — bolted flush to a wall surface, upright on its mount. It does not tumble and the
   haunting cannot shove it. Because the deck's cells are rolled about their axis, "wall" means
   whichever surface the cell's roll has turned into one.
+
+  **Every wall fitting is a handhold.** In a station with no floor a bare wall is a wall you
+  cannot cross, so these are the furniture and the route at the same time - and the collider is
+  the piece's box plus a 6 cm margin (`Station.GRAB_MARGIN`), so a hand that comes near a rail or
+  a strap catches it instead of passing through the gap in the middle. They sit on collision layer
+  1, the same layer as the hull, so grabbing a fitting and grabbing the wall behind it feel
+  identical.
 - **floating** — loose in the corridors: tumbling, drifting, shoveable.
 - **equipment** — floating too, but kept in the work area of the room type it belongs to.
 
 | File | Tris | Class | Room | Notes |
 |---|---|---|---|---|
-| `prop_extinguisher.glb` | 344 | wall | corridors, all rooms | fire bottle, squeeze handle, hose |
+| `prop_ladder.glb` | 308 | wall | corridors, EVA airlock | rail run with four rungs |
+| `prop_grab_loop.glb` | 216 | wall | corridors, all rooms | webbing loop off two anchor plates |
+| `prop_foot_restraint.glb` | 120 | wall | corridors, gym | two angled loops to hook your boots under |
+| `prop_handhold.glb` | 132 | wall | corridors, all rooms | plain grab bar |
+| `prop_valve.glb` | 436 | wall | power, life support, lab, EVA | pipe elbow and a wheel - nothing grabs better |
+| `prop_locker.glb` | 140 | wall | all rooms | shallow locker with a bar handle across it |
+| `prop_control_box.glb` | 152 | wall | corridors, all rooms | junction box, lever, lamps, a little screen |
+| `prop_cable_reel.glb` | 256 | wall | corridors, life support, server | hose coiled on a drum, nozzle hanging off it |
+| `prop_hose_reel.glb` | 272 | wall | power, life support, lab, server | fire hose, with a grab bar across the recess |
+| `prop_tool_rack.glb` | 176 | wall | power, control, server, EVA | clipped tools, one of them missing |
+| `prop_extinguisher.glb` | 328 | wall | corridors, all rooms | bottle in bracket straps, lying along the wall |
 | `prop_medkit.glb` | 108 | wall | corridors, all rooms | first aid pack, red cross panel, status light |
-| `prop_handhold.glb` | 132 | wall | corridors | grab bar knocked off a wall |
 | `prop_crate.glb` | 240 | floating | corridors | ribbed supply crate, corner cage, hazard edge |
 | `prop_crate_large.glb` | 240 | floating | corridors | pallet-sized box with a lid seam and catches |
 | `prop_debris.glb` | 120 | floating | corridors | torn-off hull panel, bent ribs, cut cable |
@@ -92,9 +108,14 @@ Every prop is filed under one of three **classes**, which is what decides how th
 | `prop_helmet.glb` | 532 | equipment | EVA airlock, observation deck | EVA helmet, tinted visor, neck ring, lamp |
 | `prop_slate.glb` | 72 | equipment | control, laboratory, observation, gym, server | crew tablet with a lit screen |
 
-About 2,900 triangles for the set. `scripts/station.gd` holds that classification in
-`PROP_CLASS`, with `WALL_CORRIDOR`, `WALL_ROOM`, `FLOATING` and `EQUIPMENT` (keyed by room
-type) saying where each class is drawn from. Every prop gets a box collider either way, so a prop is also something you can grab and
+![the wall fittings](../docs/props_wall.png)
+
+About 4,900 triangles for the set. `scripts/station.gd` holds that classification in
+`PROP_CLASS`, with `WALL_CORRIDOR`, `WALL_ROOM`, `WALL_BY_ROOM`, `FLOATING` and `EQUIPMENT`
+saying where each class is drawn from. Two thirds of straight corridor cells get a fitting and a
+third of those get one on each side; rooms get two or three on each side wall plus a couple on the
+back wall, half of them drawn from what that room is actually for - valves where there is
+something to shut off, tool racks where something is maintained, hoses where something can burn. Every prop gets a box collider either way, so a prop is also something you can grab and
 pull yourself along by — which is the whole point of the wall attachments.
 
 They are built by `tools/build_props.py`, which is self-contained — pure Python, no Blender and no
