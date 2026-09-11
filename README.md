@@ -74,7 +74,11 @@ scripts/tex.gd         procedural textures: riveted plating + normal maps, grati
 scripts/interactable.gd  wall terminal (hold-to-complete)
 scripts/haunt_manager.gd daytime events + night stalker spawning
 scripts/shadow_figure.gd / stalker.gd  the apparitions
+scripts/creature.gd    the night stalker's body: a posable rig built from kit/creature_rig.json -
+                       belly-up crawl, contortions, upright when immobile (see docs/CREATURE.md)
 tools/build_props.py   builds kit/prop_*.glb (pure Python glTF writer in tools/proplib.py, no Blender)
+tools/build_creature.py builds kit/creature_rig.json + the reference renders in docs/
+docs/CREATURE.md       the night stalker: anatomy, poses, how to change it
 audio/*.wav            all synthesised by tools/gen_audio.py (numpy) - no third-party assets
 build/web/             the exported WebXR build (index.html)
 ```
