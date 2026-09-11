@@ -1,0 +1,42 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/station.gd" id="2_station"]
+[ext_resource type="Script" path="res://scripts/haunt_manager.gd" id="3_haunt"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="4_player"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_body"]
+radius = 0.3
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Station" type="Node3D" parent="."]
+script = ExtResource("2_station")
+
+[node name="Haunt" type="Node3D" parent="."]
+script = ExtResource("3_haunt")
+
+[node name="Player" type="CharacterBody3D" parent="."]
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("4_player")
+
+[node name="BodyShape" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape3D_body")
+
+[node name="XROrigin3D" type="XROrigin3D" parent="Player"]
+
+[node name="XRCamera3D" type="XRCamera3D" parent="Player/XROrigin3D"]
+near = 0.05
+far = 240.0
+
+[node name="LeftHand" type="XRController3D" parent="Player/XROrigin3D"]
+tracker = &"left_hand"
+
+[node name="RightHand" type="XRController3D" parent="Player/XROrigin3D"]
+tracker = &"right_hand"
+
+[node name="UI" type="CanvasLayer" parent="."]
