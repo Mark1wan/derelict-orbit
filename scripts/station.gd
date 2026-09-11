@@ -604,6 +604,13 @@ func task_pool() -> Array:
 func layout_label() -> String:
 	return "%04d" % layout.seed_
 
+## The room's own frame - its floor, its walls, whichever way the deck plan rolled it. A ritual
+## circle laid in here lands on that room's floor even when the roll has turned the floor into a
+## wall, which is the right answer in a station with no gravity.
+func room_transform(i: int) -> Transform3D:
+	var r: Dictionary = layout.rooms[i % layout.rooms.size()]
+	return Kit.cell_transform(r["center"], r["rot"], r["roll"])
+
 func room_center(i: int) -> Vector3:
 	return StationLayout.world(layout.rooms[i % layout.rooms.size()]["center"], NAV_Y)
 

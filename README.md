@@ -80,6 +80,8 @@ scripts/ghoul.gd       the ghul: wears a crew member down a corridor to draw you
                        unlit until it stops pretending (docs/APPARITIONS.md)
 scripts/fae.gd         the Good Neighbours: thirteen wisps envelop a loose prop, carry it, and
                        throw it across the corridor - and half the time you never see the lights
+scripts/ritual.gd      night only: one room lit by nine candles, a circle of glyphs, and somebody
+                       seated in it - and it all stops the moment you walk in
 scripts/stalker.gd     the night stalker
 scripts/creature.gd    posable creature rigs from kit/*_rig.json: the night stalker's belly-up
                        crawl and contortions (docs/CREATURE.md), and the chupacabra

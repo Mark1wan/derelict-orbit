@@ -163,6 +163,52 @@ which is the only reason you can see them at all.
 ![closer](fae_close.png)
 
 
+## The ritual
+
+![a doorway at the end of a dark deck](ritual_doorway.png)
+
+*Night. Main power has been dead for hours. One doorway is warm.*
+
+This one is not from anywhere in particular - it is the oldest shape in the genre and it belongs to
+everybody. A circle marked on the ground, lights round the edge of it, and a person sitting in the
+middle with their hands up, working.
+
+It appears **only at night**, once, in a room you are not waking up in and the stalker is not
+starting in. Nothing announces it. Either at some point tonight you see warm light coming out of a
+doorway on a deck where nothing has been warm since the power failed, or you do not.
+
+![inside](ritual_room.png)
+
+Nine candles on the circle, twelve glyphs round its rim, and somebody seated inside it: legs
+folded, back straight, head bowed, both arms up and out. The figure is the same smoke as the rest
+of the suite, but lit from below by its own candles rather than being a hole in the dark - warmer,
+and slightly more solid than the vulto, holding a real human posture.
+
+It never looks up. **It is the only apparition here that never once acknowledges that you exist.**
+
+### What happens when you go in
+
+![it stops](ritual_snuff.png)
+
+Nothing gutters and nothing flees. At 3.4 m it all **stops** - candles, glyphs, light, and whoever
+was sitting there - in about a fifth of a second, and the room is a dark room with nothing in it.
+No wax, no marks, no smoke afterwards, and nothing to interact with. If you leave and come back it
+is not there either; there is one a night.
+
+### How it is put together
+
+The figure and the flames are a normal apparition rig (`kit/apparition_ritual.json`, 35 puffs and
+9 embers keyed `flame`), so `form` takes the whole thing out at once. Everything else is real
+geometry, because these are marks on a surface rather than smoke: `scripts/ritual.gd` builds the
+scored ring, the twelve glyphs and the nine wax stubs with `Geo`, and hangs one warm `OmniLight3D`
+in the middle of it on two flicker rates so it never settles into a pulse. That light is the part
+that reaches down the corridor and gets you to walk over.
+
+It is laid in the **room's own frame** - `Station.room_transform()` - so when the deck generator
+has rolled that room ninety degrees, the circle is on what is now the wall, with somebody sitting
+on it. In a station with no gravity that is not a bug in the ritual.
+
+
 ## Cost
 
 Two draw calls per apparition however many puffs it has - the swarm's 192 included: one `MultiMesh`
@@ -180,10 +226,12 @@ a hash-based value noise and shared. No particle system, no shader.
 | `kit/apparition_corridor.json` | the vulto: 47 puffs, 2 embers |
 | `kit/apparition_ghoul.json` | the ghul: 62 puffs (8 of them hooves), 2 embers, all of it morphing |
 | `kit/apparition_fae.json` | the swarm: 192 puffs, 13 wisps, 13 little bodies hanging off them |
+| `kit/apparition_ritual.json` | the seated figure: 35 puffs, 9 candle flames |
 | `scripts/apparition.gd` | builds and animates any of them - one class, one JSON per figure |
 | `scripts/shadow_figure.gd` | the two vulto events (crossing, watching) |
 | `scripts/ghoul.gd` | the lure |
 | `scripts/fae.gd` | the swarm: takes a prop, carries it, throws it |
+| `scripts/ritual.gd` | the circle, the candles, the light, and the stop |
 
     python3 tools/build_apparition.py
 
@@ -205,4 +253,4 @@ itself does not care which figure it is building. Candidates, none built yet:
 - **The crowd** - several vultos at the far end of a long corridor, standing in a line, all of
   them dispersing at once when the lights come back.
 
-Three built: the vulto, the ghul, the Good Neighbours.
+Four built: the vulto, the ghul, the Good Neighbours, and the ritual.

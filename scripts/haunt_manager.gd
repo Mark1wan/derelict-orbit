@@ -12,6 +12,7 @@ extends Node3D
 
 var next_event := 6.0
 var watcher: ShadowFigure = null
+var ritual: Ritual = null
 var stalker: Stalker = null
 var _flickering := false
 
@@ -315,6 +316,29 @@ func _start_night() -> void:
 	stalker.caught.connect(_on_caught)
 	next_event = randf_range(12.0, 25.0)
 	Sfx.play("powerdown", -2.0)
+	_place_ritual()
+
+## Once a night, in a room you are not waking up in and the stalker is not starting in, somebody is
+## sitting in a circle of candles. Nothing announces it: either you see warm light coming out of a
+## doorway at some point tonight, or you do not.
+func _place_ritual() -> void:
+	if Game.intensity() < 2.0:
+		return
+	var st: Station = Game.station
+	var count: int = st.layout.rooms.size()
+	if count < 3:
+		return
+	var choices := []
+	for i in count:
+		if i == st.wake_room or i == st.stalker_room or i == 0:
+			continue          # not where you wake, not where it starts, never the power plant
+		choices.append(i)
+	if choices.is_empty():
+		return
+	ritual = Ritual.new()
+	add_child(ritual)
+	# laid on that room's floor in the room's own frame, so a rolled room gets it on the wall
+	ritual.global_transform = st.room_transform(choices.pick_random()).translated_local(Vector3(0, 0.02, 0))
 
 func _night_tick(delta: float) -> void:
 	next_event -= delta
@@ -329,6 +353,9 @@ func _end_night() -> void:
 	if is_instance_valid(stalker):
 		stalker.queue_free()
 	stalker = null
+	if is_instance_valid(ritual):
+		ritual.queue_free()
+	ritual = null
 	Sfx.set_heartbeat(false)
 
 func _on_caught() -> void:

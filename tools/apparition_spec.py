@@ -385,4 +385,77 @@ def fae_figure(seed=13, count=13, shell=0.42):
     return f
 
 
-FIGURES = {"corridor": corridor_figure, "ghoul": ghoul_figure, "fae": fae_figure}
+# ------------------------------------------------------------------ the ritual
+def ritual_figure(seed=23, candles=9, ring=1.15):
+    """Someone seated inside a ring of candles, doing something they should not be doing.
+
+    This one is not folklore from anywhere in particular - it is the oldest shape in the genre and
+    it belongs to everybody: a circle marked on the ground, lights round the edge of it, and a
+    person sitting in the middle with their hands up, working. It only happens at night, with the
+    station's main power dead, in one room, and the way you find it is that a doorway down the
+    corridor is glowing warm when nothing on this deck has been warm for hours.
+
+    The figure is smoke like the rest of the suite, but lit from below by its own candles rather
+    than being a hole in the dark - so it is warmer and slightly more solid than the vulto, and it
+    holds a real human posture: legs folded, back straight, head bowed, both arms up and out.
+
+    The embers are the candle flames, on the circle at `ring` metres, and there are nine of them.
+    `form` takes the whole thing out at once - the candles do not gutter one by one, they stop.
+    """
+    f = Figure(
+        "ritual",
+        core=[0.024, 0.019, 0.016],      # warmer than the vulto: it is sitting in its own light
+        haze=[0.115, 0.075, 0.050],
+        embers_by_key={"flame": [1.0, 0.52, 0.16]},
+        plateau=0.3,
+    )
+    rng = random.Random(seed)
+
+    def j(x, y, z, s):
+        return (x + rng.uniform(-s, s), y + rng.uniform(-s, s), z + rng.uniform(-s, s))
+
+    # folded legs: a wide low mass it is sitting on, which is most of the silhouette from a way off
+    for a, r, al in [(-0.30, 0.30, 0.93), (0.0, 0.34, 0.95), (0.30, 0.30, 0.93)]:
+        f.puff(j(a, 0.20, 0.06, 0.03), r, al, drift=0.012, spin=0.15)
+    f.puff(j(0, 0.16, -0.16, 0.03), 0.30, 0.9, drift=0.012, spin=0.15)
+
+    # torso, upright and still - the stillness is most of what is wrong with it
+    for i, (y, r, al) in enumerate([(0.45, 0.30, 0.96), (0.58, 0.29, 0.96), (0.71, 0.28, 0.95),
+                                    (0.84, 0.27, 0.94)]):
+        f.puff(j(0, y, 0, 0.02), r, al, drift=0.014 + i * 0.004, spin=0.2)
+
+    # shoulders, then the head bowed forward over the work
+    for sx in (-1, 1):
+        f.puff(j(sx * 0.22, 0.95, 0, 0.02), 0.24, 0.95, drift=0.018, spin=0.25)
+    f.puff(j(0, 1.06, -0.06, 0.02), 0.22, 0.96, drift=0.016, spin=0.2)
+    f.puff(j(0, 1.13, -0.10, 0.02), 0.20, 0.93, drift=0.018, spin=0.25)
+
+    # both arms up and out, hands open at the top - the only part of it that is doing anything
+    for sx in (-1, 1):
+        for i, (x, y) in enumerate([(0.30, 1.00), (0.40, 1.13), (0.47, 1.27), (0.50, 1.40)]):
+            f.puff(j(sx * x, y, 0.02, 0.02), 0.145 - i * 0.010, 0.92 - i * 0.05,
+                   drift=0.022 + i * 0.008, spin=0.35)
+        f.puff(j(sx * 0.52, 1.50, 0.02, 0.02), 0.105, 0.82, drift=0.04, spin=0.5)
+
+    # smoke going up off it, because something is burning that is not the candles
+    for i in range(9):
+        a = rng.uniform(0, math.tau)
+        rad = rng.uniform(0.05, 0.30)
+        f.puff((math.cos(a) * rad, rng.uniform(1.25, 2.20), math.sin(a) * rad),
+               rng.uniform(0.16, 0.30), rng.uniform(0.08, 0.20),
+               drift=rng.uniform(0.05, 0.12), spin=0.5, rise=rng.uniform(0.10, 0.22))
+
+    # haze: warm, and heaviest low down where the candlelight actually is
+    for y, r, al in [(0.25, 0.70, 0.14), (0.55, 0.62, 0.12), (0.85, 0.56, 0.10), (1.15, 0.48, 0.08)]:
+        f.puff(j(0, y, 0, 0.04), r, al, drift=0.04, spin=0.15, tint="haze")
+
+    # the candles: nine flames on the circle, each with its own uneven light
+    for i in range(candles):
+        a = i * math.tau / candles + rng.uniform(-0.05, 0.05)
+        f.ember((math.cos(a) * ring, 0.145, math.sin(a) * ring), rng.uniform(0.075, 0.105),
+                rng.uniform(0.8, 1.0), key="flame")
+    return f
+
+
+FIGURES = {"corridor": corridor_figure, "ghoul": ghoul_figure, "fae": fae_figure,
+           "ritual": ritual_figure}

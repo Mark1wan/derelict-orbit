@@ -12,6 +12,7 @@ fair picture of it rather than an illustration.
 import argparse
 import math
 import os
+import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +87,56 @@ def crate(rend, cam, pos, size=0.52, tumble=0.5):
         rend.triangle(cam, corners[a], corners[cc], corners[d], [0.30, 0.27, 0.20])
 
 
+def ritual_floor(rend, cam, origin=(0, 0, 0), radius=1.15, lit=1.0):
+    """The marks on the deck and the candle stubs - these are geometry in the game too
+    (scripts/ritual.gd builds them), not part of the smoke."""
+    ox, oy, oz = origin
+
+    def quad(a, b, c, d, col):
+        rend.triangle(cam, a, b, c, col)
+        rend.triangle(cam, a, c, d, col)
+
+    def mark(cx, cz, along, across, col):
+        """A flat scored mark on the deck, `along` by `across` metres."""
+        ax, az = along
+        bx, bz = across
+        quad((ox + cx - ax - bx, oy + 0.006, oz + cz - az - bz),
+             (ox + cx + ax - bx, oy + 0.006, oz + cz + az - bz),
+             (ox + cx + ax + bx, oy + 0.006, oz + cz + az + bz),
+             (ox + cx - ax + bx, oy + 0.006, oz + cz - az + bz), col)
+
+    glyph = [0.62 * lit, 0.26 * lit, 0.07 * lit]
+    seg = 72
+    for i in range(seg):
+        if i % 3 == 2:
+            continue
+        a = i * math.tau / seg
+        mark(math.cos(a) * radius, math.sin(a) * radius, (0.038, 0.0), (0.0, 0.038), glyph)
+    rng = random.Random(990417)
+    for i in range(12):
+        a = i * math.tau / 12.0
+        ux, uz = math.cos(a), math.sin(a)
+        sx, sz = -math.sin(a), math.cos(a)
+        bx, bz = ux * (radius + 0.30), uz * (radius + 0.30)
+        mark(bx, bz, (ux * 0.13, uz * 0.13), (sx * 0.011, sz * 0.011), glyph)
+        for k in range(rng.randint(2, 3)):
+            t = -0.09 + k * 0.075
+            w = rng.uniform(0.045, 0.085)
+            mark(bx + ux * t, bz + uz * t, (ux * 0.010, uz * 0.010), (sx * w, sz * w), glyph)
+    # the candles themselves: nine stubs of wax, lit from their own flames
+    for i in range(9):
+        a = i * math.tau / 9.0
+        cx, cz = math.cos(a) * radius, math.sin(a) * radius
+        h = 0.12
+        for face in ((0.028, 0.0), (-0.028, 0.0), (0.0, 0.028), (0.0, -0.028)):
+            fx, fz = face
+            quad((ox + cx + fx - fz, oy, oz + cz + fz + fx),
+                 (ox + cx + fx + fz, oy, oz + cz + fz - fx),
+                 (ox + cx + fx + fz, oy + h, oz + cz + fz - fx),
+                 (ox + cx + fx - fz, oy + h, oz + cz + fz + fx),
+                 [0.30 * lit, 0.24 * lit, 0.17 * lit])
+
+
 def splat(rend, cam, center, radius, alpha, color, tex, additive=False):
     """One camera-facing puff, alpha-composited. Godot does this with a billboarded quad."""
     pr = cam.project(center, rend.w, rend.h)
@@ -116,6 +167,36 @@ def splat(rend, cam, center, radius, alpha, color, tex, additive=False):
                 row[px] = tuple(min(255, int(old[i] + 255 * color[i] * a)) for i in range(3))
             else:
                 row[px] = tuple(int(old[i] * (1 - a) + 255 * color[i] * a) for i in range(3))
+
+
+def room(rend, cam, half=5.5, height=3.6, door_w=1.5, z_near=0.0, lit=0.0, centre=(0, 0, -6.0)):
+    """A room seen through its doorway: the near wall has a gap in it and everything inside is
+    only as bright as whatever is burning in there."""
+    cx, cy, cz = centre
+    floor = [0.030 + 0.075 * lit, 0.022 + 0.042 * lit, 0.016 + 0.020 * lit]
+    wall_c = [0.026 + 0.055 * lit, 0.020 + 0.030 * lit, 0.016 + 0.016 * lit]
+    step = 0.55
+    n = int(half * 2 / step)
+    for i in range(n):
+        for j in range(n):
+            x0, z0 = cx - half + i * step, cz - half + j * step
+            x1, z1 = x0 + step, z0 + step
+            f = max(0.25, 1.0 - (abs(x0) + abs(z0 - cz)) * 0.10)     # falls off from the middle
+            col = [c * f for c in floor]
+            rend.triangle(cam, (x0, 0, z0), (x1, 0, z0), (x1, 0, z1), col)
+            rend.triangle(cam, (x0, 0, z0), (x1, 0, z1), (x0, 0, z1), col)
+    for x0, x1 in ((cx - half, -door_w), (door_w, cx + half)):       # the near wall, with the gap
+        rend.triangle(cam, (x0, 0, z_near), (x1, 0, z_near), (x1, height, z_near), wall_c)
+        rend.triangle(cam, (x0, 0, z_near), (x1, height, z_near), (x0, height, z_near), wall_c)
+    rend.triangle(cam, (-door_w, 2.6, z_near), (door_w, 2.6, z_near), (door_w, height, z_near), wall_c)
+    rend.triangle(cam, (-door_w, 2.6, z_near), (door_w, height, z_near), (-door_w, height, z_near), wall_c)
+    far = [c * 0.7 for c in wall_c]
+    rend.triangle(cam, (cx - half, 0, cz - half), (cx + half, 0, cz - half), (cx + half, height, cz - half), far)
+    rend.triangle(cam, (cx - half, 0, cz - half), (cx + half, height, cz - half), (cx - half, height, cz - half), far)
+    for sx in (-1, 1):
+        x = cx + sx * half
+        rend.triangle(cam, (x, 0, cz - half), (x, 0, z_near), (x, height, z_near), far)
+        rend.triangle(cam, (x, 0, cz - half), (x, height, z_near), (x, height, cz - half), far)
 
 
 def draw(rend, cam, fig, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, lean=0.0,
@@ -263,6 +344,41 @@ def main():
             rend.color[y][i * 310] = (30, 30, 34)
     rend.save(os.path.join(o, "fae_throw.png"))
     print(os.path.join(o, "fae_throw.png"))
+
+    # the ritual: a lit room at the end of a dark deck, and what stops when you walk in
+    rit = spec.ritual_figure()
+
+    def lit_room(path, w, h, eye, target, fov, lit, form, t, ember=1.0):
+        rend = Renderer(w, h, (5, 5, 7))
+        cam = Camera(eye, target, fov=fov)
+        rend.scale = cam.scale
+        room(rend, cam, lit=lit)
+        if lit > 0.0:
+            ritual_floor(rend, cam, origin=(0, 0, -6.0), lit=lit)
+        if form > 0.0:
+            draw(rend, cam, rit, (0, 0, -6.0), form=form, t=t, ember=ember)
+        rend.save(path)
+        return path
+
+    print(lit_room(os.path.join(o, "ritual_doorway.png"), 900, 640, (0.35, 1.6, 7.4), (0, 1.15, -4.0),
+                   34, 1.0, 1.0, 3.0))
+    print(lit_room(os.path.join(o, "ritual_room.png"), 940, 640, (0.0, 1.55, 3.2), (0, 1.0, -6.0),
+                   40, 1.0, 1.0, 3.0))
+    rend = Renderer(1200, 620, (5, 5, 7))
+    for i, (lit, form, ember) in enumerate([(1.0, 1.0, 1.0), (0.45, 0.55, 0.35), (0.0, 0.0, 0.0)]):
+        sub = Renderer(400, 620, (5, 5, 7))
+        cam = Camera((0.0, 1.55, 3.0), (0, 1.0, -6.0), fov=40)
+        sub.scale = cam.scale
+        room(sub, cam, lit=lit)
+        if lit > 0.0:
+            ritual_floor(sub, cam, origin=(0, 0, -6.0), lit=lit)
+        if form > 0.0:
+            draw(sub, cam, rit, (0, 0, -6.0), form=form, t=3.0 + i * 0.15, ember=ember)
+        for y in range(620):
+            rend.color[y][i * 400:(i + 1) * 400] = sub.color[y]
+            rend.color[y][i * 400] = (26, 26, 30)
+    rend.save(os.path.join(o, "ritual_snuff.png"))
+    print(os.path.join(o, "ritual_snuff.png"))
 
 
 if __name__ == "__main__":
