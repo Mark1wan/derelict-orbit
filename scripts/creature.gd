@@ -8,8 +8,9 @@ class_name Creature
 ## runes painted over the hide. The hide is near black on purpose: it has to vanish in an unlit
 ## corridor and only resolve when your flashlight finds it.
 ##
-## Used by the night stalker. The daytime apparitions are something else entirely - smoke, not a
-## body: see Apparition.
+## Used by the night stalker and by the chupacabra - one class, one JSON per creature
+## (kit/*_rig.json). The daytime apparitions are something else entirely - smoke, not a body:
+## see Apparition.
 ##
 ## Movement: it does not animate, it *snaps*. Poses are held, then changed between frames, with a
 ## per-joint jitter on top - the look of something whose joints dislocate and reseat as it walks.
@@ -19,9 +20,17 @@ class_name Creature
 
 const RIG_PATH := "res://kit/creature_rig.json"
 
+## Which rig this is. Set it before the node enters the tree; the stalker is the default.
+var rig_path := RIG_PATH
+
 ## Poses it picks between while walking, and the odd broken frame it drops into mid-stride.
-const WALK_CYCLE := ["crawl_a", "crawl_b"]
-const BREAK_POSES := ["dislocate", "contort"]
+## The stalker's; another rig sets its own, or turns `autopose` off and drives set_pose() itself.
+var walk_cycle: Array = ["crawl_a", "crawl_b"]
+var break_poses: Array = ["dislocate", "contort"]
+var idle_pose := "upright"
+var twitch_pose := "freeze"
+## false: nothing picks poses on its own - whoever owns this creature is doing it.
+var autopose := true
 
 var moving := false                  ## walking (belly-up crawl) vs. immobile (stands upright)
 var glitch := 1.0                    ## 0 = still, 1 = normal, higher = more frequent contortions
@@ -50,24 +59,24 @@ static var _mat_cache: Dictionary = {}
 
 func _ready() -> void:
 	_rng.randomize()
-	_rig = _load_rig()
+	_rig = _load_rig(rig_path)
 	_build_materials()
 	_build_skeleton()
-	set_pose("upright", true)
+	set_pose(idle_pose, true)
 
-static func _load_rig() -> Dictionary:
-	if _cache.has(RIG_PATH):
-		return _cache[RIG_PATH]
-	var f := FileAccess.open(RIG_PATH, FileAccess.READ)
-	assert(f != null, "creature rig missing: " + RIG_PATH)
+static func _load_rig(path: String) -> Dictionary:
+	if _cache.has(path):
+		return _cache[path]
+	var f := FileAccess.open(path, FileAccess.READ)
+	assert(f != null, "creature rig missing: " + path)
 	var data: Dictionary = JSON.parse_string(f.get_as_text())
-	_cache[RIG_PATH] = data
+	_cache[path] = data
 	return data
 
 func _build_materials() -> void:
-	if not _mat_cache.is_empty():
-		_mats = _mat_cache
-		_eye_mat = _mats["eye"]
+	if _mat_cache.has(rig_path):
+		_mats = _mat_cache[rig_path]
+		_eye_mat = _mats.get("eye")
 		return
 	for key: String in _rig["materials"]:
 		var m: Dictionary = _rig["materials"][key]
@@ -82,8 +91,8 @@ func _build_materials() -> void:
 			mat.emission = Color(e[0], e[1], e[2]).clamp()
 			mat.emission_energy_multiplier = 1.0
 		_mats[key] = mat
-	_mat_cache = _mats
-	_eye_mat = _mats["eye"]
+	_mat_cache[rig_path] = _mats
+	_eye_mat = _mats.get("eye")
 
 ## One Node3D per bone, with every part on that bone merged into a single mesh (one surface per
 ## material). 29 nodes for the whole creature instead of 300-odd MeshInstance3Ds.
@@ -109,10 +118,11 @@ func _build_skeleton() -> void:
 		_target[name] = Vector3.ZERO
 		var parts: Array = by_bone.get(name, [])
 		if not parts.is_empty():
-			if not _mesh_cache.has(name):
-				_mesh_cache[name] = _merge(parts)
+			var key := "%s/%s" % [rig_path, name]
+			if not _mesh_cache.has(key):
+				_mesh_cache[key] = _merge(parts)
 			var mi := MeshInstance3D.new()
-			mi.mesh = _mesh_cache[name]
+			mi.mesh = _mesh_cache[key]
 			mi.name = "%s_mesh" % name
 			node.add_child(mi)
 
@@ -201,7 +211,7 @@ func _apply() -> void:
 
 func _process(delta: float) -> void:
 	_timer += delta
-	if _timer >= _hold:
+	if autopose and _timer >= _hold:
 		_timer = 0.0
 		_next_pose()
 	# joints ease toward the pose, but only most of the way - the last of it is never resolved,
@@ -220,18 +230,18 @@ func _process(delta: float) -> void:
 func _next_pose() -> void:
 	if moving:
 		if glitch > 0.0 and _rng.randf() < 0.18 * glitch:
-			set_pose(BREAK_POSES[_rng.randi() % BREAK_POSES.size()], true)
+			set_pose(String(break_poses[_rng.randi() % break_poses.size()]), true)
 			_hold = _rng.randf_range(0.08, 0.22)
 			return
-		_cycle = (_cycle + 1) % WALK_CYCLE.size()
-		set_pose(WALK_CYCLE[_cycle], true)
+		_cycle = (_cycle + 1) % walk_cycle.size()
+		set_pose(String(walk_cycle[_cycle]), true)
 		_hold = step_time * _rng.randf_range(0.8, 1.2)
 	else:
 		if glitch > 0.0 and _rng.randf() < 0.25 * glitch:
-			set_pose("freeze", true)
+			set_pose(twitch_pose, true)
 			_hold = _rng.randf_range(0.1, 0.5)
 		else:
-			set_pose("upright")
+			set_pose(idle_pose)
 			_hold = _rng.randf_range(0.7, 2.2)
 
 ## The jumpscare shape, held.
@@ -241,6 +251,8 @@ func lunge_pose() -> void:
 
 ## Eyes only catch the light from the second night on.
 func set_eye_glow(energy: float) -> void:
+	if _eye_mat == null:
+		return
 	_eye_mat.emission_energy_multiplier = energy
 	_eye_mat.albedo_color = Color(0.4, 0.04, 0.02) * clampf(energy, 0.2, 1.0)
 

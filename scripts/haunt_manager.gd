@@ -63,7 +63,7 @@ func _fire_day_event(I: float) -> void:
 	if I >= 2.0:
 		options.append_array(["flicker", "flicker", "thrown", "thrown"])
 	if I >= 3.0:
-		options.append_array(["whisper", "watcher", "shadow", "ghoul"])
+		options.append_array(["whisper", "watcher", "shadow", "ghoul", "chupacabra"])
 	if I >= 4.0:
 		options.append("drift")
 	if I >= 5.0:
@@ -92,6 +92,9 @@ func _fire_day_event(I: float) -> void:
 				_whisper()
 		"thrown":
 			if not _fae():
+				_bang()
+		"chupacabra":
+			if not _chupacabra():
 				_bang()
 		"drift":
 			Game.station.shove_props(0.8)
@@ -205,7 +208,7 @@ func _update_watcher(delta: float) -> void:
 
 func _clear_figures() -> void:
 	for c in get_children():
-		if c is ShadowFigure or c is Ghoul or c is Fae:
+		if c is ShadowFigure or c is Ghoul or c is Fae or c is Chupacabra:
 			c.queue_free()
 	watcher = null
 
@@ -237,6 +240,28 @@ func _fae() -> bool:
 		return false
 	if f.seen:
 		Sfx.play_at("beep", f.global_position, -18.0, 26.0, 1.9)
+	return true
+
+## The chupacabra: found crouched over something that holds pressure, with its head down. Wants a
+## loose prop the player can see, and enough distance that they get a moment to work out what they
+## are looking at before it goes.
+func _chupacabra() -> bool:
+	for c in get_children():
+		if c is Chupacabra:
+			return false
+	var st: Station = Game.station
+	var cam: Camera3D = Game.player.camera
+	var eye := cam.global_position
+	var fwd := -cam.global_transform.basis.z
+	var target := eye + fwd * randf_range(7.0, 11.0)
+	var index := st.find_prop_near(target, 6.0, eye)
+	if index < 0:
+		return false
+	var c := Chupacabra.new()
+	add_child(c)
+	if not c.feed_on(index, eye):
+		c.queue_free()
+		return false
 	return true
 
 ## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.

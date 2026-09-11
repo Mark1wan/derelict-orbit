@@ -14,23 +14,23 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import creature_spec as spec
-from render3d import Camera, Renderer, ident, mat_mul, translate, euler, xform
+import creature_spec
+from render3d import Camera, Renderer, mat_mul, translate, euler, xform
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def bone_transforms(pose):
-    """World transform of every bone for a pose."""
-    bones = {n: (p, o) for n, p, o in spec.BONES}
-    order = [n for n, _, _ in spec.BONES]
+def bone_transforms(rig, pose):
+    """World transform of every bone for a pose. `rig` is a spec dict (see tools/riglib.py)."""
+    bones = {b["name"]: (b["parent"], b["offset"]) for b in rig["bones"]}
+    order = [b["name"] for b in rig["bones"]]
     rot = pose["bones"] if pose else {}
     root_pos = pose["root_pos"] if pose else [0, 0, 0]
     out = {}
     for name in order:
         parent, offset = bones[name]
         local = mat_mul(translate(offset), euler(rot.get(name, [0, 0, 0])))
-        if name == "root":
+        if not parent:
             local = mat_mul(translate(root_pos), local)
         out[name] = local if not parent else mat_mul(out[parent], local)
     return out
@@ -86,6 +86,19 @@ def part_triangles(part, m):
     return [tuple(xform(m, p) for p in t) for t in tris]
 
 
+def wall(rend, cam, x=0.45, half=1.6, step=0.4):
+    """A vertical surface, for the poses that are not standing on anything."""
+    n = int(half * 2 / step)
+    for i in range(n):
+        for j in range(n):
+            y0, z0 = i * step, -half + j * step
+            y1, z1 = y0 + step, z0 + step
+            shade = 0.034 if (i + j) % 2 else 0.050
+            a, b, c, d = (x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)
+            rend.triangle(cam, a, b, c, [shade] * 3)
+            rend.triangle(cam, a, c, d, [shade] * 3)
+
+
 def ground(rend, cam, half=3.0, step=0.5):
     """A dim checker floor - without a contact shadow you cannot tell a crouch from a hover."""
     n = int(half * 2 / step)
@@ -99,25 +112,48 @@ def ground(rend, cam, half=3.0, step=0.5):
             rend.triangle(cam, a, c, d, [shade] * 3)
 
 
-def draw(rend, cam, pose_name):
-    pose = spec.POSES[pose_name]
-    xf = bone_transforms(pose)
-    for part in spec.PARTS:
-        mat = spec.MATERIALS[part["mat"]]
+def draw(rend, cam, pose_name, rig=None, root_rot=None, root_pos=(0, 0, 0)):
+    """`root_rot` turns the whole model - for showing a wall-clinger on a wall rather than
+    standing on the floor pretending."""
+    rig = rig or creature_spec.spec()
+    pose = rig["poses"][pose_name]
+    xf = bone_transforms(rig, pose)
+    if root_rot or root_pos != (0, 0, 0):
+        world = mat_mul(translate(root_pos), euler(root_rot or [0, 0, 0]))
+        xf = {k: mat_mul(world, v) for k, v in xf.items()}
+    for part in rig["parts"]:
+        mat = rig["materials"][part["mat"]]
         for tri in part_triangles(part, xf[part["bone"]]):
             rend.triangle(cam, tri[0], tri[1], tri[2], mat["albedo"], mat["emission"])
 
 
-def render(pose_name, w, h, eye, target, fov, path, bg=(9, 9, 11)):
+def prop_box(rend, cam, pos, size=(0.26, 0.26, 0.26), color=(0.135, 0.125, 0.100)):
+    """A stand-in for whatever it has got its face in - one of the kit's canisters or crates."""
+    hx, hy, hz = (v / 2 for v in size)
+    c = [(pos[0] + x * hx, pos[1] + y * hy, pos[2] + z * hz)
+         for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
+    for a, b, cc, d in [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]:
+        rend.triangle(cam, c[a], c[b], c[cc], list(color))
+        rend.triangle(cam, c[a], c[cc], c[d], list(color))
+
+
+def render(pose_name, w, h, eye, target, fov, path, bg=(9, 9, 11), rig=None, root_rot=None,
+           root_pos=(0, 0, 0), surface="floor", prop=None):
     rend = Renderer(w, h, bg)
     cam = Camera(eye, target, fov=fov)
-    ground(rend, cam)
-    draw(rend, cam, pose_name)
+    if surface == "wall":
+        wall(rend, cam)
+    else:
+        ground(rend, cam)
+    if prop is not None:
+        prop_box(rend, cam, prop)
+    draw(rend, cam, pose_name, rig, root_rot, root_pos)
     rend.save(path)
     return path
 
 
-def sheet(names, path, w=440, h=520, cols=4, eye=(2.4, 1.25, -3.0), target=(0, 0.85, 0), fov=34.0):
+def sheet(names, path, w=440, h=520, cols=4, eye=(2.4, 1.25, -3.0), target=(0, 0.85, 0), fov=34.0,
+          rig=None):
     """Contact sheet: every pose from the same camera, so they can be compared."""
     rend = Renderer(w * cols, h * ((len(names) + cols - 1) // cols))
     for i, name in enumerate(names):
@@ -125,7 +161,7 @@ def sheet(names, path, w=440, h=520, cols=4, eye=(2.4, 1.25, -3.0), target=(0, 0
         sub = Renderer(w, h)
         cam = Camera(eye, target, fov=fov)
         ground(sub, cam)
-        draw(sub, cam, name)
+        draw(sub, cam, name, rig)
         for y in range(h):
             rend.color[row * h + y][col * w:(col + 1) * w] = sub.color[y]
         for y in range(h):      # divider
@@ -144,16 +180,27 @@ def main():
     ap.add_argument("--eye", type=float, nargs=3, default=[2.4, 1.25, -3.0])
     ap.add_argument("--target", type=float, nargs=3, default=[0, 0.85, 0])
     ap.add_argument("--fov", type=float, default=34.0)
+    ap.add_argument("--rig", default="creature", help="creature (the stalker) or chupacabra")
     args = ap.parse_args()
+
+    rig = creature_spec.spec()
+    order = ["upright", "crawl_a", "crawl_b", "dislocate", "contort", "freeze", "lunge", "coil"]
+    sheet_cam = {"eye": (2.4, 1.25, -3.0), "target": (0, 0.85, 0), "fov": 34.0}
+    if args.rig == "chupacabra":
+        import chupacabra_spec
+        rig = chupacabra_spec.spec()
+        order = chupacabra_spec.POSE_ORDER
+        sheet_cam = {"eye": (1.15, 0.60, -1.45), "target": (0, 0.30, 0), "fov": 36.0}
 
     docs = os.path.join(ROOT, "docs")
     os.makedirs(docs, exist_ok=True)
     if args.pose:
-        out = args.out or os.path.join(docs, "creature_%s.png" % args.pose)
-        print(render(args.pose, args.size[0], args.size[1], tuple(args.eye), tuple(args.target), args.fov, out))
+        out = args.out or os.path.join(docs, "%s_%s.png" % (args.rig, args.pose))
+        print(render(args.pose, args.size[0], args.size[1], tuple(args.eye), tuple(args.target),
+                     args.fov, out, rig=rig))
         return
-    order = ["upright", "crawl_a", "crawl_b", "dislocate", "contort", "freeze", "lunge", "coil"]
-    print(sheet(order, os.path.join(docs, "creature_poses.png")))
+    name = "creature_poses.png" if args.rig == "creature" else "%s_poses.png" % args.rig
+    print(sheet(order, os.path.join(docs, name), rig=rig, **sheet_cam))
 
 
 if __name__ == "__main__":
