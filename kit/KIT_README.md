@@ -80,8 +80,12 @@ Every prop is filed under one of three **classes**, which is what decides how th
   a strap catches it instead of passing through the gap in the middle. They sit on collision layer
   1, the same layer as the hull, so grabbing a fitting and grabbing the wall behind it feel
   identical.
+
+  They are also placed where there is genuinely room for them - see **Finding the bare wall** below.
 - **floating** — loose in the corridors: tumbling, drifting, shoveable.
-- **equipment** — floating too, but kept in the work area of the room type it belongs to.
+- **equipment** — floating too, but kept in the work area of the room type it belongs to, and kept
+  above about 1.6 m: benches, racks, capacitor towers and seating all live under that, and a
+  canister drifting through a console reads worse than no canister at all.
 
 | File | Tris | Class | Room | Notes |
 |---|---|---|---|---|
@@ -115,7 +119,43 @@ About 4,900 triangles for the set. `scripts/station.gd` holds that classificatio
 saying where each class is drawn from. Two thirds of straight corridor cells get a fitting and a
 third of those get one on each side; rooms get two or three on each side wall plus a couple on the
 back wall, half of them drawn from what that room is actually for - valves where there is
-something to shut off, tool racks where something is maintained, hoses where something can burn. Every prop gets a box collider either way, so a prop is also something you can grab and
+something to shut off, tool racks where something is maintained, hoses where something can burn.
+
+### Finding the bare wall
+
+![what the placer sees](../docs/wall_placement.png)
+
+*Left: a corridor cell's side wall. Right: a wall of the power plant. Dark = bare wall a fitting
+can bolt to; grey = something already standing there; red = a surface nothing gets bolted over
+whatever its depth. The outlines are where fittings actually landed - amber ones are mounted
+upright.*
+
+A fitting is never dropped at a random point and hoped for. `Kit.wall_profile()` builds a flat
+profile of each mounting plane - a 10 cm grid across the wall holding how far the geometry there
+stands proud of it - and `Kit.find_clear_spot()` searches that grid for every position where the
+fitting's whole footprint is bare, then picks one. Four things fall out of doing it that way:
+
+- **Nothing clips.** Ribs, pipe runs, cable trays, window frames, door surrounds, consoles, racks
+  and capacitor towers are all in the profile, and a fitting that would sit on any of them is not
+  placed there.
+- **Lamps, screens, glazing and doors are off limits** whatever their depth - the kit sets its
+  light strips flush into the wall, so depth alone would happily hang a locker on one.
+- **The wall's own panelling is not an obstacle.** Corridor pieces panel their walls 6 cm proud of
+  the nominal plane and rooms 10 cm, so each plane carries that figure (`CORRIDOR_FACE`,
+  `ROOM_FACE`) and a fitting's backplate sits on the finished surface rather than 6 cm inside it.
+- **Fittings do not land on each other.** Every wall keeps a running tally of the cells its
+  fittings have used, and the search treats those as occupied too.
+
+Some fittings mount **upright** (`Station.UPRIGHT`): the bare panels between a corridor's ribs are
+about 0.6 m wide and 2 m tall, so a ladder laid sideways fits nowhere and a ladder stood on its
+end fits almost everywhere - which is also how anyone would actually bolt one on.
+
+If a wall has no room for a fitting, it does not get one. A fitting that is not there is invisible;
+a fitting through a pipe is the first thing anyone sees, and it makes the whole deck look
+generated.
+
+`tools/render_wall_map.py` draws the picture above from the same data, so the rule can be checked
+against the real kit without opening Godot. Every prop gets a box collider either way, so a prop is also something you can grab and
 pull yourself along by — which is the whole point of the wall attachments.
 
 They are built by `tools/build_props.py`, which is self-contained — pure Python, no Blender and no

@@ -240,8 +240,50 @@ const EQUIPMENT := {
 const PLAIN_CORRIDOR := {"corridor_straight": true, "corridor_door": true}
 
 const GRAB_MARGIN := 0.06   # how much fatter than the mesh a wall fitting's collider is
-const CORRIDOR_HW := 1.5    # interior half-width of a corridor cell
+const CORRIDOR_HW := 1.5    # nominal interior half-width of a corridor cell
+const CORRIDOR_FACE := 0.06 # ...and how far its panelling stands proud of that, which is where a
+                            #    fitting's backplate actually has to sit
 const ROOM_HW := 5.5        # inner face of a room wall
+const ROOM_FACE := 0.10     # ...rooms panel theirs 10 cm out
+
+## Try to hang `piece` on a wall of `kit_piece`, re-rolling the spot until one of them is on bare
+## wall. `local_for` suggests a candidate in the kit piece's own space, and Kit.wall_clear() throws
+## it out if that patch already has a rib, a pipe run, a light strip, a window frame, a door
+## surround or a console standing on it - which on a kit this greebled is most of the wall.
+##
+## Nothing is nudged and nothing is squeezed in: if none of the tries land, that wall stays bare.
+## A fitting that is not there is invisible; a fitting through a pipe is the first thing anyone
+## sees, and it makes the whole deck look generated.
+const MOUNT_CLEARANCE := 0.03   # air left around a fitting, on top of its own size
+
+## Fittings that run up the wall rather than along it. The kit's bare panels are about 0.6 m wide
+## and 2 m tall, so a ladder laid sideways never fits anywhere and a ladder stood upright fits
+## almost everywhere - which is also the way anyone would actually bolt one on.
+const UPRIGHT := {"prop_ladder": true, "prop_cable_reel": true}
+
+## Hang `piece` on one of `kit_piece`'s walls, in a spot found rather than guessed: Kit searches
+## that wall's profile for somewhere the whole footprint is bare - no rib, no pipe run, no light
+## strip, no window frame, no console - and the fitting goes there, or nowhere.
+func _mount_on_wall(piece: String, kit_piece: String, xf: Transform3D, axis: int, coord: float,
+		face: float, normal: Vector3, tangent: Vector3, lo: Vector2, hi: Vector2,
+		rng: RandomNumberGenerator, taken: Dictionary) -> bool:
+	var size := Kit.mesh(piece).get_aabb().size
+	# _mount() lands the mesh with its Z along the tangent and its X across it, so turning a
+	# fitting upright is just handing it the wall's own up direction as the tangent
+	var upright: bool = UPRIGHT.has(piece)
+	if upright:
+		tangent = Vector3(0, 1, 0)
+	var w := (size.x if upright else size.z) + MOUNT_CLEARANCE * 2.0
+	var h := (size.z if upright else size.x) + MOUNT_CLEARANCE * 2.0
+	var spot := Kit.find_clear_spot(kit_piece, axis, coord, face, w, h, lo, hi, rng, taken)
+	if spot == Vector2.INF:
+		return false
+	var local := Vector3.ZERO
+	local.y = spot.y
+	local[axis] = coord - signf(coord) * face          # sit on the finished wall, not behind it
+	local[2 if axis == 0 else 0] = spot.x
+	_mount(piece, xf, local, normal, tangent)
+	return true
 
 func _place_props() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -272,11 +314,10 @@ func _place_props() -> void:
 		if rng.randf() < 0.33:
 			sides.append(-sides[0])
 		for side: float in sides:
-			# clear of the bulkhead frame at the middle of the cell
-			var along := rng.randf_range(0.7, 1.3) * (1.0 if rng.randf() < 0.5 else -1.0)
-			var local := Vector3(side * CORRIDOR_HW, rng.randf_range(0.8, 2.2), along)
-			_mount(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]), xf, local,
-				Vector3(-side, 0, 0), Vector3(0, 0, 1))
+			_mount_on_wall(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]),
+				cell["piece"], xf, 0, side * CORRIDOR_HW, CORRIDOR_FACE,
+				Vector3(-side, 0, 0), Vector3(0, 0, 1),
+				Vector2(-1.5, 0.35), Vector2(1.5, 2.5), rng, {})
 
 	for r: Dictionary in layout.rooms:
 		var t: String = r["type"]
@@ -284,25 +325,31 @@ func _place_props() -> void:
 
 		# equipment: floating inside one work area of the room, not scattered across it
 		var pool: Array = EQUIPMENT.get(t, FLOATING)
-		var anchor := Vector3(rng.randf_range(-1.0, 1.0) * 3.2, 1.6, (1.0 if rng.randf() < 0.5 else -1.0) * 3.2)
+		# kept above the fit-out: benches, racks, capacitor towers and seating all live under about
+		# 1.6 m, and a drifting canister through a console reads worse than no canister at all
+		var anchor := Vector3(rng.randf_range(-1.0, 1.0) * 3.2, 2.05, (1.0 if rng.randf() < 0.5 else -1.0) * 3.2)
 		for i in pool.size():
-			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.8, 1.0), rng.randf_range(-1.1, 1.1))
+			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.45, 0.75), rng.randf_range(-1.1, 1.1))
 			_prop(String(pool[i]), xf * p, rng)
 
 		# wall: two or three fittings on each side wall, plus a couple on the back wall. Half of
 		# them are drawn from what this room is actually for.
 		var trade: Array = WALL_BY_ROOM.get(t, WALL_ROOM)
+		var room_piece := "room_" + t
+		# one tally per wall: fittings on the same wall have to find their own patch
 		for side: float in [-1.0, 1.0]:
+			var taken := {}
 			for i in 2 + (1 if rng.randf() < 0.5 else 0):
 				var pool: Array = trade if rng.randf() < 0.5 else WALL_ROOM
-				var local := Vector3(side * ROOM_HW, rng.randf_range(0.9, 2.6), rng.randf_range(-3.4, 3.4))
-				_mount(String(pool[rng.randi() % pool.size()]), xf, local,
-					Vector3(-side, 0, 0), Vector3(0, 0, 1))
+				_mount_on_wall(String(pool[rng.randi() % pool.size()]), room_piece, xf,
+					0, side * ROOM_HW, ROOM_FACE, Vector3(-side, 0, 0), Vector3(0, 0, 1),
+					Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, taken)
+		var back := {}
 		for i in 2:
 			var pool: Array = trade if rng.randf() < 0.6 else WALL_ROOM
-			var local := Vector3(rng.randf_range(-3.4, 3.4), rng.randf_range(0.9, 2.6), ROOM_HW)
-			_mount(String(pool[rng.randi() % pool.size()]), xf, local,
-				Vector3(0, 0, -1), Vector3(1, 0, 0))
+			_mount_on_wall(String(pool[rng.randi() % pool.size()]), room_piece, xf,
+				2, ROOM_HW, ROOM_FACE, Vector3(0, 0, -1), Vector3(1, 0, 0),
+				Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, back)
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
