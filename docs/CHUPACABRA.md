@@ -2,7 +2,7 @@
 
 ![poses](chupacabra_poses.png)
 
-*Reading order: perch, alert, coil, leap, cling, feed, scuttle.*
+*Reading order: peek, withdraw, alert, coil, leap, cling, perch, feed, scuttle.*
 
 Deliberately the **1995 Puerto Rican** one - the Canóvanas sightings, the description Madelyne
 Tolentino gave that every witness after her repeated - and not the mangy Texas coyote the name got
@@ -18,38 +18,64 @@ are far too long for the size of it.
 *Crest up. The eyes wrap round the sides of the skull; the two fangs are the only teeth worth the
 name, because they are the only two it needs.*
 
-## What it is actually famous for
+## What the encounter actually is
 
-Not the encounter - the **evidence**. Stock found in the morning, not torn up and not eaten:
-drained, through two neat punctures, with nothing spilled.
+![at the corner](chupacabra_peek.png)
 
-On Kestrel-9 the things that hold pressure are the loose canisters, the coolant drums and the
-power cells that are already drifting around the deck, so that is what it feeds on. You find it
-crouched over one with its head down.
+*The wall has most of it. What is out in the corridor with you is a head craned back over a
+shoulder, and the eyes.*
 
-![feeding](chupacabra_feed.png)
+Almost every time, this is the whole thing. It is not a creature crossing your path - it is a
+**corner with something at the bottom of it**. The body is round the edge, turned away down the
+side passage, low and pressed to the wall, and it stays there. Only the head comes round.
 
-It does not look up while it does this, which is the only reason anyone has ever got close to one.
+You look at it. It looks at you. And then it is not there, and the corner is a corner.
 
-## Clinging, and then not being there
+`peek` is built for exactly that: the body angled away, the crane split between the neck and the
+head the way an animal does it, the crest flat - it does not want to be a shape yet - and one hand
+up on the edge it is looking round.
 
-![clinging](chupacabra_cling.png)
+## Then it is gone
 
-In a station with no floor, a hopper is worse than a walker. It has no opinion about which surface
-it is on - the `cling` pose is splayed flat with all four sets of claws in and the head turned out
-of the plane - and when it goes, it kicks off and crosses the corridor in one go.
+Being noticed is the trigger: within 4.5 m, or **0.35 s of your eyes actually on it**. Three times
+out of four it simply withdraws - crest coming up on the way out, head coming back round to where
+the body already is, and half a second of sliding deeper into the passage. You get about as long
+to be sure of what you saw as you would in real life, which is not long enough.
 
-`scripts/chupacabra.gd` runs the whole thing as four states:
+![bolting](chupacabra_bolt.png)
+
+The fourth time it goes the loud way: 0.18 s coiled, then off the wall at **7 m/s across the mouth
+of the passage**, through your view and out of it. In a station with no floor a hopper does not
+need a run-up, and it does not need the ground to land on either.
+
+If you never notice it at all, it leaves anyway after 22 seconds. It never comes toward you. The
+day is not when this station kills you.
 
 | | |
 |---|---|
-| **feed** | head down on a prop, ignoring you, for up to 26 s |
-| **alert** | you got within 5 m or stared for 1.4 s: head up, **every spine standing**, staring back for 0.7 s |
-| **coil** | 0.22 s, wound onto itself with the load on |
-| **leap** | 7.5 m/s away from you, never through you, gone in under two seconds |
+| **lurking** | holding `peek`, up to 22 s |
+| **withdraw** (75%) | 2.6 m/s deeper into the passage for 0.55 s, then nothing |
+| **coil → leap** (25%) | 0.18 s wound up, then 7 m/s across the opening for 0.9 s |
 
-It drops what it was drinking when it goes - `Station.release_prop()` - and leaves the husk
-tumbling in the corridor, which is the whole story about this animal.
+`Station.corner_spots()` supplies the places: a point tucked 1.15 m into a side passage and 0.95 m
+off its axis, so the corner wall takes most of it. The event only picks one that is **off to one
+side of where you are looking** - between 20° and 70° off your heading - because the encounter is
+noticing something at the edge of a corridor you were walking past anyway, not finding it dead
+ahead.
+
+## Drinking
+
+![feeding](chupacabra_feed.png)
+
+The folklore's famous part is the evidence: stock found in the morning, not torn up and not eaten
+- drained, through two neat punctures, with nothing spilled. On Kestrel-9 the things that hold
+pressure are the loose canisters, drums and power cells already drifting around the deck, and the
+`feed` pose is built for it: head down, both hands on the thing, spines flat, and it does not look
+up while it does this.
+
+Nothing spawns it at the moment - the corner is the encounter, and two different chupacabra events
+would dilute both. The pose is in the rig, and `Station.take_prop()` / `release_prop()` are already
+there from the Good Neighbours, so it is a short walk to switching it on.
 
 ## The files
 
@@ -59,7 +85,7 @@ tumbling in the corridor, which is the whole story about this animal.
 | `tools/riglib.py` | the shared rig machinery: bones, parts, spines, mottling, poses, floor solver |
 | `tools/build_creature.py` | writes `kit/chupacabra_rig.json` (and the stalker's) plus the sheets |
 | `tools/render_creature.py` | `--rig chupacabra --pose leap`, and `--eye/--target/--fov` |
-| `kit/chupacabra_rig.json` | 24 bones, 134 parts, 7 poses (49 kB) |
+| `kit/chupacabra_rig.json` | 24 bones, 134 parts, 9 poses (56 kB) |
 | `scripts/creature.gd` | builds either rig - one class, one JSON per creature |
 | `scripts/chupacabra.gd` | the event |
 

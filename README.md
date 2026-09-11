@@ -83,8 +83,9 @@ scripts/fae.gd         the Good Neighbours: thirteen wisps envelop a loose prop,
 scripts/stalker.gd     the night stalker
 scripts/creature.gd    posable creature rigs from kit/*_rig.json: the night stalker's belly-up
                        crawl and contortions (docs/CREATURE.md), and the chupacabra
-scripts/chupacabra.gd  the 1995 Puerto Rican one: found head-down on a canister, spines up when it
-                       notices you, then off a wall at 7.5 m/s (docs/CHUPACABRA.md)
+scripts/chupacabra.gd  the 1995 Puerto Rican one: waits round the edge of a side passage with the
+                       wall over most of it, withdraws when noticed, sometimes bolts across the
+                       opening at 7 m/s instead (docs/CHUPACABRA.md)
 tools/build_props.py   builds kit/prop_*.glb (pure Python glTF writer in tools/proplib.py, no Blender)
 tools/build_creature.py builds kit/creature_rig.json and kit/chupacabra_rig.json + their renders
 tools/riglib.py        shared rig machinery: bones, parts, poses, the floor solver

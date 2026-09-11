@@ -242,9 +242,9 @@ func _fae() -> bool:
 		Sfx.play_at("beep", f.global_position, -18.0, 26.0, 1.9)
 	return true
 
-## The chupacabra: found crouched over something that holds pressure, with its head down. Wants a
-## loose prop the player can see, and enough distance that they get a moment to work out what they
-## are looking at before it goes.
+## The chupacabra: waiting round the edge of a side passage, with the wall taking most of it.
+## Wants to be off to one side of where the player is looking rather than straight down it - the
+## encounter is noticing something at the corner of a corridor you were walking past anyway.
 func _chupacabra() -> bool:
 	for c in get_children():
 		if c is Chupacabra:
@@ -253,15 +253,25 @@ func _chupacabra() -> bool:
 	var cam: Camera3D = Game.player.camera
 	var eye := cam.global_position
 	var fwd := -cam.global_transform.basis.z
-	var target := eye + fwd * randf_range(7.0, 11.0)
-	var index := st.find_prop_near(target, 6.0, eye)
-	if index < 0:
+	var spots := []
+	for spot: Array in st.corner_spots():
+		var p: Vector3 = spot[0]
+		var to := p - eye
+		var d := to.length()
+		if d < 4.5 or d > 13.0:
+			continue
+		var dot := fwd.dot(to.normalized())
+		if dot < 0.35 or dot > 0.93:     # off to one side of your path, not dead ahead
+			continue
+		if not st.has_line_of_sight(eye, p):
+			continue
+		spots.append(spot)
+	if spots.is_empty():
 		return false
-	var c := Chupacabra.new()
-	add_child(c)
-	if not c.feed_on(index, eye):
-		c.queue_free()
-		return false
+	var c: Array = spots.pick_random()
+	var beast := Chupacabra.new()
+	add_child(beast)
+	beast.lurk_at(c[0], c[1])
 	return true
 
 ## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.

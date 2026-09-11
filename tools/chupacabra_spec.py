@@ -257,6 +257,45 @@ def _scuttle(d):
     d["foot_R"] = [30, 0, 0]
 
 
+def _peek(d):
+    """Round the edge of something. The body is turned away down the side passage, low and pressed
+    to the wall - most of it is behind the corner and stays there. What is out in the corridor is
+    the head, craned right back over the shoulder, and the eyes. That is the whole encounter,
+    nine times out of ten."""
+    d["spine"] = [-14, 26, 0]           # body angled away, shoulders tucked in toward the wall
+    d["chest"] = [-10, 22, 0]
+    d["neck"] = [-28, 70, 0]            # the crane: most of the turn is in the neck
+    d["head"] = [10, 64, -14]            # and the rest of it here, head tilted the way animals do
+    d["crest_a"] = [-34, 0, 0]          # crest flat: it does not want to be a shape yet
+    d["crest_b"] = [-28, 0, 0]
+    Rig.both(d, "clav", [0, 0, 16])
+    d["arm_L"] = [-74, 0, -34]          # one hand up on the edge it is looking round
+    d["fore_L"] = [96, 0, 0]
+    d["hand_L"] = [-52, 0, -18]
+    d["arm_R"] = [-40, 0, -12]
+    d["fore_R"] = [118, 0, 0]
+    d["hand_R"] = [-40, 0, 0]
+    Rig.both(d, "thigh", [112, 0, -10])  # folded right down: it is a lump at the bottom of a wall
+    Rig.both(d, "shin", [-144, 0, 0])
+    Rig.both(d, "foot", [66, 0, 0])
+
+
+def _withdraw(d):
+    """Going. Head coming back round to where the body already is, everything loading onto the
+    legs. Half a second of this and the corner is empty."""
+    _peek(d)
+    d["spine"] = [-8, 12, 0]
+    d["chest"] = [-6, 8, 0]
+    d["neck"] = [-16, 24, 0]
+    d["head"] = [0, 20, -4]
+    d["crest_a"] = [18, 0, 0]           # crest up on the way out - it has decided about you
+    d["crest_b"] = [14, 0, 0]
+    d["arm_L"] = [-52, 0, -22]
+    d["fore_L"] = [124, 0, 0]
+    Rig.both(d, "thigh", [128, 0, -8])
+    Rig.both(d, "shin", [-156, 0, 0])
+
+
 rig.pose("perch", [0, 0, 0], [0, 0, 0], _perch)
 rig.pose("alert", [0, 0, 0], [0, 0, 0], _alert)
 rig.pose("coil", [0, 0, 0], [0, 0, 0], _coil)
@@ -264,8 +303,10 @@ rig.pose("leap", [0, 0.02, 0], [-34, 0, 0], _leap, airborne=True)
 rig.pose("cling", [0, 0, 0], [0, 0, 0], _cling)
 rig.pose("feed", [0, 0, 0], [0, 0, 0], _feed)
 rig.pose("scuttle", [0, 0, 0], [0, 0, 0], _scuttle)
+rig.pose("peek", [0, 0, 0], [0, 0, 0], _peek)
+rig.pose("withdraw", [0, 0, 0], [0, 0, 0], _withdraw)
 
-POSE_ORDER = ["perch", "alert", "coil", "leap", "cling", "feed", "scuttle"]
+POSE_ORDER = ["peek", "withdraw", "alert", "coil", "leap", "cling", "perch", "feed", "scuttle"]
 
 
 def spec():

@@ -639,6 +639,22 @@ func crossing_spots() -> Array:
 			out.append([StationLayout.world(c, 1.5), Vector3(d.x, 0, d.y)])
 	return out
 
+## Corners something can wait round: a point tucked into a side passage, close enough to its mouth
+## to be seen from the corridor and far enough to one side that the wall has most of it. Returns
+## [position, hide direction] - the hide direction is further into the passage, where it goes.
+func corner_spots() -> Array:
+	var out := []
+	for c: Vector2i in layout.corridor:
+		var cell: Dictionary = layout.corridor[c]
+		if cell["open"].size() < 2:
+			continue
+		for d: Vector2i in cell["open"]:
+			var into := Vector3(d.x, 0, d.y)
+			var lateral := Vector3(d.y, 0, -d.x)
+			for side: float in [-1.0, 1.0]:
+				out.append([StationLayout.world(c, 1.05) + into * 1.15 + lateral * side * 0.95, into])
+	return out
+
 func watcher_spots() -> Array:
 	var out := []
 	for c: Vector2i in layout.corridor:

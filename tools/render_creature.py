@@ -99,6 +99,27 @@ def wall(rend, cam, x=0.45, half=1.6, step=0.4):
             rend.triangle(cam, a, c, d, [shade] * 3)
 
 
+def corner(rend, cam, x=0.30, z_from=-2.4, z_to=0.0, height=2.2, step=0.4):
+    """A wall that stops - i.e. a corner, with an edge to look round. The whole point of the
+    chupacabra is what this hides."""
+    n_y = int(height / step)
+    n_z = int((z_to - z_from) / step)
+    for i in range(n_y):
+        for j in range(n_z):
+            y0, z0 = i * step, z_from + j * step
+            y1, z1 = y0 + step, z0 + step
+            shade = 0.038 if (i + j) % 2 else 0.055
+            a, b, c, d = (x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)
+            rend.triangle(cam, a, b, c, [shade] * 3)
+            rend.triangle(cam, a, c, d, [shade] * 3)
+    # the return face at the end, so the wall reads as a corner rather than as a hole
+    for i in range(n_y):
+        y0, y1 = i * step, (i + 1) * step
+        a, b, c, d = (x, y0, z_to), (x, y1, z_to), (x + 0.35, y1, z_to), (x + 0.35, y0, z_to)
+        rend.triangle(cam, a, b, c, [0.028] * 3)
+        rend.triangle(cam, a, c, d, [0.028] * 3)
+
+
 def ground(rend, cam, half=3.0, step=0.5):
     """A dim checker floor - without a contact shadow you cannot tell a crouch from a hover."""
     n = int(half * 2 / step)
@@ -143,6 +164,9 @@ def render(pose_name, w, h, eye, target, fov, path, bg=(9, 9, 11), rig=None, roo
     cam = Camera(eye, target, fov=fov)
     if surface == "wall":
         wall(rend, cam)
+    elif surface == "corner":
+        ground(rend, cam)
+        corner(rend, cam)
     else:
         ground(rend, cam)
     if prop is not None:
