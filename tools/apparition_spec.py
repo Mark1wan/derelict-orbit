@@ -113,6 +113,7 @@ class Figure:
         if pos2 is not None:
             p["pos2"] = [round(v, 4) for v in pos2]
             p["size2"] = round(size2 if size2 is not None else size, 4)
+            p["alpha2"] = round(alpha, 4)   # callers overwrite this when the two poses differ
         self.puffs.append(p)
 
     def ember(self, pos, size, energy, key="ember", pos2=None, size2=None, energy2=None):
@@ -297,4 +298,82 @@ def ghoul_figure(seed=11):
     return f
 
 
-FIGURES = {"corridor": corridor_figure, "ghoul": ghoul_figure}
+# ------------------------------------------------------------------ the good neighbours
+def fae_figure(seed=13, count=13, radius=0.95, centre_y=1.52):
+    """The old fae. Not the Victorian kind with wings - the kind you did not name, did not thank
+    and did not follow, and called the Good Neighbours in the hope they were listening kindly.
+
+    Two pieces of that folklore drive this one. The **will-o'-the-wisp**: lights out over the bog
+    that look like a lantern on the path and are not, and that people followed into water because
+    a light in the dark is very hard to argue with. And the **ring**: the circle you do not step
+    into, because what is inside it keeps its own time, and people who came back out of one came
+    back to a year they did not recognise.
+
+    So this is not a figure at all, it is a **host** - thirteen small cold lights turning in a
+    ring, hanging across the corridor at about chest height in a station where nothing has to sit
+    on a floor. It is the prettiest thing in the game. `morph` is the glamour coming off: the
+    lights shrink to pinpricks and what was holding each one resolves - a small thin body, too
+    long in the arm, too many joints in it, with a pale face turned toward you.
+
+    Cold iron is the other half of the story, and here the whole hull is iron: the ring never
+    touches it. It hangs in the middle of the corridor with a clear hand's width all round, which
+    is exactly the gap you would try to swim through.
+    """
+    f = Figure(
+        "fae",
+        # the little bodies are not smoke-black like the vulto: each one is standing next to its
+        # own light, so it is lit, and what the light shows is a grey-green thing the size of a cat
+        core=[0.165, 0.180, 0.140],
+        haze=[0.050, 0.068, 0.046],
+        embers_by_key={
+            "wisp": [0.62, 0.72, 0.34],  # pale gold-green: the wrong colour for station lighting
+            "pale": [0.42, 0.45, 0.36],  # the faces, once the light stops covering them
+        },
+        plateau=0.55,
+    )
+    rng = random.Random(seed)
+    # The ring stands in the corridor's cross-section - upright, hanging in the middle of the
+    # passage with a clear half metre of air between it and the iron on every side. In a station
+    # with no floor a ring is not something you step into. It is something you swim through.
+    for i in range(count):
+        a = i * math.tau / count + rng.uniform(-0.05, 0.05)
+        cx = math.cos(a) * radius
+        cy = centre_y + math.sin(a) * radius
+        cz = rng.uniform(-0.05, 0.05)
+        y = cy
+        out = [math.cos(a), math.sin(a), 0.2]           # they scatter outward along the ring
+        fx, fz = 0.0, 1.0                               # the little bodies face down the corridor
+
+        # the wisp itself: bright and round while the glamour holds, a pinprick after
+        f.ember((cx, y, cz), rng.uniform(0.085, 0.115), rng.uniform(0.75, 1.0), key="wisp",
+                pos2=(cx, y + 0.02, cz), size2=0.022, energy2=0.5)
+
+        # what is actually holding it - invisible at morph 0, resolved at morph 1
+        def body(dx, dy, dz, size, alpha, tint="core", drift=0.02, spin=0.3):
+            f.puff((cx, y, cz), 0.02, 0.0, drift=drift, spin=spin, out=out, tint=tint,
+                   pos2=(cx + dx, y + dy, cz + dz), size2=size)
+            f.puffs[-1]["alpha2"] = alpha
+
+        body(0.0, -0.058, 0.0, 0.115, 0.96)                       # head
+        body(0.0, -0.072, 0.060, 0.058, 0.92, tint="pale")        # face, turned your way
+        body(0.0, -0.150, 0.0, 0.125, 0.96)                       # a small body, hanging
+        body(0.0, -0.230, 0.0, 0.115, 0.94)
+        for sx in (-1, 1):
+            # arms: held out and down, and far too long for something that size
+            body(sx * 0.105, -0.135, -0.01, 0.050, 0.93)
+            body(sx * 0.155, -0.225, -0.02, 0.044, 0.91)
+            body(sx * 0.195, -0.320, -0.02, 0.038, 0.89)
+            body(sx * 0.215, -0.415, -0.02, 0.032, 0.86)
+            body(sx * 0.058, -0.315, 0.01, 0.075, 0.92)           # legs, tucked up under it
+            body(sx * 0.062, -0.390, 0.02, 0.058, 0.88)
+
+    # the ring itself: a faint circle of lit dust the lights are turning inside
+    for i in range(count * 3):
+        a = i * math.tau / (count * 3)
+        f.puff((math.cos(a) * radius, centre_y + math.sin(a) * radius, rng.uniform(-0.08, 0.08)),
+               0.26, 0.07, drift=0.045, spin=0.25, tint="haze",
+               out=[math.cos(a), math.sin(a), 0.2])
+    return f
+
+
+FIGURES = {"corridor": corridor_figure, "ghoul": ghoul_figure, "fae": fae_figure}

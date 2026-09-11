@@ -111,17 +111,19 @@ func _update(t: float) -> void:
 		var d: float = p["drift"] * churn
 		var home := Vector3(pos[0], pos[1], pos[2])
 		var base_size: float = p["size"]
+		var base_alpha: float = p["alpha"]
 		if morph > 0.0 and p.has("pos2"):
 			var pos2: Array = p["pos2"]
 			home = home.lerp(Vector3(pos2[0], pos2[1], pos2[2]), morph)
 			base_size = lerpf(base_size, p["size2"], morph)
+			base_alpha = lerpf(base_alpha, p.get("alpha2", base_alpha), morph)
 		var anchor := Vector3(
 			home.x + sin(t * rate[0] + ph[0]) * d,
 			home.y + sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
 			home.z + sin(t * rate[2] + ph[2]) * d)
 		anchor += Vector3(out[0], out[1], out[2]) * spread
 		var size: float = base_size * (1.0 + 0.12 * sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
-		var alpha: float = p["alpha"] * (0.75 + 0.25 * sin(t * rate[2] + ph[2])) * fade
+		var alpha: float = base_alpha * (0.75 + 0.25 * sin(t * rate[2] + ph[2])) * fade
 		var xf := Transform3D(Basis.IDENTITY.scaled(Vector3(size, size, size)), anchor)
 		xf.basis = xf.basis.rotated(Vector3.FORWARD, sin(t * p["spin"] + ph[0]) * 0.6)
 		_smoke.set_instance_transform(i, xf)

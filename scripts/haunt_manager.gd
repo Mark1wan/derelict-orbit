@@ -61,7 +61,7 @@ func _day_tick(delta: float) -> void:
 func _fire_day_event(I: float) -> void:
 	var options: Array = ["shadow", "shadow", "bang"]
 	if I >= 2.0:
-		options.append_array(["flicker", "flicker"])
+		options.append_array(["flicker", "flicker", "ring"])
 	if I >= 3.0:
 		options.append_array(["whisper", "watcher", "shadow", "ghoul"])
 	if I >= 4.0:
@@ -89,6 +89,9 @@ func _fire_day_event(I: float) -> void:
 				_whisper()
 		"ghoul":
 			if not _ghoul():
+				_whisper()
+		"ring":
+			if not _fae():
 				_whisper()
 		"drift":
 			Game.station.shove_props(0.8)
@@ -202,9 +205,38 @@ func _update_watcher(delta: float) -> void:
 
 func _clear_figures() -> void:
 	for c in get_children():
-		if c is ShadowFigure or c is Ghoul:
+		if c is ShadowFigure or c is Ghoul or c is Fae:
 			c.queue_free()
 	watcher = null
+
+## The ring: thirteen lights across a corridor ahead of you, hanging in the middle of the
+## passage. Wants to be somewhere you are likely to swim through, so it takes a crossing spot,
+## and it wants to be seen from a distance first - that is the whole trick of it.
+func _fae() -> bool:
+	for c in get_children():
+		if c is Fae:
+			return false
+	var st: Station = Game.station
+	var cam: Camera3D = Game.player.camera
+	var eye := cam.global_position
+	var fwd := -cam.global_transform.basis.z
+	var best := []
+	for spot: Array in st.crossing_spots():
+		var p: Vector3 = spot[0]
+		var to := p - eye
+		if to.length() < 6.0 or fwd.dot(to.normalized()) < 0.5:
+			continue
+		if not st.has_line_of_sight(eye, p):
+			continue
+		best.append(spot)
+	if best.is_empty():
+		return false
+	var c: Array = best.pick_random()
+	var f := Fae.new()
+	add_child(f)
+	f.hang(c[0], c[1])
+	Sfx.play_at("beep", c[0], -16.0, 30.0, 1.9)
+	return true
 
 ## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.
 ## Wants distance to work - the whole point of it is the walk toward it - so it only takes a spot

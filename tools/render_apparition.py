@@ -119,9 +119,11 @@ def draw(rend, cam, fig, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, 
         d = p["drift"]
         home = p["pos"]
         base_size = p["size"]
+        base_alpha = p["alpha"]
         if morph > 0.0 and "pos2" in p:
             home = [home[i] + (p["pos2"][i] - home[i]) * morph for i in range(3)]
             base_size = base_size + (p["size2"] - base_size) * morph
+            base_alpha = base_alpha + (p.get("alpha2", base_alpha) - base_alpha) * morph
         anchor = [
             home[0] + math.sin(t * rate[0] + ph[0]) * d,
             home[1] + math.sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
@@ -135,7 +137,7 @@ def draw(rend, cam, fig, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, 
         z = -lx * sy_ + pos[2] * cy
         world = (origin[0] + x, origin[1] + ly, origin[2] + z)
         size = base_size * (1.0 + 0.12 * math.sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
-        alpha = p["alpha"] * (0.75 + 0.25 * math.sin(t * rate[2] + ph[2])) * (form ** 0.6)
+        alpha = base_alpha * (0.75 + 0.25 * math.sin(t * rate[2] + ph[2])) * (form ** 0.6)
         items.append((cam.project(world, rend.w, rend.h), world, size, alpha, p["tint"]))
     for pr, world, size, alpha, tint in sorted(items, key=lambda it: -(it[0][2] if it[0] else 0)):
         splat(rend, cam, world, size, alpha, cols[tint], tex)
@@ -218,6 +220,27 @@ def main():
             rend.color[y][i * 230] = (30, 30, 34)
     rend.save(os.path.join(o, "ghoul_turn.png"))
     print(os.path.join(o, "ghoul_turn.png"))
+
+    fae = spec.fae_figure()
+    print(scene(os.path.join(o, "fae_ring.png"), 900, 640, (0.25, 1.5, -2.4), (0, 1.45, -8.0),
+                42, (0, 0, -8.2), t=3.0, fig=fae, morph=0.0))
+    print(scene(os.path.join(o, "fae_true.png"), 900, 640, (0.25, 1.5, -3.0), (0, 1.45, -8.0),
+                38, (0, 0, -8.2), t=3.0, fig=fae, morph=1.0))
+    print(scene(os.path.join(o, "fae_close.png"), 780, 700, (0.95, 1.95, -11.2), (-0.85, 1.30, -13.9),
+                24, (0, 0, -13.9), t=3.0, fig=fae, morph=1.0))
+    # the glamour coming off
+    rend = Renderer(1150, 600, (6, 6, 8))
+    for i, m in enumerate([0.0, 0.35, 0.7, 1.0]):
+        sub = Renderer(287, 600, (6, 6, 8))
+        cam = Camera((0, 1.52, -0.4), (0, 1.45, -8.2), fov=34)
+        sub.scale = cam.scale
+        corridor(sub, cam)
+        draw(sub, cam, fae, (0, 0, -8.2), t=3.0 + i * 0.8, morph=m)
+        for y in range(600):
+            rend.color[y][i * 287:(i + 1) * 287] = sub.color[y]
+            rend.color[y][i * 287] = (30, 30, 34)
+    rend.save(os.path.join(o, "fae_glamour.png"))
+    print(os.path.join(o, "fae_glamour.png"))
 
 
 if __name__ == "__main__":
