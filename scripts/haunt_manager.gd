@@ -10,11 +10,19 @@ extends Node3D
 ##   I>=6  shadows cross much closer
 ## Night: the Stalker (see stalker.gd), plus bangs/whispers.
 
-## Daytime apparitions take the lighting with them one time in five: whatever lamp is nearest the
-## thing stutters while it is there. It is not a tell - it is too common and too brief to be one -
-## but it means the deck misbehaving and the deck being haunted are the same event often enough
-## that you stop being able to dismiss either. Night has its own darkness and does not need this.
-const APPARITION_FLICKER := 0.20
+## Daytime apparitions take the lighting with them about a third of the time: whatever lamp is
+## nearest the thing stutters while it is there. The flicker itself still means nothing - the
+## deck's own failing lamps stutter four times as often - but it is what carries the sound layer,
+## and that layer has to reach the player often enough to be worth doubting.
+##
+## These three numbers are one decision and were tuned together against tools/simulate_run.py: at
+## 20% / 60% / 14% a run produced 18 breaths with something behind them and 25 with nothing, so
+## hearing one meant it was MORE likely to be nothing - a tell that actively misinforms is not
+## doubt, it is noise. At these values it lands near 7 in 10, which is the useful shape: worth
+## listening for, never safe to trust. Night has its own darkness and does not need any of it.
+const APPARITION_FLICKER := 0.30
+const HAUNTED_BREATH := 0.75    ## chance a haunted stutter carries the sound underneath it
+const FAULT_BREATH := 0.07      ## ...and the chance a genuinely broken lamp does too
 
 var next_event := 6.0
 var watcher: ShadowFigure = null
@@ -232,7 +240,7 @@ func _stutter(l: Light3D, haunted := false) -> void:
 	var db := randf_range(-13.0, -6.0)
 	Sfx.play_at("flicker", l.global_position, db, 25.0, randf_range(0.9, 1.15))
 	Sfx.play_at("ballast", l.global_position, db - randf_range(2.0, 6.0), 18.0, randf_range(0.85, 1.2))
-	if randf() < (0.60 if haunted else 0.14):
+	if randf() < (HAUNTED_BREATH if haunted else FAULT_BREATH):
 		_under(l.global_position)
 	match kind:
 		Stutter.BLINK:
