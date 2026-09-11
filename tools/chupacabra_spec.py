@@ -25,7 +25,9 @@ MATERIALS = {
     "hide":   {"albedo": [0.115, 0.135, 0.100], "emission": [0, 0, 0], "roughness": 0.85},
     "mottle": {"albedo": [0.075, 0.090, 0.068], "emission": [0, 0, 0], "roughness": 0.9},
     "belly":  {"albedo": [0.165, 0.175, 0.150], "emission": [0, 0, 0], "roughness": 0.8},
-    "spine":  {"albedo": [0.085, 0.070, 0.050], "emission": [0, 0, 0], "roughness": 0.6},
+    "spine":  {"albedo": [0.145, 0.115, 0.075], "emission": [0, 0, 0], "roughness": 0.6},
+    # the coat: coarse, dark, and greener than it should be. The spines come up through it
+    "hair":   {"albedo": [0.062, 0.072, 0.052], "emission": [0, 0, 0], "roughness": 1.0},
     "claw":   {"albedo": [0.180, 0.170, 0.145], "emission": [0, 0, 0], "roughness": 0.35},
     "fang":   {"albedo": [0.320, 0.305, 0.270], "emission": [0, 0, 0], "roughness": 0.4},
     # the eyes are the whole face: black, oval, wet, and far too big. They do not glow - they are
@@ -79,13 +81,13 @@ rig.scatter("spine", "mottle", (0, 0.05, 0.02), (0.12, 0.10, 0.10), 12, 0.024, 4
 rig.scatter("root", "mottle", (0, 0.02, 0.02), (0.11, 0.09, 0.10), 10, 0.022, 43, flatten=0.5)
 
 # the crest: a row of spines from the skull to the hips, standing in two ranks
-rig.spines("crest_a", "spine", [(0, -0.02, 0.0), (0, 0.09, 0.01)], 5, 0.115, (-22, 0, 0), 51, thick=0.014)
-rig.spines("crest_b", "spine", [(0, -0.01, 0.0), (0, 0.10, 0.01)], 5, 0.125, (-14, 0, 0), 52, thick=0.013)
-rig.spines("spine", "spine", [(0, 0.0, 0.09), (0, 0.10, 0.09)], 4, 0.095, (-30, 0, 0), 53, thick=0.012)
-rig.spines("root", "spine", [(0, -0.02, 0.09), (0, 0.06, 0.09)], 3, 0.075, (-40, 0, 0), 54, thick=0.011)
+rig.spines("crest_a", "spine", [(0, -0.02, 0.0), (0, 0.09, 0.01)], 6, 0.215, (-22, 0, 0), 51, thick=0.015)
+rig.spines("crest_b", "spine", [(0, -0.01, 0.0), (0, 0.10, 0.01)], 6, 0.225, (-14, 0, 0), 52, thick=0.014)
+rig.spines("spine", "spine", [(0, 0.0, 0.09), (0, 0.10, 0.09)], 5, 0.185, (-30, 0, 0), 53, thick=0.013)
+rig.spines("root", "spine", [(0, -0.02, 0.09), (0, 0.06, 0.09)], 4, 0.155, (-40, 0, 0), 54, thick=0.012)
 for s, sx in SIDES:      # a smaller rank down each flank
-    rig.spines("chest", "spine", [(sx * 0.10, 0.0, 0.05), (sx * 0.12, 0.08, 0.06)], 3, 0.070,
-               (-20, 0, sx * -35), 55 + int(sx), thick=0.010)
+    rig.spines("chest", "spine", [(sx * 0.10, 0.0, 0.05), (sx * 0.12, 0.08, 0.06)], 4, 0.110,
+               (-20, 0, sx * -35), 55 + int(sx), thick=0.011)
 
 # ---------------------------------------------------------------- head
 rig.part("neck", "cone", "hide", pos=(0, -0.01, 0), h=0.10, r=0.055, r2=0.05)
@@ -104,7 +106,7 @@ rig.part("head", "cone", "fang", pos=(-0.028, -0.055, -0.135), rot=(172, 0, 6), 
 rig.part("head", "cone", "fang", pos=(0.028, -0.055, -0.135), rot=(172, 0, -6), h=0.055, r=0.010, r2=0.0)
 rig.part("jaw", "sph", "maw", pos=(0, -0.015, -0.07), size=(0.075, 0.030, 0.115))
 rig.part("jaw", "sph", "hide", pos=(0, -0.025, -0.06), size=(0.085, 0.040, 0.125))
-rig.spines("head", "spine", [(0, 0.09, 0.02), (0, 0.06, 0.08)], 4, 0.085, (-35, 0, 0), 61, thick=0.011)
+rig.spines("head", "spine", [(0, 0.09, 0.02), (0, 0.06, 0.08)], 5, 0.160, (-35, 0, 0), 61, thick=0.012)
 
 # ---------------------------------------------------------------- limbs
 for s, sx in SIDES:
@@ -129,6 +131,51 @@ for s, sx in SIDES:
     rig.part("foot_%s" % s, "cone", "claw", pos=(0, -0.030, 0.045), rot=(56, 0, 0), h=0.055, r=0.009, r2=0.0)
     rig.scatter("shin_%s" % s, "mottle", (0, -0.15, 0), (0.034, 0.12, 0.034), 7, 0.020, 70 + int(sx))
 
+
+# ---------------------------------------------------------------- the coat
+# A dense pelt, coarse and matted: a heavy mane over the shoulders and neck, the back and haunches
+# thick with it, the limbs furred to the claws, and the spines standing up *through* the coat
+# rather than instead of it. The face stays bare - the eyes are the point of this animal and
+# nothing is allowed in front of them.
+SWEEP_BACK = (0.0, -1.0, 0.55)      # over the back: down and to the rear
+SWEEP_DOWN = (0.0, -1.0, 0.1)
+
+rig.fur_blob("chest", (0, 0.05, 0.0), (0.135, 0.120, 0.115), 300, SWEEP_BACK, 0.095, 201,
+             thick=0.013, out=0.35)
+rig.fur_blob("chest", (0, 0.05, 0.0), (0.128, 0.112, 0.108), 140, (0, -0.95, 0.15), 0.055, 202,
+             thick=0.011, out=0.3)
+rig.fur_blob("spine", (0, 0.05, 0.0), (0.118, 0.112, 0.105), 270, SWEEP_BACK, 0.09, 203,
+             thick=0.013, out=0.35)
+rig.fur_blob("spine", (0, 0.05, 0.0), (0.110, 0.104, 0.098), 120, (0, -0.95, 0.15), 0.05, 204,
+             thick=0.011, out=0.3)
+rig.fur_blob("root", (0, 0.02, 0.0), (0.110, 0.105, 0.100), 250, SWEEP_BACK, 0.095, 205,
+             thick=0.013, out=0.35)
+rig.fur_blob("root", (0, 0.02, 0.0), (0.103, 0.098, 0.094), 110, (0, -0.95, 0.15), 0.05, 206,
+             thick=0.011, out=0.3)
+
+# the mane: heaviest on the neck and the back of the skull, and the only part that stands out
+rig.fur_blob("neck", (0, 0.04, 0.02), (0.062, 0.065, 0.062), 190, (0, -0.95, 0.5), 0.115, 207,
+             thick=0.014, out=0.45)
+rig.fur_blob("head", (0, 0.02, 0.03), (0.080, 0.078, 0.085), 150, (0, -0.55, 1.0), 0.065, 208,
+             thick=0.011, out=0.24, keep=lambda p: p[2] > -0.045)   # nothing forward of the eyes
+rig.fur_blob("jaw", (0, -0.02, -0.02), (0.050, 0.026, 0.055), 40, (0, -1.0, 0.4), 0.040, 209,
+             thick=0.009, out=0.22, keep=lambda p: p[2] > -0.085)
+
+for _s, _sx in SIDES:
+    rig.fur_blob("clav_%s" % _s, (_sx * 0.03, 0, 0), (0.048, 0.038, 0.044), 90, SWEEP_DOWN, 0.085,
+                 210 + int(_sx), thick=0.013, out=0.35)
+    rig.fur_limb("arm_%s" % _s, -0.140, -0.010, 0.038, 110, SWEEP_DOWN, 0.060, 220 + int(_sx),
+                 thick=0.011, out=0.32)
+    rig.fur_limb("fore_%s" % _s, -0.120, -0.005, 0.029, 85, SWEEP_DOWN, 0.048, 230 + int(_sx),
+                 thick=0.010, out=0.32)
+    rig.fur_blob("hip_%s" % _s, (0, -0.02, 0.01), (0.070, 0.066, 0.074), 140, SWEEP_DOWN, 0.095,
+                 240 + int(_sx), thick=0.014, out=0.35)
+    rig.fur_limb("thigh_%s" % _s, -0.270, -0.020, 0.060, 230, SWEEP_DOWN, 0.085, 250 + int(_sx),
+                 thick=0.012, out=0.32)
+    rig.fur_limb("shin_%s" % _s, -0.280, -0.020, 0.040, 160, SWEEP_DOWN, 0.062, 260 + int(_sx),
+                 thick=0.010, out=0.32)
+    rig.fur_blob("foot_%s" % _s, (0, -0.02, -0.03), (0.032, 0.024, 0.068), 55, (0, -0.55, -0.8),
+                 0.040, 270 + int(_sx), thick=0.008, out=0.3)
 
 # ---------------------------------------------------------------- poses
 def _perch(d):
@@ -310,5 +357,5 @@ POSE_ORDER = ["peek", "withdraw", "alert", "coil", "leap", "cling", "perch", "fe
 
 
 def spec():
-    rig.settle()
+    rig.settle(ignore_mats=("hair",))
     return rig.spec()

@@ -8,10 +8,21 @@ Deliberately the **1995 Puerto Rican** one - the Canóvanas sightings, the descr
 Tolentino gave that every witness after her repeated - and not the mangy Texas coyote the name got
 attached to a decade later.
 
-That means: bipedal, waist height on a grown adult, grey-green and leathery, **enormous black oval
-eyes** with nothing in them, a row of spines down the back that *move*, small clawed forelimbs
-held up against the chest, huge hind legs, and **no tail**. It does not run. It hops, and the hops
-are far too long for the size of it.
+That means: bipedal, waist height on a grown adult, grey-green, **enormous black oval eyes** with
+nothing in them, a row of spines down the back that *move*, small clawed forelimbs held up against
+the chest, huge hind legs, and **no tail**. It does not run. It hops, and the hops are far too long
+for the size of it.
+
+And it is **covered in a dense pelt** - 3,310 strands of coarse dark hair, matted and green-black,
+heaviest as a mane over the neck and shoulders and carried right down the limbs to the claws. The
+witnesses argued about this: some of them said leathery, some said hairy, and the ones who said
+hairy were describing something you would not want to touch. The spines come up *through* the
+coat, horn-coloured against it, which is what makes them read at all.
+
+![crest](chupacabra_crest.png)
+
+*The crest standing through the pelt. The coat stops at the face - the eyes are the point of this
+animal and nothing is allowed in front of them.*
 
 ![head](chupacabra_head.png)
 
@@ -82,17 +93,24 @@ there from the Good Neighbours, so it is a short walk to switching it on.
 | | |
 |---|---|
 | `tools/chupacabra_spec.py` | the rig: materials, bones, parts, poses. **Edit this.** |
-| `tools/riglib.py` | the shared rig machinery: bones, parts, spines, mottling, poses, floor solver |
+| `tools/riglib.py` | the shared rig machinery: bones, parts, spines, mottling, **fur**, poses, floor solver |
 | `tools/build_creature.py` | writes `kit/chupacabra_rig.json` (and the stalker's) plus the sheets |
 | `tools/render_creature.py` | `--rig chupacabra --pose leap`, and `--eye/--target/--fov` |
-| `kit/chupacabra_rig.json` | 24 bones, 134 parts, 9 poses (56 kB) |
+| `kit/chupacabra_rig.json` | 24 bones, 3,451 parts, 9 poses (1.15 MB) |
 | `scripts/creature.gd` | builds either rig - one class, one JSON per creature |
 | `scripts/chupacabra.gd` | the event |
 
     python3 tools/build_creature.py --rig chupacabra
 
-About 134 parts against the stalker's 4,194: this one has no fur, and that is most of the
-difference. Same merging - one mesh per bone, a surface per material - so it is 24 nodes.
+About 29,000 triangles, nearly all of it coat - the same cheap `strand` primitive the stalker
+uses, three-sided and capless at six triangles each. Merging is per bone with a surface per
+material, so it is still 24 nodes, and the built meshes are cached across instances.
+
+The fur lives in `riglib` now (`fur_blob` over a rounded part, `fur_limb` round a limb segment),
+so anything else in the suite can be given a coat in a few lines. The one thing that took a second
+pass: on a body this size the same settings that shag out a 1.9 m stalker make a hedgehog - the
+strands have to be shorter and laid much flatter (`out` 0.35 rather than 0.55) before they read as
+a pelt rather than a bristle.
 
 The night stalker's rig (`tools/creature_spec.py`, `docs/CREATURE.md`) predates `riglib` and still
 carries its own copy of those helpers. Anything new should be built on `Rig`.

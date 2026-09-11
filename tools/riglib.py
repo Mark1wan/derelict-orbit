@@ -81,6 +81,79 @@ class Rig:
             s = size * rng.uniform(0.6, 1.4)
             self.part(bone, "sph", mat, pos=p, size=(s, s * flatten, s))
 
+
+    # ------------------------------------------------------------------ fur
+    @staticmethod
+    def _dir_to_rot(d, jitter, rng):
+        """Euler (XYZ degrees, applied Y*X*Z like Godot) that points a strand's +Y along `d`."""
+        l = math.sqrt(sum(v * v for v in d)) or 1.0
+        d = [v / l for v in d]
+        rx = math.degrees(math.acos(max(-1.0, min(1.0, d[1]))))
+        ry = math.degrees(math.atan2(d[0], d[2]))
+        return [rx + rng.uniform(-jitter, jitter), ry + rng.uniform(-jitter, jitter), 0.0]
+
+    @staticmethod
+    def _clear_of(pos, avoid):
+        for a_pos, a_r in avoid:
+            if sum((pos[i] - a_pos[i]) ** 2 for i in range(3)) < a_r * a_r:
+                return False
+        return True
+
+    def fur_blob(self, bone, center, radii, count, sweep, length, seed, avoid=(), thick=0.016,
+                 out=0.55, clump=4, keep=None):
+        """A pelt over a rounded body part. Strands are grown off the surface of an ellipsoid,
+        angled between the surface normal and `sweep` (which is the way the coat lies), in small
+        clumps - fur scattered evenly reads as a hairbrush; fur that clumps reads as an animal.
+        Raising `out` bristles it, lowering it lays it flat."""
+        rng = random.Random(seed)
+        made = 0
+        guard = 0
+        while made < count and guard < count * 40:
+            guard += 1
+            v = [rng.gauss(0, 1) for _ in range(3)]
+            n = math.sqrt(sum(x * x for x in v)) or 1.0
+            v = [x / n for x in v]
+            base = [center[i] + v[i] * radii[i] * 0.97 for i in range(3)]
+            if keep and not keep(base):
+                continue
+            if not self._clear_of(base, avoid):
+                continue
+            normal = [v[i] / radii[i] for i in range(3)]
+            nl = math.sqrt(sum(x * x for x in normal)) or 1.0
+            normal = [x / nl for x in normal]
+            d = [normal[i] * out + sweep[i] for i in range(3)]
+            ln = length * rng.uniform(0.7, 1.25)
+            for _ in range(rng.randint(1, clump)):
+                root = [base[i] + rng.uniform(-0.012, 0.012) for i in range(3)]
+                self.part(bone, "strand", "hair", pos=root, rot=self._dir_to_rot(d, 11, rng),
+                          h=ln * rng.uniform(0.8, 1.15), r=thick, r2=0.0)
+                made += 1
+                if made >= count:
+                    break
+
+    def fur_limb(self, bone, y0, y1, radius, count, sweep, length, seed, avoid=(), thick=0.014,
+                 clump=4, out=0.5):
+        """The same, wrapped around a limb segment running down the bone's -Y."""
+        rng = random.Random(seed)
+        made = 0
+        guard = 0
+        while made < count and guard < count * 40:
+            guard += 1
+            t = rng.uniform(0.0, 1.0)
+            a = rng.uniform(0, math.tau)
+            base = [math.cos(a) * radius * 0.95, y0 + (y1 - y0) * t, math.sin(a) * radius * 0.95]
+            if not self._clear_of(base, avoid):
+                continue
+            d = [math.cos(a) * out + sweep[0], sweep[1], math.sin(a) * out + sweep[2]]
+            ln = length * rng.uniform(0.7, 1.2)
+            for _ in range(rng.randint(1, clump)):
+                root = [base[i] + rng.uniform(-0.010, 0.010) for i in range(3)]
+                self.part(bone, "strand", "hair", pos=root, rot=self._dir_to_rot(d, 10, rng),
+                          h=ln * rng.uniform(0.8, 1.15), r=thick, r2=0.0)
+                made += 1
+                if made >= count:
+                    break
+
     # ------------------------------------------------------------------ poses
     def pose(self, name, root_pos, root_rot, builder, airborne=False):
         d = {"root": list(root_rot)}

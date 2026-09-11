@@ -88,7 +88,7 @@ scripts/chupacabra.gd  the 1995 Puerto Rican one: waits round the edge of a side
                        opening at 7 m/s instead (docs/CHUPACABRA.md)
 tools/build_props.py   builds kit/prop_*.glb (pure Python glTF writer in tools/proplib.py, no Blender)
 tools/build_creature.py builds kit/creature_rig.json and kit/chupacabra_rig.json + their renders
-tools/riglib.py        shared rig machinery: bones, parts, poses, the floor solver
+tools/riglib.py        shared rig machinery: bones, parts, fur, poses, the floor solver
 tools/build_apparition.py builds kit/apparition_corridor.json + its renders in docs/
 docs/APPARITIONS.md    the apparitions: the jinn/vulto basis, the corridor one, what comes next
 docs/CREATURE.md       the night stalker: anatomy, poses, how to change it
