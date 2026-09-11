@@ -10,6 +10,12 @@ extends Node3D
 ##   I>=6  shadows cross much closer
 ## Night: the Stalker (see stalker.gd), plus bangs/whispers.
 
+## Daytime apparitions take the lighting with them one time in five: whatever lamp is nearest the
+## thing stutters while it is there. It is not a tell - it is too common and too brief to be one -
+## but it means the deck misbehaving and the deck being haunted are the same event often enough
+## that you stop being able to dismiss either. Night has its own darkness and does not need this.
+const APPARITION_FLICKER := 0.20
+
 var next_event := 6.0
 var watcher: ShadowFigure = null
 var ritual: Ritual = null
@@ -128,6 +134,7 @@ func _shadow_cross(min_dist: float, min_dot: float) -> bool:
 	var t: Vector3 = c[1]
 	f.cross(p + t * 2.4 * side, p - t * 2.4 * side, randf_range(0.55, 1.1))
 	Sfx.play_at("whisper", p, -14.0, 30.0, 0.8)
+	_flicker_near(p)
 	return true
 
 func _bang() -> void:
@@ -141,11 +148,18 @@ func _whisper() -> void:
 	Sfx.play_at("whisper", head + off, -6.0, 8.0, randf_range(0.85, 1.1))
 
 func _flicker() -> void:
-	if _flickering:
+	_flicker_light(Game.station.random_light(), -8.0)
+
+func _flicker_near(pos: Vector3) -> void:
+	if randf() >= APPARITION_FLICKER:
+		return
+	_flicker_light(Game.station.nearest_light(pos), -12.0)
+
+func _flicker_light(l: Light3D, db: float) -> void:
+	if _flickering or l == null:
 		return
 	_flickering = true
-	var l: Light3D = Game.station.random_light()
-	Sfx.play_at("flicker", l.global_position, -8.0, 25.0)
+	Sfx.play_at("flicker", l.global_position, db, 25.0)
 	var n := 5 + randi() % 5
 	for i in n:
 		if not Game.power_on:
@@ -190,6 +204,7 @@ func _spawn_watcher() -> bool:
 	watcher = ShadowFigure.new()
 	add_child(watcher)
 	watcher.stand(spots.pick_random(), eye)
+	_flicker_near(watcher.global_position)
 	return true
 
 func _update_watcher(delta: float) -> void:
@@ -241,6 +256,7 @@ func _fae() -> bool:
 		return false
 	if f.seen:
 		Sfx.play_at("beep", f.global_position, -18.0, 26.0, 1.9)
+	_flicker_near(f.global_position)
 	return true
 
 ## The chupacabra: waiting round the edge of a side passage, with the wall taking most of it.
@@ -273,6 +289,7 @@ func _chupacabra() -> bool:
 	var beast := Chupacabra.new()
 	add_child(beast)
 	beast.lurk_at(c[0], c[1])
+	_flicker_near(beast.global_position)
 	return true
 
 ## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.
@@ -302,6 +319,7 @@ func _ghoul() -> bool:
 	var g := Ghoul.new()
 	add_child(g)
 	g.lure(spots.pick_random(), eye)
+	_flicker_near(g.global_position)
 	return true
 
 # ---------------------------------------------------------------- night
@@ -322,8 +340,8 @@ func _start_night() -> void:
 ## sitting in a circle of candles. Nothing announces it: either you see warm light coming out of a
 ## doorway at some point tonight, or you do not.
 func _place_ritual() -> void:
-	if Game.intensity() < 2.0:
-		return
+	if Game.day < 6:
+		return          # nothing sets this up until the last two nights
 	var st: Station = Game.station
 	var count: int = st.layout.rooms.size()
 	if count < 3:

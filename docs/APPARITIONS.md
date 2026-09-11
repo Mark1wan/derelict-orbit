@@ -173,8 +173,9 @@ This one is not from anywhere in particular - it is the oldest shape in the genr
 everybody. A circle marked on the ground, lights round the edge of it, and a person sitting in the
 middle with their hands up, working.
 
-It appears **only at night**, once, in a room you are not waking up in and the stalker is not
-starting in. Nothing announces it. Either at some point tonight you see warm light coming out of a
+It appears **only at night, and only from day 6**, once, in a room you are not waking up in and
+the stalker is not starting in. Six nights of the station behaving like a haunted machine, and
+then on the second to last one there is somebody in a room doing this, and has been for a while. Nothing announces it. Either at some point tonight you see warm light coming out of a
 doorway on a deck where nothing has been warm since the power failed, or you do not.
 
 ![inside](ritual_room.png)
@@ -208,6 +209,17 @@ It is laid in the **room's own frame** - `Station.room_transform()` - so when th
 has rolled that room ninety degrees, the circle is on what is now the wall, with somebody sitting
 on it. In a station with no gravity that is not a bug in the ritual.
 
+
+## The lights go with them
+
+Every daytime apparition rolls once when it spawns, and **one time in five** the lamp nearest it
+stutters for half a second - `HauntManager.APPARITION_FLICKER`, `Station.nearest_light()`. The
+crossing shadow, the watcher, the ghul, the Good Neighbours and the chupacabra all do it.
+
+It is deliberately not a tell. At one in five it is too rare to watch for and too common to be
+evidence, and the deck flickers on its own anyway as the intensity climbs - so a light stuttering
+means either the station is old or something is standing near it, and you never get to know which.
+Night is exempt: the dark down there does not need help.
 
 ## Cost
 

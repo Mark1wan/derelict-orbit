@@ -590,6 +590,17 @@ func shove_props(strength := 0.6) -> void:
 		prop_vel[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * strength
 		prop_spin[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.8
 
+## The light nearest a point, so an event can make the bit of deck it is happening on misbehave.
+func nearest_light(p: Vector3) -> Light3D:
+	var best: Light3D = null
+	var best_d := INF
+	for l in lights:
+		var d := l.global_position.distance_squared_to(p)
+		if d < best_d:
+			best_d = d
+			best = l
+	return best
+
 func random_light() -> Light3D:
 	return lights.pick_random()
 
