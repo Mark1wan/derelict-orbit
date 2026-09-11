@@ -20,16 +20,16 @@ from render3d import Camera, Renderer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-_TEX = None
+_TEX = {}
 
 
-def texture(size=96):
-    """The puff sprite, once."""
-    global _TEX
-    if _TEX is None or len(_TEX) != size:
-        _TEX = [[spec.smoke_alpha((x + 0.5) / size, (y + 0.5) / size) for x in range(size)]
-                for y in range(size)]
-    return _TEX
+def texture(size=96, plateau=0.0):
+    """The puff sprite, one per (size, plateau)."""
+    key = (size, round(plateau, 3))
+    if key not in _TEX:
+        _TEX[key] = [[spec.smoke_alpha((x + 0.5) / size, (y + 0.5) / size, plateau)
+                      for x in range(size)] for y in range(size)]
+    return _TEX[key]
 
 
 def corridor(rend, cam, length=16.0, half=1.5, height=3.0, lit_end=True, doorway=True):
@@ -103,21 +103,29 @@ def splat(rend, cam, center, radius, alpha, color, tex, additive=False):
                 row[px] = tuple(int(old[i] * (1 - a) + 255 * color[i] * a) for i in range(3))
 
 
-def draw(rend, cam, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, lean=0.0):
-    """The figure at `origin`. `form` 1 is gathered, 0 is fully dispersed - staring at it drives
-    that toward 0. `t` advances the drift so successive frames boil."""
-    tex = texture(spec.spec()["texture"]["size"])
-    cols = spec.SMOKE
-    puffs = spec.build()
+def draw(rend, cam, fig, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, lean=0.0,
+         morph=0.0):
+    """`fig` at `origin`. `form` 1 is gathered, 0 is fully dispersed - staring at one drives that
+    toward 0. `morph` 0 -> 1 takes a two-layout figure from what it is pretending to be to what it
+    is. `t` advances the drift so successive frames boil."""
+    tex_spec = fig.spec()["texture"]
+    tex = texture(tex_spec["size"], tex_spec["plateau"])
+    cols = {k: v for k, v in fig.colors.items()}
+    puffs = fig.puffs
     cy, sy_ = math.cos(yaw), math.sin(yaw)
     items = []
     for p in puffs:
         ph, rate = p["phase"], p["rate"]
         d = p["drift"]
+        home = p["pos"]
+        base_size = p["size"]
+        if morph > 0.0 and "pos2" in p:
+            home = [home[i] + (p["pos2"][i] - home[i]) * morph for i in range(3)]
+            base_size = base_size + (p["size2"] - base_size) * morph
         anchor = [
-            p["pos"][0] + math.sin(t * rate[0] + ph[0]) * d,
-            p["pos"][1] + math.sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
-            p["pos"][2] + math.sin(t * rate[2] + ph[2]) * d,
+            home[0] + math.sin(t * rate[0] + ph[0]) * d,
+            home[1] + math.sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
+            home[2] + math.sin(t * rate[2] + ph[2]) * d,
         ]
         spread = (1.0 - form) * 1.6
         pos = [anchor[i] + p["out"][i] * spread for i in range(3)]
@@ -126,27 +134,37 @@ def draw(rend, cam, origin=(0, 0, 0), form=1.0, t=0.0, ember=1.0, yaw=0.0, lean=
         x = lx * cy + pos[2] * sy_
         z = -lx * sy_ + pos[2] * cy
         world = (origin[0] + x, origin[1] + ly, origin[2] + z)
-        size = p["size"] * (1.0 + 0.12 * math.sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
+        size = base_size * (1.0 + 0.12 * math.sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
         alpha = p["alpha"] * (0.75 + 0.25 * math.sin(t * rate[2] + ph[2])) * (form ** 0.6)
         items.append((cam.project(world, rend.w, rend.h), world, size, alpha, p["tint"]))
     for pr, world, size, alpha, tint in sorted(items, key=lambda it: -(it[0][2] if it[0] else 0)):
         splat(rend, cam, world, size, alpha, cols[tint], tex)
-    for e in spec.EMBERS:
-        x = e["pos"][0] * cy + e["pos"][2] * sy_
-        z = -e["pos"][0] * sy_ + e["pos"][2] * cy
-        world = (origin[0] + x, origin[1] + e["pos"][1], origin[2] + z)
-        splat(rend, cam, world, e["size"] * (0.7 + 0.5 * form), e["energy"] * ember * form,
-              spec.SMOKE["ember"], tex, additive=True)
+    for e in fig.embers:
+        pos = e["pos"]
+        size = e["size"]
+        energy = e["energy"]
+        if morph > 0.0 and "pos2" in e:
+            pos = [pos[i] + (e["pos2"][i] - pos[i]) * morph for i in range(3)]
+            size = size + (e["size2"] - size) * morph
+            energy = energy + (e["energy2"] - energy) * morph
+        lx = pos[0] * math.cos(lean) - pos[1] * math.sin(lean)
+        ly = pos[0] * math.sin(lean) + pos[1] * math.cos(lean)
+        x = lx * cy + pos[2] * sy_
+        z = -lx * sy_ + pos[2] * cy
+        world = (origin[0] + x, origin[1] + ly, origin[2] + z)
+        splat(rend, cam, world, size * (0.7 + 0.5 * form), energy * ember * form,
+              cols[e["key"]], tex, additive=True)
 
 
 def scene(path, w, h, eye, target, fov, origin, form=1.0, t=0.0, ember=1.0, yaw=0.0, corr=True,
-          lean=0.0):
+          lean=0.0, fig=None, morph=0.0):
+    fig = fig or spec.corridor_figure()
     rend = Renderer(w, h, (6, 6, 8))
     cam = Camera(eye, target, fov=fov)
     rend.scale = cam.scale
     if corr:
         corridor(rend, cam)
-    draw(rend, cam, origin, form, t, ember, yaw, lean)
+    draw(rend, cam, fig, origin, form, t, ember, yaw, lean, morph)
     rend.save(path)
     return path
 
@@ -172,12 +190,34 @@ def main():
         cam = Camera((0, 1.45, -3.6), (0, 1.15, -8.6), fov=32)
         sub.scale = cam.scale
         corridor(sub, cam)
-        draw(sub, cam, (0, 0, -8.5), form=form, t=3.0 + i * 1.3, ember=1.0 - i * 0.22)
+        draw(sub, cam, spec.corridor_figure(), (0, 0, -8.5), form=form, t=3.0 + i * 1.3,
+             ember=1.0 - i * 0.22)
         for y in range(620):
             rend.color[y][i * 250:(i + 1) * 250] = sub.color[y]
             rend.color[y][i * 250] = (30, 30, 34)
     rend.save(os.path.join(o, "apparition_dissolve.png"))
     print(os.path.join(o, "apparition_dissolve.png"))
+
+    ghoul = spec.ghoul_figure()
+    print(scene(os.path.join(o, "ghoul_lure.png"), 900, 620, (0.3, 1.55, -1.4), (0, 1.2, -9),
+                40, (0.10, 0, -8.8), t=2.0, fig=ghoul, morph=0.0))
+    print(scene(os.path.join(o, "ghoul_true.png"), 820, 620, (1.15, 1.30, -9.0), (0, 0.80, -12.9),
+                32, (0, 0, -12.9), t=6.0, yaw=0.75, fig=ghoul, morph=1.0))
+    print(scene(os.path.join(o, "ghoul_hooves.png"), 700, 560, (0.95, 0.80, -11.3), (0, 0.42, -12.9),
+                24, (0, 0, -12.9), t=2.5, yaw=0.3, fig=ghoul, morph=0.0))
+    # the turn: five frames of it stopping pretending
+    rend = Renderer(1150, 660, (6, 6, 8))
+    for i, m in enumerate([0.0, 0.25, 0.5, 0.75, 1.0]):
+        sub = Renderer(230, 660, (6, 6, 8))
+        cam = Camera((0, 1.5, -2.2), (0, 1.05, -10.6), fov=32)
+        sub.scale = cam.scale
+        corridor(sub, cam)
+        draw(sub, cam, ghoul, (0, 0, -10.6), t=4.0 + i * 0.9, morph=m)
+        for y in range(660):
+            rend.color[y][i * 230:(i + 1) * 230] = sub.color[y]
+            rend.color[y][i * 230] = (30, 30, 34)
+    rend.save(os.path.join(o, "ghoul_turn.png"))
+    print(os.path.join(o, "ghoul_turn.png"))
 
 
 if __name__ == "__main__":

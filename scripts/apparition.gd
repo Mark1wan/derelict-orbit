@@ -1,6 +1,7 @@
 extends Node3D
 class_name Apparition
-## The daytime apparition: a smoke figure, not a body.
+## A daytime apparition: a smoke figure, not a body. One class, one JSON per figure in the suite
+## (kit/apparition_*.json) - the corridor vulto, the ghul, and whatever comes next.
 ##
 ## Two ideas underneath it. The **jinn** of Islamic belief is made of smokeless fire - not the
 ## ghost of a dead person but a thing of another order sharing the room with you; so this is smoke
@@ -16,10 +17,15 @@ class_name Apparition
 
 const RIG_PATH := "res://kit/apparition_corridor.json"
 
+## Which figure in the suite this is. Set it before the node enters the tree.
+var rig_path := RIG_PATH
+
 ## 1 = gathered into a figure, 0 = dispersed. Staring at it drives this down.
 var form := 1.0
 ## Extra churn while it is moving - it trails as it slides.
 var agitation := 0.0
+## For a figure with two layouts (the ghul): 0 is what it is pretending to be, 1 is what it is.
+var morph := 0.0
 var ember_energy := 1.0
 
 var _puffs: Array = []
@@ -30,10 +36,10 @@ var _ember_mm: MultiMesh
 var _t := 0.0
 
 static var _rig_cache: Dictionary = {}
-static var _tex: ImageTexture = null
+static var _tex: Dictionary = {}
 
 func _ready() -> void:
-	var rig := _load_rig()
+	var rig := _load_rig(rig_path)
 	_puffs = rig["puffs"]
 	_embers = rig["embers"]
 	var smoke: Dictionary = rig["smoke"]
@@ -41,18 +47,19 @@ func _ready() -> void:
 		var c: Array = smoke[key]
 		_cols[key] = Color(c[0], c[1], c[2])
 
-	var tex := _smoke_texture(int(rig["texture"]["size"]), int(rig["texture"]["noise_seed"]))
+	var tx: Dictionary = rig["texture"]
+	var tex := _smoke_texture(int(tx["size"]), int(tx["noise_seed"]), float(tx.get("plateau", 0.0)))
 	_smoke = _make_layer(tex, _puffs.size(), BaseMaterial3D.BLEND_MODE_MIX)
 	_ember_mm = _make_layer(tex, _embers.size(), BaseMaterial3D.BLEND_MODE_ADD)
 	_update(0.0)
 
-static func _load_rig() -> Dictionary:
-	if _rig_cache.has(RIG_PATH):
-		return _rig_cache[RIG_PATH]
-	var f := FileAccess.open(RIG_PATH, FileAccess.READ)
-	assert(f != null, "apparition rig missing: " + RIG_PATH)
+static func _load_rig(path: String) -> Dictionary:
+	if _rig_cache.has(path):
+		return _rig_cache[path]
+	var f := FileAccess.open(path, FileAccess.READ)
+	assert(f != null, "apparition rig missing: " + path)
 	var data: Dictionary = JSON.parse_string(f.get_as_text())
-	_rig_cache[RIG_PATH] = data
+	_rig_cache[path] = data
 	return data
 
 ## One MultiMeshInstance3D of billboarded quads: per-instance colour carries the alpha, so the
@@ -102,12 +109,18 @@ func _update(t: float) -> void:
 		var rate: Array = p["rate"]
 		var out: Array = p["out"]
 		var d: float = p["drift"] * churn
+		var home := Vector3(pos[0], pos[1], pos[2])
+		var base_size: float = p["size"]
+		if morph > 0.0 and p.has("pos2"):
+			var pos2: Array = p["pos2"]
+			home = home.lerp(Vector3(pos2[0], pos2[1], pos2[2]), morph)
+			base_size = lerpf(base_size, p["size2"], morph)
 		var anchor := Vector3(
-			pos[0] + sin(t * rate[0] + ph[0]) * d,
-			pos[1] + sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
-			pos[2] + sin(t * rate[2] + ph[2]) * d)
+			home.x + sin(t * rate[0] + ph[0]) * d,
+			home.y + sin(t * rate[1] + ph[1]) * d * 0.7 + p["rise"] * t * 0.35,
+			home.z + sin(t * rate[2] + ph[2]) * d)
 		anchor += Vector3(out[0], out[1], out[2]) * spread
-		var size: float = p["size"] * (1.0 + 0.12 * sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
+		var size: float = base_size * (1.0 + 0.12 * sin(t * rate[0] * 1.7 + ph[1])) * (1.0 + (1.0 - form) * 1.2)
 		var alpha: float = p["alpha"] * (0.75 + 0.25 * sin(t * rate[2] + ph[2])) * fade
 		var xf := Transform3D(Basis.IDENTITY.scaled(Vector3(size, size, size)), anchor)
 		xf.basis = xf.basis.rotated(Vector3.FORWARD, sin(t * p["spin"] + ph[0]) * 0.6)
@@ -117,12 +130,19 @@ func _update(t: float) -> void:
 	for i in _embers.size():
 		var e: Dictionary = _embers[i]
 		var pos: Array = e["pos"]
+		var here := Vector3(pos[0], pos[1], pos[2])
+		var size: float = e["size"]
+		var energy: float = e["energy"]
+		if morph > 0.0 and e.has("pos2"):
+			var pos2: Array = e["pos2"]
+			here = here.lerp(Vector3(pos2[0], pos2[1], pos2[2]), morph)
+			size = lerpf(size, e["size2"], morph)
+			energy = lerpf(energy, e["energy2"], morph)
 		var flick := 0.75 + 0.25 * sin(t * 7.3 + i * 2.1) * sin(t * 2.7)
-		var size: float = e["size"] * (0.7 + 0.5 * form)
-		_ember_mm.set_instance_transform(i, Transform3D(
-			Basis.IDENTITY.scaled(Vector3(size, size, size)), Vector3(pos[0], pos[1], pos[2])))
-		var col: Color = _cols["ember"]
-		_ember_mm.set_instance_color(i, Color(col.r, col.g, col.b, e["energy"] * ember_energy * flick * form))
+		size *= 0.7 + 0.5 * form
+		_ember_mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(size, size, size)), here))
+		var col: Color = _cols.get(e.get("key", "ember"), _cols["core"])
+		_ember_mm.set_instance_color(i, Color(col.r, col.g, col.b, energy * ember_energy * flick * form))
 
 ## Come apart. Returns the tween so a caller can free the node when it finishes.
 func disperse(time := 0.45) -> Tween:
@@ -141,27 +161,30 @@ func gather(time := 0.7) -> void:
 
 # ---------------------------------------------------------------- the puff sprite
 ## Soft round falloff chewed by three octaves of value noise, so the edge frays instead of reading
-## as a circle. The same formula as tools/apparition_spec.py's smoke_alpha(), on the same integer
-## hash, so the reference renders and the game draw the same smoke.
-static func _smoke_texture(size: int, seed_: int) -> ImageTexture:
-	if _tex:
-		return _tex
+## as a circle. `plateau` is how much of the middle is opaque before the falloff starts: 0 gives
+## smoke, higher values let overlapping puffs merge into something that passes for solid. The same
+## formula as tools/apparition_spec.py's smoke_alpha(), on the same integer hash, so the reference
+## renders and the game draw the same smoke.
+static func _smoke_texture(size: int, seed_: int, plateau: float) -> ImageTexture:
+	var key := "%d_%d_%.3f" % [size, seed_, plateau]
+	if _tex.has(key):
+		return _tex[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	for y in size:
 		for x in size:
 			var u := (x + 0.5) / float(size)
 			var v := (y + 0.5) / float(size)
-			img.set_pixel(x, y, Color(1, 1, 1, _alpha_at(u, v, seed_)))
-	_tex = ImageTexture.create_from_image(img)
-	return _tex
+			img.set_pixel(x, y, Color(1, 1, 1, _alpha_at(u, v, seed_, plateau)))
+	_tex[key] = ImageTexture.create_from_image(img)
+	return _tex[key]
 
-static func _alpha_at(u: float, v: float, seed_: int) -> float:
+static func _alpha_at(u: float, v: float, seed_: int, plateau: float) -> float:
 	var dx := u - 0.5
 	var dy := v - 0.5
 	var r := sqrt(dx * dx + dy * dy) * 2.0
 	if r >= 1.0:
 		return 0.0
-	var fall := pow(1.0 - r, 1.7)
+	var fall := pow(minf(1.0, (1.0 - r) / maxf(0.001, 1.0 - plateau)), 1.7)
 	var n := 0.0
 	var amp := 0.5
 	var cells := 4

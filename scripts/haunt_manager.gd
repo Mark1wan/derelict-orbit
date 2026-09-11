@@ -63,7 +63,7 @@ func _fire_day_event(I: float) -> void:
 	if I >= 2.0:
 		options.append_array(["flicker", "flicker"])
 	if I >= 3.0:
-		options.append_array(["whisper", "watcher", "shadow"])
+		options.append_array(["whisper", "watcher", "shadow", "ghoul"])
 	if I >= 4.0:
 		options.append("drift")
 	if I >= 5.0:
@@ -86,6 +86,9 @@ func _fire_day_event(I: float) -> void:
 			_whisper()
 		"watcher":
 			if not _spawn_watcher():
+				_whisper()
+		"ghoul":
+			if not _ghoul():
 				_whisper()
 		"drift":
 			Game.station.shove_props(0.8)
@@ -199,9 +202,38 @@ func _update_watcher(delta: float) -> void:
 
 func _clear_figures() -> void:
 	for c in get_children():
-		if c is ShadowFigure:
+		if c is ShadowFigure or c is Ghoul:
 			c.queue_free()
 	watcher = null
+
+## The ghul: a crew member standing down a corridor you have no business in, with a lamp lit.
+## Wants distance to work - the whole point of it is the walk toward it - so it only takes a spot
+## well down the deck, and it only shows up once the station has started lying to you properly.
+func _ghoul() -> bool:
+	if Game.intensity() < 3.0:
+		return false
+	for c in get_children():
+		if c is Ghoul:
+			return false
+	var st: Station = Game.station
+	var cam: Camera3D = Game.player.camera
+	var eye := cam.global_position
+	var fwd := -cam.global_transform.basis.z
+	var spots := []
+	for spot: Array in st.crossing_spots():
+		var p: Vector3 = spot[0]
+		var to := p - eye
+		if to.length() < 9.0 or fwd.dot(to.normalized()) < 0.55:
+			continue
+		if not st.has_line_of_sight(eye, p):
+			continue
+		spots.append(p)
+	if spots.is_empty():
+		return false
+	var g := Ghoul.new()
+	add_child(g)
+	g.lure(spots.pick_random(), eye)
+	return true
 
 # ---------------------------------------------------------------- night
 func _start_night() -> void:

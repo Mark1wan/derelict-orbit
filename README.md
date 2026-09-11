@@ -74,8 +74,10 @@ scripts/tex.gd         procedural textures: riveted plating + normal maps, grati
 scripts/interactable.gd  wall terminal (hold-to-complete)
 scripts/haunt_manager.gd daytime events + night stalker spawning
 scripts/shadow_figure.gd  the two daytime apparition events (crossing, watching)
-scripts/apparition.gd  the apparition itself: a smoke figure - jinn (smokeless fire) crossed with
-                       the Brazilian vulto - built from kit/apparition_corridor.json
+scripts/apparition.gd  the apparitions: smoke figures built from kit/apparition_*.json - the
+                       corridor vulto (jinn crossed with the Brazilian shadow person) and the ghul
+scripts/ghoul.gd       the ghul: wears a crew member down a corridor to draw you off your shift,
+                       and stops pretending when you get close (docs/APPARITIONS.md)
 scripts/stalker.gd     the night stalker
 scripts/creature.gd    the night stalker's body: a posable rig built from kit/creature_rig.json -
                        belly-up crawl, contortions, upright when immobile (see docs/CREATURE.md)
