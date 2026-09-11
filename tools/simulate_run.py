@@ -12,6 +12,7 @@ nothing about geometry, so an event that would fail for want of a spot is assume
 """
 
 import argparse
+import json
 import os
 import random
 import re
@@ -209,8 +210,18 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--json", default=None, help="write the run as data, for building reports from")
     args = ap.parse_args()
     log, tally = run(args.nights, args.seed)
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump({"nights": args.nights, "seed": args.seed, "days": log, "tally": tally,
+                       "labels": LABEL, "apparitions": sorted(APPARITIONS),
+                       "day_length": DAY_LENGTH, "tasks": TASKS_PER_DAY,
+                       "clock": [clock(t * DAY_LENGTH / 12.0) for t in range(13)]}, f)
+        print("wrote", args.json)
+        if not args.out:
+            return
     text = report(log, tally, args.quiet)
     if args.out:
         open(args.out, "w").write(text + "\n")
