@@ -3,15 +3,16 @@ class_name Ghoul
 ## The ghul: the apparition that pretends.
 ##
 ## In pre-Islamic Arabian folklore the ghul waits off the road in desolate country, takes the
-## shape of a person - often calling out, often holding a light - to bring a traveller in off
-## their route, and eats what it catches. It lives on the dead. The one thing it cannot change,
-## in every version of the story, is its hooves.
+## shape of a person to bring a traveller in off their route, and eats what it catches. It lives
+## on the dead. The one thing it cannot change, in every version of the story, is its hooves.
 ##
 ## Here it stands at the far end of a corridor you are not due to be in, wearing the shape of a
-## crew member with a suit lamp lit, and waits. It is patient, and it is quiet, and while you are
-## walking toward it you are not doing your shift. If you come close, or look too long, it stops
-## pretending: the lamp dies, the shoulders come up over the head, the arms go down to the deck,
-## and two eyes open in the wrong colour. Then it takes itself away.
+## crew member, and waits. Nothing about it is lit - it is a shape against the light at the far
+## end, which is all you ever really see down a corridor anyway. It is patient, and it is quiet,
+## and while you are walking toward it you are not doing your shift. If you come close, or look
+## too long, it stops pretending: the shoulders come up over the head, the arms go down to the
+## deck, and two eyes open in the wrong colour - the first light it has shown. Then it takes
+## itself away.
 ##
 ## It never touches you. The day is not when this station kills you - that is what the nights are
 ## for - but you will remember the corridor it was standing in.

@@ -185,16 +185,18 @@ def ghoul_figure(seed=11):
     """The ghul of pre-Islamic Arabia: the thing that waits off the road, takes the shape of a
     person to bring travellers close, and eats what it finds. Two layouts in one figure.
 
-    **Lure** (`morph` 0): a crew member standing quietly down the corridor with a suit lamp at the
-    chest, facing away. Upright, ordinary proportions, and - this is the point - it has legs,
+    **Lure** (`morph` 0): a crew member standing quietly down the corridor, facing away. Nothing
+    is lit about it - it is a shape against the light at the far end, which is all anyone ever
+    actually sees down a corridor. Upright, ordinary proportions, and - this is the point - it has
+    legs,
     which the vulto never does. What it does not have is boots. The folklore is consistent that
     whatever else a ghul can change, it cannot hide its hooves; they are down there from the first
     frame, too small and too dark and pointed the wrong way, for anyone who looks.
 
     **True** (`morph` 1): the lure comes apart at the joints - the shoulders rise into a hunch
     above the head, the neck runs forward, the jaw carries on past where a face would stop, the
-    arms lengthen until the hands are on the floor, and it settles over its meal. The lamp goes
-    out. Two eyes come up in its place, the colour of something gone off.
+    arms lengthen until the hands are on the floor, and it settles over its meal. Two eyes open,
+    the colour of something gone off, and they are the first light it has shown.
 
     The morph is per-puff, so it does not cut between two models: the person unfolds into it while
     you watch, and the hooves are the only part that does not move.
@@ -204,8 +206,7 @@ def ghoul_figure(seed=11):
         core=[0.030, 0.023, 0.018],      # carrion-dark: browner and heavier than the vulto's cold black
         haze=[0.105, 0.080, 0.062],      # dust, not violet
         embers_by_key={
-            "lamp": [0.72, 0.80, 0.95],  # a suit lamp, or near enough to one at twenty metres
-            "eye": [0.62, 0.78, 0.14],   # sickly, and nothing like the lamp it replaces
+            "eye": [0.62, 0.78, 0.14],   # sickly; the only light it ever shows, and only at the end
             # the hooves are the only part of it that is not smoke, so they are the only part that
             # takes the light - horn-coloured, and far too small to be boots
             "hoof": [0.155, 0.125, 0.095],
@@ -288,9 +289,7 @@ def ghoul_figure(seed=11):
                rng.uniform(0.08, 0.20), drift=rng.uniform(0.08, 0.15), spin=0.8,
                rise=rng.uniform(0.04, 0.12), pos2=(math.cos(a) * rad, y * 0.8, math.sin(a) * rad))
 
-    # the lamp at the chest, which is what you walk towards; and the eyes that replace it
-    f.ember((0.0, 1.18, -0.16), 0.105, 0.95, key="lamp",
-            pos2=(0, 1.05, -0.30), size2=0.05, energy2=0.0)
+    # no lamp, no glow, nothing: until it turns, the only thing to see is the shape
     f.ember((-0.055, 1.665, -0.09), 0.040, 0.0, key="eye",
             pos2=(-0.055, 1.045, -0.55), size2=0.042, energy2=0.85)
     f.ember((0.052, 1.668, -0.09), 0.038, 0.0, key="eye",

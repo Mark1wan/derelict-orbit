@@ -57,11 +57,12 @@ which disperses once you have looked at it for 0.7 s or got within 3.5 m.
 
 ![the lure](ghoul_lure.png)
 
-*What is standing at the end of the corridor. A crew member, facing away, suit lamp lit.*
+*What is standing at the end of the corridor. A crew member, facing away. Nothing about it is
+lit - a shape against the light at the far end is all you ever really see down a corridor.*
 
 The ghul of pre-Islamic Arabia is not a ghost either. It is a desert demon that waits off the road
-in desolate country, takes the shape of a person - often calling out, often carrying a light - to
-bring a traveller in off their route, and eats what it catches. It lives on the dead. And in every
+in desolate country, takes the shape of a person to bring a traveller in off their route, and eats
+what it catches. It lives on the dead. And in every
 version of the story, whatever else it can change, **it cannot change its hooves**.
 
 That is the whole design. This one does not jump out at you; it stands a long way off, looking
@@ -74,9 +75,9 @@ Every puff carries a second anchor, and `morph` slides the whole figure between 
 
 ![the turn](ghoul_turn.png)
 
-*Five frames of it deciding to stop pretending. The lamp dies, the eyes come up in a colour no
-suit lamp has ever been, the shoulders rise into a hunch above the head, the neck runs forward,
-the arms lengthen until the hands are on the deck. The feet never move.*
+*Five frames of it deciding to stop pretending. Two eyes open - the first light it has shown -
+the shoulders rise into a hunch above the head, the neck runs forward, the arms lengthen until the
+hands are on the deck. The feet never move.*
 
 | | |
 |---|---|
@@ -119,7 +120,7 @@ a hash-based value noise and shared. No particle system, no shader.
 | `tools/build_apparition.py` | writes `kit/apparition_*.json` and the images here |
 | `tools/render_apparition.py` | the reference renders |
 | `kit/apparition_corridor.json` | the vulto: 47 puffs, 2 embers |
-| `kit/apparition_ghoul.json` | the ghul: 62 puffs (8 of them hooves), 3 embers, all of it morphing |
+| `kit/apparition_ghoul.json` | the ghul: 62 puffs (8 of them hooves), 2 embers, all of it morphing |
 | `scripts/apparition.gd` | builds and animates any of them - one class, one JSON per figure |
 | `scripts/shadow_figure.gd` | the two vulto events (crossing, watching) |
 | `scripts/ghoul.gd` | the lure |
