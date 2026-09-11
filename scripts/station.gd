@@ -159,6 +159,21 @@ func _place_rooms() -> void:
 		_sign(ROOM_LABEL[t], plate + toward_room * 0.035, toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 		_sign(ROOM_LABEL[t], plate - toward_room * 0.035, -toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 
+## The loose objects drifting through the deck: kit/prop_*.glb, one MeshInstance3D each with
+## the kit materials remapped onto the palette, and a box collider so they can be grabbed.
+const CORRIDOR_PROPS := ["prop_crate", "prop_canister", "prop_toolbox", "prop_slate",
+	"prop_debris", "prop_handhold", "prop_ration", "prop_helmet"]
+const ROOM_PROPS := {
+	"power": ["prop_power_cell", "prop_toolbox", "prop_extinguisher"],
+	"plant": ["prop_canister", "prop_drum", "prop_extinguisher"],
+	"control": ["prop_slate", "prop_ration", "prop_medkit"],
+	"laboratory": ["prop_slate", "prop_medkit", "prop_canister"],
+	"observation": ["prop_ration", "prop_slate", "prop_helmet"],
+	"exercise": ["prop_ration", "prop_medkit", "prop_toolbox"],
+	"server": ["prop_power_cell", "prop_slate", "prop_toolbox"],
+	"eva": ["prop_helmet", "prop_crate_large", "prop_canister"],
+}
+
 func _place_props() -> void:
 	var cells: Array = []
 	for c: Vector2i in layout.corridor:
@@ -166,15 +181,16 @@ func _place_props() -> void:
 			cells.append(c)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = layout.seed_ + 77
-	var n := mini(5, cells.size())
+	var n := mini(7, cells.size())
 	for i in n:
 		var c: Vector2i = cells[rng.randi() % cells.size()]
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
-		var s := rng.randf_range(0.35, 0.65)
-		_prop_box(p, Vector3(s, s, s * rng.randf_range(0.8, 1.6)), pal.get_mat("crate"))
+		_prop(String(CORRIDOR_PROPS[rng.randi() % CORRIDOR_PROPS.size()]), p, rng)
 	for r: Dictionary in layout.rooms:
-		var p := StationLayout.world(r["center"], 2.0) + Vector3(rng.randf_range(-2, 2), rng.randf_range(-0.5, 0.8), rng.randf_range(-2, 2))
-		_prop_box(p, Vector3(0.3, 0.3, 0.3), pal.get_mat("crate"))
+		var pool: Array = ROOM_PROPS.get(r["type"], CORRIDOR_PROPS)
+		for i in 2:
+			var p := StationLayout.world(r["center"], 2.0) + Vector3(rng.randf_range(-3, 3), rng.randf_range(-1.2, 1.2), rng.randf_range(-3, 3))
+			_prop(String(pool[rng.randi() % pool.size()]), p, rng)
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -321,13 +337,40 @@ func _sign(text: String, pos: Vector3, facing: Vector3, size := 48, col := Color
 	l.look_at(pos - facing, Vector3.UP)
 	return l
 
-func _prop_box(pos: Vector3, size: Vector3, mat: Material) -> void:
-	var m := BoxMesh.new()
-	m.size = size
-	var mi := _mesh(m, pos, mat)
-	mi.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
-	props.append(mi)
-	prop_spin.append(Vector3(randf_range(-0.2, 0.2), randf_range(-0.2, 0.2), randf_range(-0.2, 0.2)))
+## One prop from the kit, tumbling at a random attitude. Its surfaces keep the kit material
+## names, so the same palette remap the hull uses applies here. The glb rests on y = 0, so the
+## mesh is offset inside a pivot node and the pivot is what spins.
+func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var mesh := Kit.mesh(piece)
+	var names := Kit.material_names(piece)
+	var pivot := Node3D.new()
+	pivot.name = piece
+	pivot.position = pos
+	pivot.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+	root.add_child(pivot)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var aabb := mesh.get_aabb()
+	mi.position = -aabb.get_center()
+	for s in mesh.get_surface_count():
+		var key: String = Palette.KIT_MAP.get(names[s], "metal")
+		mi.set_surface_override_material(s, pal.get_mat(key))
+	pivot.add_child(mi)
+
+	# one box collider, so a prop is something you can grab and pull off
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = aabb.size
+	cs.shape = shape
+	body.add_child(cs)
+	mi.add_child(body)
+
+	props.append(pivot)
+	prop_spin.append(Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2)))
 	prop_vel.append(Vector3.ZERO)
 
 func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false) -> void:

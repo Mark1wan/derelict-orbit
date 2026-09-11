@@ -60,6 +60,44 @@ wall; rotate in 90° steps to face it wherever you need.
 Every room keeps the area in front of its doorway clear, so nothing blocks you walking
 in from the corridor, and circulation rails are split rather than run wall to wall.
 
+## The loose props
+
+`kit/prop_*.glb` — the small objects that drift through the deck: the things you bump into,
+grab to pull yourself along, and that get shoved around when the haunting escalates. Each one
+is centred on X/Z with its base at **y = 0**, fits inside a 1 m box (so it clears a 3 m corridor
+at any tumble angle) and reuses the same material names as the modules, so a palette remap
+applied to the kit covers the props too.
+
+| File | Tris | Notes |
+|---|---|---|
+| `prop_crate.glb` | 240 | ribbed supply crate, corner cage, hazard edge |
+| `prop_crate_large.glb` | 240 | pallet-sized box with a lid seam and catches |
+| `prop_canister.glb` | 500 | pressure cylinder, valve under a collar cage |
+| `prop_drum.glb` | 260 | fluid drum with rolling hoops and bung caps |
+| `prop_toolbox.glb` | 96 | hinged case, carry handle, charge LED |
+| `prop_medkit.glb` | 108 | first aid pack, red cross panel, status light |
+| `prop_extinguisher.glb` | 344 | fire bottle, squeeze handle, hose |
+| `prop_power_cell.glb` | 156 | finned battery pack with charge LEDs |
+| `prop_helmet.glb` | 532 | EVA helmet, tinted visor, neck ring, lamp |
+| `prop_slate.glb` | 72 | crew tablet with a lit screen |
+| `prop_ration.glb` | 60 | sealed food pouch |
+| `prop_debris.glb` | 120 | torn-off hull panel, bent ribs, cut cable |
+| `prop_handhold.glb` | 132 | grab bar knocked off a wall |
+
+About 2,900 triangles for the set. `scripts/station.gd` scatters them per room type (canisters and
+drums in life support, power cells in the plant and the server room, helmets in the EVA airlock)
+and gives each one a box collider, so a prop is also something you can grab and pull off.
+
+They are built by `tools/build_props.py`, which is self-contained — pure Python, no Blender and no
+third-party modules:
+
+    python3 tools/build_props.py --check   # rewrites kit/prop_*.glb and re-parses each one
+
+`tools/proplib.py` holds the glTF writer, the material palette and the primitives (box, cylinder,
+sphere, corner frame). Adding a prop is a function plus one line in `PROPS`; the builder checks
+every piece rests on y = 0 and stays under a metre before it writes anything.
+
+
 ## The window pieces
 
 Each viewport is a genuine aperture cut through the hull — the slab is laid as four
