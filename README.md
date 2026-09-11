@@ -109,6 +109,11 @@ corridors, the skylight, the windows, then the same with the power off) and save
 
 ## Running on the Quest 3
 
+**Short version: `.github/workflows/webxr.yml` exports the build on every push** - as a
+downloadable artifact from any branch, and to GitHub Pages from the default branch. See
+[docs/PLAYTEST.md](docs/PLAYTEST.md) for the whole route onto the headset and what to look for in a
+test session.
+
 WebXR needs **HTTPS** (localhost is exempt, but the Quest isn't localhost). Two easy routes:
 
 1. **GitHub Pages** - push `build/web/` to a repo, enable Pages. Because the export has thread support off it does
