@@ -210,16 +210,42 @@ has rolled that room ninety degrees, the circle is on what is now the wall, with
 on it. In a station with no gravity that is not a bug in the ritual.
 
 
-## The lights go with them
+## The lights, and not being able to tell
 
-Every daytime apparition rolls once when it spawns, and **one time in five** the lamp nearest it
-stutters for half a second - `HauntManager.APPARITION_FLICKER`, `Station.nearest_light()`. The
-crossing shadow, the watcher, the ghul, the Good Neighbours and the chupacabra all do it.
+There are two reasons a lamp on this deck stutters. One is that it is an old fitting on a station
+nobody has maintained since the crew stopped filing reports. The other is that something is
+standing under it. The entire design of this bit is that **you cannot tell which**, and four
+separate things are doing that work:
 
-It is deliberately not a tell. At one in five it is too rare to watch for and too common to be
-evidence, and the deck flickers on its own anyway as the intensity climbs - so a light stuttering
-means either the station is old or something is standing near it, and you never get to know which.
-Night is exempt: the dark down there does not need help.
+**One routine, one vocabulary.** Both causes go through `_stutter()` and draw their character from
+the same pool - `BLINK` (one or two frames of nothing, and half the time you are not sure it
+happened), `STAMMER` (the classic five-to-ten), `DYING` (a ballast sinking, hanging there dim for
+up to a second, then coming back like nothing happened) and `BANK` (it takes its neighbour with
+it, which is either a shared circuit or worse). Volume and pitch are randomised per stutter, not
+per cause. There is no signature to learn, because the moment the haunted ones have one the player
+stops doubting and starts reading.
+
+**Most flickers are nothing.** Three or four lamps per deck are genuinely failing -
+`Station.faulty_lights`, picked with the deck seed, so this run's bad lights stay this run's bad
+lights and the player can learn where they are. They stutter on their own timer all day, getting
+more frequent as the station degrades. That background is most of the flickering in a run, and it
+is what makes every other flicker deniable.
+
+**The ambient ones happen where apparitions happen.** When the haunt manager fires a flicker event
+it picks a genuinely faulty lamp two thirds of the time and, the rest of the time, the lamp nearest
+a spot an apparition *would* have used. So "it flickered at the junction ahead" carries nothing
+either.
+
+**And things stand under the lamps you already know are bad.** A third of the time an apparition
+takes whichever of its candidate spots is nearest a failing light. The lamp you have learned not
+to trust is also the one with something under it - which is the point at which the two explanations
+stop being separable at all.
+
+On top of that, each daytime apparition rolls `APPARITION_FLICKER` (20%) when it spawns, and half
+of those hits are **delayed 0.6-1.6 s**, so the light goes once the thing is already standing
+there rather than announcing it. Night is exempt: main power is dead and the dark down there does
+not need help.
+
 
 ## Cost
 

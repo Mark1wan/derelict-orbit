@@ -21,6 +21,7 @@ var watcher: ShadowFigure = null
 var ritual: Ritual = null
 var stalker: Stalker = null
 var _flickering := false
+var _fault_timer := 12.0
 
 func _ready() -> void:
 	Game.phase_changed.connect(_on_phase)
@@ -33,6 +34,7 @@ func _reset() -> void:
 	stalker = null
 	Sfx.set_heartbeat(false)
 	next_event = 8.0
+	_fault_timer = 12.0
 
 func _on_phase(p: int) -> void:
 	match p:
@@ -54,6 +56,14 @@ func _process(delta: float) -> void:
 
 # ---------------------------------------------------------------- day
 func _day_tick(delta: float) -> void:
+	# the deck's own bad lamps, on their own schedule, with nothing behind them. These are most of
+	# the flickering the player sees all run - which is exactly what makes the other ones deniable
+	_fault_timer -= delta
+	if _fault_timer <= 0.0:
+		_fault_timer = randf_range(16.0, 38.0) / clampf(0.8 + Game.intensity() * 0.25, 0.8, 2.4)
+		var st: Station = Game.station
+		if not st.faulty_lights.is_empty():
+			_stutter(st.faulty_lights.pick_random())
 	next_event -= delta
 	if next_event <= 0.0:
 		var I := Game.intensity()
@@ -126,7 +136,7 @@ func _shadow_cross(min_dist: float, min_dot: float) -> bool:
 		candidates.append(spot)
 	if candidates.is_empty():
 		return false
-	var c: Array = candidates.pick_random()
+	var c: Array = _pick_spot(candidates, func(s): return s[0])
 	var f := ShadowFigure.new()
 	add_child(f)
 	var side := 1.0 if randf() < 0.5 else -1.0
@@ -147,25 +157,114 @@ func _whisper() -> void:
 	var off := Vector3(randf_range(-1, 1), randf_range(-0.3, 0.3), randf_range(-1, 1)).normalized() * 0.6
 	Sfx.play_at("whisper", head + off, -6.0, 8.0, randf_range(0.85, 1.1))
 
-func _flicker() -> void:
-	_flicker_light(Game.station.random_light(), -8.0)
+## ---------------------------------------------------------------- the lights
+##
+## There are two reasons a lamp on this deck stutters. One is that it is a fifty year old fitting
+## on a station nobody has maintained since the crew stopped filing reports. The other is that
+## something is standing under it.
+##
+## The whole design here is that **you cannot tell which**. Both causes go through the same
+## routine, draw their character from the same pool, and sound identical, because the moment the
+## haunted ones have a signature the player stops doubting and starts reading. What they get
+## instead is a deck that misbehaves constantly, and about one time in five that misbehaviour has
+## company.
 
+## Ways a failing lamp goes. Cause never picks from this - the roll does.
+enum Stutter { BLINK, STAMMER, DYING, BANK }
+
+## Where an apparition turns up. A third of the time it takes the spot nearest a lamp that is
+## already failing - so the light you have learned not to trust is also the one with something
+## under it, and the two explanations stop being separable at all. `point_of` pulls the position
+## out of whatever shape of spot the caller has.
+func _pick_spot(spots: Array, point_of: Callable) -> Variant:
+	if Game.station.faulty_lights.is_empty() or randf() > 0.34:
+		return spots.pick_random()
+	var best: Variant = spots[0]
+	var best_d := INF
+	for s in spots:
+		var p: Vector3 = point_of.call(s)
+		for f: Light3D in Game.station.faulty_lights:
+			var d := f.global_position.distance_squared_to(p)
+			if d < best_d:
+				best_d = d
+				best = s
+	return best
+
+func _flicker() -> void:
+	# the ambient one. Mostly a lamp that is actually broken; otherwise a lamp somewhere an
+	# apparition would have picked, so "it flickered at the junction ahead" means nothing either
+	var st: Station = Game.station
+	var l: Light3D = null
+	if not st.faulty_lights.is_empty() and randf() < 0.65:
+		l = st.faulty_lights.pick_random()
+	else:
+		var spots: Array = st.crossing_spots()
+		l = st.nearest_light(spots.pick_random()[0]) if not spots.is_empty() else st.random_light()
+	_stutter(l)
+
+## An apparition just turned up. One time in five the nearest lamp goes - sometimes as it arrives,
+## sometimes a beat or two later, once it is already standing there.
 func _flicker_near(pos: Vector3) -> void:
 	if randf() >= APPARITION_FLICKER:
 		return
-	_flicker_light(Game.station.nearest_light(pos), -12.0)
+	var l: Light3D = Game.station.nearest_light(pos)
+	if randf() < 0.5:
+		await get_tree().create_timer(randf_range(0.6, 1.6)).timeout
+	_stutter(l)
 
-func _flicker_light(l: Light3D, db: float) -> void:
-	if _flickering or l == null:
+## One routine, one pool of behaviours, no tell. Every caller lands here.
+func _stutter(l: Light3D) -> void:
+	if _flickering or l == null or not Game.power_on:
 		return
 	_flickering = true
-	Sfx.play_at("flicker", l.global_position, db, 25.0)
-	var n := 5 + randi() % 5
-	for i in n:
-		if not Game.power_on:
-			break
-		l.visible = not l.visible
-		await get_tree().create_timer(randf_range(0.04, 0.16)).timeout
+	var kind: int = [Stutter.BLINK, Stutter.BLINK, Stutter.STAMMER, Stutter.STAMMER,
+		Stutter.DYING, Stutter.BANK].pick_random()
+	var db := randf_range(-13.0, -6.0)
+	Sfx.play_at("flicker", l.global_position, db, 25.0, randf_range(0.9, 1.15))
+	match kind:
+		Stutter.BLINK:
+			# one or two frames of nothing. Half the time you are not sure it happened
+			for i in 1 + randi() % 2:
+				l.visible = false
+				await get_tree().create_timer(randf_range(0.03, 0.09)).timeout
+				l.visible = Game.power_on
+				await get_tree().create_timer(randf_range(0.05, 0.12)).timeout
+		Stutter.STAMMER:
+			for i in 5 + randi() % 6:
+				if not Game.power_on:
+					break
+				l.visible = not l.visible
+				await get_tree().create_timer(randf_range(0.04, 0.16)).timeout
+		Stutter.DYING:
+			# a ballast giving up: sinks, hangs there dim, comes back like nothing happened
+			var full := l.light_energy
+			var steps := 9
+			for i in steps:
+				l.light_energy = full * (1.0 - float(i) / steps) * randf_range(0.7, 1.0)
+				await get_tree().create_timer(randf_range(0.05, 0.11)).timeout
+			await get_tree().create_timer(randf_range(0.25, 0.9)).timeout
+			l.light_energy = full
+		Stutter.BANK:
+			# it takes its neighbour with it, which is either a shared circuit or worse
+			var st: Station = Game.station
+			var other: Light3D = null
+			var best := INF
+			for o in st.lights:
+				if o == l:
+					continue
+				var d := o.global_position.distance_squared_to(l.global_position)
+				if d < best:
+					best = d
+					other = o
+			for i in 3 + randi() % 4:
+				if not Game.power_on:
+					break
+				l.visible = not l.visible
+				if other:
+					other.visible = l.visible if randf() < 0.7 else not l.visible
+				await get_tree().create_timer(randf_range(0.05, 0.18)).timeout
+			if other:
+				other.visible = Game.power_on
 	l.visible = Game.power_on
 	_flickering = false
 
@@ -203,7 +302,7 @@ func _spawn_watcher() -> bool:
 		return false
 	watcher = ShadowFigure.new()
 	add_child(watcher)
-	watcher.stand(spots.pick_random(), eye)
+	watcher.stand(_pick_spot(spots, func(s): return s) as Vector3, eye)
 	_flicker_near(watcher.global_position)
 	return true
 
@@ -285,7 +384,7 @@ func _chupacabra() -> bool:
 		spots.append(spot)
 	if spots.is_empty():
 		return false
-	var c: Array = spots.pick_random()
+	var c: Array = _pick_spot(spots, func(s): return s[0])
 	var beast := Chupacabra.new()
 	add_child(beast)
 	beast.lurk_at(c[0], c[1])
@@ -318,7 +417,7 @@ func _ghoul() -> bool:
 		return false
 	var g := Ghoul.new()
 	add_child(g)
-	g.lure(spots.pick_random(), eye)
+	g.lure(_pick_spot(spots, func(s): return s) as Vector3, eye)
 	_flicker_near(g.global_position)
 	return true
 

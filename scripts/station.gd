@@ -40,6 +40,10 @@ var pal: Palette
 var root: Node3D
 var colliders: StaticBody3D
 var lights: Array[Light3D] = []
+## Lamps that are genuinely failing - bad ballast, nothing supernatural. Picked with the deck seed,
+## so they are the same ones all run, and they stutter on their own schedule for ever. Their only
+## job is to make sure a stuttering light is never by itself evidence of anything.
+var faulty_lights: Array[Light3D] = []
 var emergency_lights: Array[Light3D] = []
 var interactables := {}
 var props: Array[Node3D] = []
@@ -110,6 +114,7 @@ func regenerate(seed_: int) -> void:
 		mergers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key)
 
 	_place_lights()
+	_pick_faulty_lights()
 	_place_rooms()
 	_place_props()
 	_build_outside()
@@ -589,6 +594,19 @@ func shove_props(strength := 0.6) -> void:
 	for i in props.size():
 		prop_vel[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * strength
 		prop_spin[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.8
+
+## Three or four lamps on the deck are on their way out. Seeded, so this run's bad lights are this
+## run's bad lights, and the player can learn which ones they are - which is the point: a lamp you
+## know is broken is the best possible place for something to be standing.
+func _pick_faulty_lights() -> void:
+	faulty_lights.clear()
+	if lights.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = layout.seed_ + 404
+	var pool := lights.duplicate()
+	for i in mini(4, pool.size()):
+		faulty_lights.append(pool.pop_at(rng.randi() % pool.size()))
 
 ## The light nearest a point, so an event can make the bit of deck it is happening on misbehave.
 func nearest_light(p: Vector3) -> Light3D:
