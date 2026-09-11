@@ -86,14 +86,77 @@ def limb(bone, mat, length, r_top, r_bot):
     part(bone, "cone", mat, pos=(0, -length, 0), rot=(0, 0, 0), h=length, r=r_bot, r2=r_top)
 
 
-def quills(bone, mat, n, along, spread, length, seed, rot_base=(0, 0, 0)):
-    """A patch of coarse hair: thin tapered spines, scattered but baked in so the model is fixed."""
+def _dir_to_rot(d, jitter, rng):
+    """Euler (XYZ degrees, applied Y*X*Z like Godot) that points a strand's +Y along `d`."""
+    l = math.sqrt(sum(v * v for v in d)) or 1.0
+    d = [v / l for v in d]
+    rx = math.degrees(math.acos(max(-1.0, min(1.0, d[1]))))
+    ry = math.degrees(math.atan2(d[0], d[2]))
+    return [rx + rng.uniform(-jitter, jitter), ry + rng.uniform(-jitter, jitter), 0.0]
+
+
+def _clear_of(pos, avoid):
+    for a_pos, a_r in avoid:
+        if sum((pos[i] - a_pos[i]) ** 2 for i in range(3)) < a_r * a_r:
+            return False
+    return True
+
+
+def fur_blob(bone, center, radii, count, sweep, length, seed, avoid=(), thick=0.016,
+             out=0.55, clump=4, keep=None):
+    """A pelt over a rounded body part. Strands are grown off the surface of an ellipsoid, angled
+    between the surface normal and `sweep` (which is which way the coat lies), and grown in small
+    clumps, because fur that is evenly scattered reads as a hairbrush and fur that clumps reads as
+    an animal. `avoid` keeps the paint clear - the runes are on skin, not buried in the coat."""
     rng = random.Random(seed)
-    for _ in range(n):
+    made = 0
+    guard = 0
+    while made < count and guard < count * 40:
+        guard += 1
+        v = [rng.gauss(0, 1) for _ in range(3)]
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        v = [x / n for x in v]
+        base = [center[i] + v[i] * radii[i] * 0.97 for i in range(3)]
+        if keep and not keep(base):
+            continue
+        if not _clear_of(base, avoid):
+            continue
+        normal = [v[i] / radii[i] for i in range(3)]
+        nl = math.sqrt(sum(x * x for x in normal)) or 1.0
+        normal = [x / nl for x in normal]
+        d = [normal[i] * out + sweep[i] for i in range(3)]
+        ln = length * rng.uniform(0.7, 1.25)
+        for k in range(rng.randint(1, clump)):     # a tuft: several strands from nearly one root
+            jitter_pos = [base[i] + rng.uniform(-0.012, 0.012) for i in range(3)]
+            part(bone, "strand", "hair", pos=jitter_pos, rot=_dir_to_rot(d, 11, rng),
+                 h=ln * rng.uniform(0.8, 1.15), r=thick, r2=0.0)
+            made += 1
+            if made >= count:
+                break
+
+
+def fur_limb(bone, y0, y1, radius, count, sweep, length, seed, avoid=(), thick=0.014, clump=4,
+             out=0.5):
+    """The same, wrapped around a limb segment running down the bone's -Y."""
+    rng = random.Random(seed)
+    made = 0
+    guard = 0
+    while made < count and guard < count * 40:
+        guard += 1
         t = rng.uniform(0.0, 1.0)
-        pos = [along[i][0] + (along[i][1] - along[i][0]) * t + rng.uniform(-spread, spread) for i in range(3)]
-        rot = [rot_base[0] + rng.uniform(-22, 22), rot_base[1] + rng.uniform(-22, 22), rot_base[2] + rng.uniform(-22, 22)]
-        part(bone, "cone", mat, pos=pos, rot=rot, h=length * rng.uniform(0.6, 1.35), r=0.007, r2=0.0)
+        a = rng.uniform(0, math.tau)
+        base = [math.cos(a) * radius * 0.95, y0 + (y1 - y0) * t, math.sin(a) * radius * 0.95]
+        if not _clear_of(base, avoid):
+            continue
+        d = [math.cos(a) * out + sweep[0], sweep[1], math.sin(a) * out + sweep[2]]
+        ln = length * rng.uniform(0.7, 1.2)
+        for k in range(rng.randint(1, clump)):
+            jitter_pos = [base[i] + rng.uniform(-0.010, 0.010) for i in range(3)]
+            part(bone, "strand", "hair", pos=jitter_pos, rot=_dir_to_rot(d, 10, rng),
+                 h=ln * rng.uniform(0.8, 1.15), r=thick, r2=0.0)
+            made += 1
+            if made >= count:
+                break
 
 
 def rune(bone, pos, rot, scale=1.0, seed=0):
@@ -110,6 +173,30 @@ def rune(bone, pos, rot, scale=1.0, seed=0):
     if rng.random() < 0.5:
         part(bone, "box", "rune", pos=(pos[0], pos[1] - 0.055 * scale, pos[2]),
              rot=(rot[0], rot[1], rot[2] + 45), size=(0.05 * scale, t, t * 1.6))
+
+
+# runes: painted down the belly, across the chest, along the arms, the thigh and the tail.
+# Declared before the coat so the fur can be kept off them - paint sits on skin, and a marked
+# patch is a patch someone shaved.
+RUNES = [
+    ("chest", (0, 0.06, -0.135), (0, 0, 0), 1.15, 1),
+    ("spine_a", (0, 0.09, -0.125), (0, 0, 0), 1.0, 2),
+    ("root", (0, 0.03, -0.125), (0, 0, 0), 0.9, 3),
+    ("spine_b", (0, 0.08, 0.135), (0, 180, 0), 1.0, 4),        # one between the shoulder blades
+    ("head", (0, 0.105, -0.15), (-35, 0, 0), 0.55, 5),         # across the brow
+    ("tail_2", (0, 0.065, 0.07), (-90, 0, 0), 0.7, 20),
+]
+for s, sx in SIDES:
+    RUNES += [
+        ("arm_%s" % s, (sx * 0.075, -0.16, 0), (0, sx * 90, 0), 0.8, 6 + int(sx)),
+        ("thigh_%s" % s, (sx * 0.100, -0.18, 0), (0, sx * 90, 0), 0.9, 8 + int(sx)),
+        ("fore_%s" % s, (0, -0.15, -0.055), (0, 0, 0), 0.6, 12 + int(sx)),
+    ]
+
+## bone -> [(position, keep-out radius)] for the fur to part around
+BARE = {}
+for _b, _p, _r, _s, _seed in RUNES:
+    BARE.setdefault(_b, []).append((_p, 0.075 + 0.05 * _s))
 
 
 # torso: emaciated, ribbed, the belly plate paler than the back
@@ -132,11 +219,6 @@ for i in range(5):                      # spine knuckles down the back
     part("spine_b" if i < 3 else "chest", "sph", "hide",
          pos=(0, 0.02 + (i % 3) * 0.07, 0.10), size=(0.05, 0.05, 0.05))
 
-# hair: heaviest over the shoulders, back and hips
-quills("chest", "hair", 26, [(-0.16, 0.16), (-0.02, 0.14), (0.06, 0.12)], 0.03, 0.16, 1, (-30, 0, 0))
-quills("spine_b", "hair", 22, [(-0.13, 0.13), (0.0, 0.16), (0.06, 0.12)], 0.03, 0.14, 2, (-25, 0, 0))
-quills("root", "hair", 18, [(-0.12, 0.12), (-0.02, 0.10), (0.05, 0.12)], 0.03, 0.12, 3, (-20, 0, 0))
-quills("neck", "hair", 14, [(-0.06, 0.06), (0.0, 0.14), (0.03, 0.07)], 0.02, 0.13, 4, (-40, 0, 0))
 
 # neck and head: humanoid skull, soft lizard snout, horns sweeping down past the jaw
 limb("neck", "hide", 0.0, 0, 0)
@@ -160,7 +242,6 @@ for s, sx in SIDES:
     for rot, ln, r0, r1 in segs:
         part("head", "cone", "horn", pos=p, rot=rot, h=ln, r=r0, r2=r1)
         p = tip_of(p, rot, ln)
-    quills("head", "hair", 6, [(sx * 0.02, sx * 0.09), (0.10, 0.16), (0.02, 0.10)], 0.02, 0.10, 5 + int(sx), (-35, 0, 0))
 part("jaw", "sph", "hide", pos=(0, -0.02, -0.10), size=(0.12, 0.05, 0.19))
 part("jaw", "sph", "belly", pos=(0, -0.035, -0.09), size=(0.09, 0.03, 0.15))
 for i in range(5):                      # teeth, upper and lower
@@ -173,7 +254,6 @@ for s, sx in SIDES:
     part("clav_%s" % s, "sph", "hide", pos=(sx * 0.05, 0.0, 0.0), size=(0.14, 0.09, 0.12))
     limb("arm_%s" % s, "hide", 0.31, 0.062, 0.042)
     limb("fore_%s" % s, "hide", 0.29, 0.044, 0.032)
-    quills("fore_%s" % s, "hair", 10, [(-0.02, 0.02), (-0.26, -0.04), (0.02, 0.03)], 0.02, 0.09, 10 + int(sx), (0, 0, sx * 40))
     part("hand_%s" % s, "sph", "hide", pos=(0, -0.05, -0.01), size=(0.085, 0.10, 0.07))
     for f in range(4):                  # four long claws instead of fingers
         fx = (-0.03 + f * 0.02) * sx
@@ -186,7 +266,6 @@ for s, sx in SIDES:
     part("hip_%s" % s, "sph", "hide", pos=(0, -0.02, 0.0), size=(0.15, 0.14, 0.16))
     limb("thigh_%s" % s, "hide", 0.38, 0.085, 0.050)
     limb("shin_%s" % s, "hide", 0.40, 0.052, 0.034)
-    quills("thigh_%s" % s, "hair", 12, [(-0.03, 0.03), (-0.33, -0.05), (0.03, 0.05)], 0.02, 0.11, 20 + int(sx), (-15, 0, 0))
     rng = random.Random(30 + int(sx))
     for _ in range(9):                  # spores: pale growths clustered on the shin
         t = rng.uniform(0.1, 0.95)
@@ -200,27 +279,65 @@ for s, sx in SIDES:
              rot=(115, 0, sx * (f - 1) * 12), h=0.09, r=0.013, r2=0.0)
     part("foot_%s" % s, "cone", "claw", pos=(0, -0.04, 0.06), rot=(58, 0, 0), h=0.07, r=0.012, r2=0.0)
 
-# tail: tapering, quilled, ending in a hooked spike
+# tail: tapering, ending in a hooked spike (the coat goes on below)
 TAIL_R = [0.075, 0.062, 0.050, 0.040, 0.031, 0.024]
 for i in range(6):
     b = "tail_%d" % i
     nxt = TAIL_R[i + 1] if i + 1 < len(TAIL_R) else 0.014
     part(b, "cone", "hide", pos=(0, 0, 0), rot=(-90, 0, 0), h=0.15 if i < 3 else 0.13, r=TAIL_R[i], r2=nxt)
-    if i >= 1:
-        quills(b, "hair", 5, [(-0.02, 0.02), (0.0, 0.04), (0.02, 0.12)], 0.015, 0.08, 40 + i, (-60, 0, 0))
 part("tail_5", "cone", "claw", pos=(0, 0.01, 0.12), rot=(-115, 0, 0), h=0.10, r=0.016, r2=0.0)
 
-# runes: painted down the belly, across the chest, along the arms, the thigh and the tail
-rune("chest", (0, 0.06, -0.115), (0, 0, 0), 1.15, 1)
-rune("spine_a", (0, 0.09, -0.105), (0, 0, 0), 1.0, 2)
-rune("root", (0, 0.03, -0.10), (0, 0, 0), 0.9, 3)
-rune("spine_b", (0, 0.08, 0.11), (0, 180, 0), 1.0, 4)       # one between the shoulder blades
-rune("head", (0, 0.10, -0.135), (-35, 0, 0), 0.55, 5)       # across the brow
-for s, sx in SIDES:
-    rune("arm_%s" % s, (sx * 0.065, -0.16, 0), (0, sx * 90, 0), 0.8, 6 + int(sx))
-    rune("thigh_%s" % s, (sx * 0.085, -0.18, 0), (0, sx * 90, 0), 0.9, 8 + int(sx))
-    rune("fore_%s" % s, (0, -0.15, -0.045), (0, 0, 0), 0.6, 12 + int(sx))
-rune("tail_2", (0, 0.055, 0.07), (-90, 0, 0), 0.7, 20)
+# ---------------------------------------------------------------- the coat
+# The pelt: a couple of thousand strands, clumped into tufts, lying the way a coat lies - down
+# and back over the body, down the limbs, out from the ruff. Long guard hairs over a shorter
+# undercoat. It is the silhouette that matters: the fur is what stops the shape reading as a man,
+# and what makes it read as a big shaggy animal in the half-second your torch is on it.
+SWEEP_BACK = (0.0, -1.0, 0.45)       # over the back: mostly straight down, a little to the rear
+SWEEP_DOWN = (0.0, -1.0, 0.1)
+
+# torso - the heaviest coat, a mane over the shoulders
+fur_blob("chest", (0, 0.05, 0.01), (0.20, 0.16, 0.15), 300, SWEEP_BACK, 0.22, 101, BARE.get("chest", ()), thick=0.017)
+fur_blob("chest", (0, 0.05, 0.01), (0.19, 0.15, 0.14), 120, (0, -0.9, 0.2), 0.11, 102, BARE.get("chest", ()), thick=0.013)
+fur_blob("spine_b", (0, 0.08, 0), (0.17, 0.16, 0.13), 270, SWEEP_BACK, 0.20, 103, BARE.get("spine_b", ()), thick=0.017)
+fur_blob("spine_b", (0, 0.08, 0), (0.16, 0.15, 0.12), 100, (0, -0.9, 0.2), 0.10, 104, BARE.get("spine_b", ()))
+fur_blob("spine_a", (0, 0.09, 0), (0.15, 0.16, 0.12), 260, SWEEP_BACK, 0.19, 105, BARE.get("spine_a", ()), thick=0.017)
+fur_blob("spine_a", (0, 0.09, 0), (0.14, 0.15, 0.11), 90, (0, -0.9, 0.2), 0.10, 106, BARE.get("spine_a", ()))
+fur_blob("root", (0, 0.03, 0), (0.16, 0.14, 0.13), 270, SWEEP_BACK, 0.21, 107, BARE.get("root", ()), thick=0.017)
+fur_blob("root", (0, 0.03, 0), (0.15, 0.13, 0.12), 90, (0, -0.9, 0.2), 0.10, 108, BARE.get("root", ()))
+
+# neck: a full ruff standing out around the head
+fur_blob("neck", (0, 0.06, 0), (0.075, 0.08, 0.075), 220, (0, -1.0, 0.45), 0.26, 109, thick=0.018, out=0.45)
+
+# head: back of the skull, cheeks and jaw, but the muzzle and the brow stay bare
+fur_blob("head", (0, 0.03, 0.02), (0.11, 0.11, 0.12), 150, (0, -0.5, 1.0), 0.15, 110,
+         BARE.get("head", ()), thick=0.015, out=0.22, keep=lambda p: p[2] > -0.10)
+fur_blob("jaw", (0, -0.02, -0.04), (0.07, 0.04, 0.08), 50, (0, -1.0, 0.45), 0.09, 111,
+         thick=0.011, out=0.22, keep=lambda p: p[2] > -0.14)
+
+# tail: shaggy the whole length
+for _i in range(6):
+    _r = TAIL_R[_i] if _i < len(TAIL_R) else 0.02
+    fur_blob("tail_%d" % _i, (0, 0, 0.06), (_r * 1.1, _r * 1.1, 0.07), 70 - _i * 6,
+             (0, -0.5, 0.8), 0.17 - _i * 0.012, 120 + _i, BARE.get("tail_%d" % _i, ()), thick=0.013)
+
+for _s, _sx in SIDES:
+    # shoulders and arms
+    fur_blob("clav_%s" % _s, (_sx * 0.05, 0, 0), (0.08, 0.06, 0.07), 90, SWEEP_DOWN, 0.20, 130 + int(_sx), thick=0.017)
+    fur_limb("arm_%s" % _s, -0.30, -0.02, 0.055, 150, SWEEP_DOWN, 0.17, 140 + int(_sx),
+             BARE.get("arm_%s" % _s, ()), thick=0.015)
+    fur_limb("fore_%s" % _s, -0.28, -0.01, 0.040, 130, SWEEP_DOWN, 0.15, 150 + int(_sx),
+             BARE.get("fore_%s" % _s, ()), thick=0.013)
+    fur_blob("hand_%s" % _s, (0, -0.04, -0.01), (0.045, 0.05, 0.04), 45, (0, -0.9, -0.3), 0.07, 160 + int(_sx), thick=0.011)
+    # hips and legs - and properly hairy feet
+    fur_blob("hip_%s" % _s, (0, -0.02, 0), (0.08, 0.07, 0.08), 90, SWEEP_DOWN, 0.20, 170 + int(_sx), thick=0.017)
+    fur_limb("thigh_%s" % _s, -0.36, -0.02, 0.070, 180, SWEEP_DOWN, 0.19, 180 + int(_sx),
+             BARE.get("thigh_%s" % _s, ()), thick=0.015)
+    fur_limb("shin_%s" % _s, -0.38, -0.02, 0.045, 140, SWEEP_DOWN, 0.15, 190 + int(_sx), thick=0.013)
+    fur_blob("foot_%s" % _s, (0, -0.02, -0.03), (0.045, 0.035, 0.07), 70, (0, -0.5, -0.8), 0.10, 200 + int(_sx), thick=0.011)
+
+
+for _b, _p, _r, _s, _seed in RUNES:
+    rune(_b, _p, _r, _s, _seed)
 
 
 # ---------------------------------------------------------------- poses
@@ -416,6 +533,8 @@ def _pose_min_y(pose):
             local = mat_mul(translate(pose["root_pos"]), local)
         xf[name] = local if not parent else mat_mul(xf[parent], local)
     for p in PARTS:
+        if p["mat"] == "hair":
+            continue          # the coat hangs past the feet; it is the body that rests on the floor
         m = mat_mul(xf[p["bone"]], mat_mul(translate(p["pos"]), euler(p["rot"])))
         if p["shape"] == "box":
             ext = [v / 2 for v in p["size"]]

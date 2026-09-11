@@ -39,6 +39,12 @@ var _cycle := 0
 var _rng := RandomNumberGenerator.new()
 
 static var _cache: Dictionary = {}
+## Built meshes and materials are shared by every creature in the session: the daytime
+## apparitions spawn constantly, and merging four thousand fur strands per spawn would hitch.
+## Silhouettes use material_override, so sharing costs them nothing; the eye glow is set on the
+## shared material, which is fine while only one of them is ever solid at a time.
+static var _mesh_cache: Dictionary = {}
+static var _mat_cache: Dictionary = {}
 
 func _ready() -> void:
 	_rng.randomize()
@@ -57,6 +63,10 @@ static func _load_rig() -> Dictionary:
 	return data
 
 func _build_materials() -> void:
+	if not _mat_cache.is_empty():
+		_mats = _mat_cache
+		_eye_mat = _mats["eye"]
+		return
 	for key: String in _rig["materials"]:
 		var m: Dictionary = _rig["materials"][key]
 		var mat := StandardMaterial3D.new()
@@ -70,6 +80,7 @@ func _build_materials() -> void:
 			mat.emission = Color(e[0], e[1], e[2]).clamp()
 			mat.emission_energy_multiplier = 1.0
 		_mats[key] = mat
+	_mat_cache = _mats
 	_eye_mat = _mats["eye"]
 
 ## One Node3D per bone, with every part on that bone merged into a single mesh (one surface per
@@ -96,8 +107,10 @@ func _build_skeleton() -> void:
 		_target[name] = Vector3.ZERO
 		var parts: Array = by_bone.get(name, [])
 		if not parts.is_empty():
+			if not _mesh_cache.has(name):
+				_mesh_cache[name] = _merge(parts)
 			var mi := MeshInstance3D.new()
-			mi.mesh = _merge(parts)
+			mi.mesh = _mesh_cache[name]
 			mi.name = "%s_mesh" % name
 			node.add_child(mi)
 			_meshes.append(mi)
@@ -136,12 +149,17 @@ func _primitive(p: Dictionary) -> Mesh:
 			sph.rings = 5
 			return sph
 		_:
+			# "cone" is the limb/horn/claw primitive; "strand" is the cheap 3-sided version with
+			# no caps that the fur is built from - there are a couple of thousand of those.
+			var strand: bool = String(p["shape"]) == "strand"
 			var cyl := CylinderMesh.new()
 			cyl.bottom_radius = p["r"]
 			cyl.top_radius = maxf(p["r2"], 0.0005)
 			cyl.height = maxf(p["h"], 0.001)
-			cyl.radial_segments = 8
+			cyl.radial_segments = 3 if strand else 8
 			cyl.rings = 1
+			cyl.cap_top = not strand
+			cyl.cap_bottom = not strand
 			return cyl
 
 func _part_transform(p: Dictionary) -> Transform3D:
@@ -153,7 +171,7 @@ func _part_transform(p: Dictionary) -> Transform3D:
 		"sph":
 			var s: Array = p["size"]
 			xf.basis = xf.basis.scaled(Vector3(s[0], s[1], s[2]))
-		"cone":
+		"cone", "strand":
 			xf = xf.translated_local(Vector3(0, p["h"] * 0.5, 0))   # Godot's cylinder is centred
 	return xf
 

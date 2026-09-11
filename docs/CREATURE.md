@@ -10,7 +10,8 @@ is recognisably what is coming for you at night.
 
 ## What it is
 
-A humanoid frame gone wrong. Roughly 1.95 m standing, about 4,700 triangles.
+A humanoid frame gone wrong under a heavy pelt. Roughly 1.95 m standing; 4,194 parts and about
+31,000 triangles, of which the coat is 4,040 strands.
 
 - **Head** — a human skull's proportions with a soft, lizard-like snout laid over it: long
   muzzle, pale underside, a nose pad, teeth top and bottom, a heavy brow with the eyes set under
@@ -18,10 +19,15 @@ A humanoid frame gone wrong. Roughly 1.95 m standing, about 4,700 triangles.
   segments, hugging the skull like a ram's.
 - **Hide** — near black (albedo 0.05) and fully rough. This is deliberate: in an unlit corridor
   it is a hole in the dark, and it only resolves when your flashlight lands on it.
-- **Hair** — 161 coarse quills over the shoulders, spine, hips, neck, forearms, thighs and tail.
-  Close up it is a matted pelt; at corridor distance it breaks the silhouette so the shape never
-  quite reads as a person.
-- **Runes** — 46 painted strokes in dark wine, barely self-lit, down the belly, across the chest,
+- **Coat** — 4,040 strands of shaggy fur over everything but the face, the hands' claws and the
+  horns: a mane over the shoulders, a ruff round the neck, long hair hanging off the arms, a
+  skirt over the hips, the legs furred to the ankle and the feet hairy on top. Long guard hairs
+  over a shorter undercoat, grown in clumps rather than scattered evenly, all of it lying the way
+  a coat lies — down the body, down the limbs, back along the skull. It is the silhouette that
+  does the work: the coat is what stops the shape reading as a man and makes it read as something
+  big and shaggy in the half second your torch is on it.
+- **Runes** — 46 painted strokes in dark wine, barely self-lit, on **shaved patches** (the fur is
+  kept clear of every mark, because paint goes on skin), down the belly, across the chest,
   between the shoulder blades, over the brow, along both arms, both thighs and the tail. Paint,
   not neon: they carry a trace of emission so they hold a little colour in the dark, and read
   properly when the beam is on them.
@@ -60,13 +66,21 @@ the night counter, and the eyes only catch the light from night 2 onward.
 | `tools/build_creature.py` | writes `kit/creature_rig.json` and the images in `docs/` |
 | `tools/render_creature.py` | the pose renders (`--pose crawl_a`, `--eye`, `--target`, `--fov`) |
 | `tools/render3d.py` | a small z-buffered software renderer, no dependencies |
-| `kit/creature_rig.json` | 29 bones, 315 parts, 8 poses - what the game loads |
+| `kit/creature_rig.json` | 29 bones, 4,194 parts, 8 poses - what the game loads (1.4 MB) |
 | `scripts/creature.gd` | builds it in Godot, and drives the pose snapping |
 
     python3 tools/build_creature.py        # rebuild the rig and the reference sheet
 
 Parts are merged per bone into one mesh with a surface per material, so the whole creature is 29
-nodes rather than 300-odd, and the rig JSON is parsed once and cached across instances.
+nodes rather than four thousand. The rig JSON, the merged meshes and the materials are all built
+once and shared by every instance in the session - the daytime apparitions spawn constantly, and
+merging four thousand strands per spawn would hitch. Fur uses a cheap `strand` primitive: a
+three-sided tapered cylinder with no caps, six triangles each.
+
+The coat is placed by `fur_blob` (over a rounded part, strands grown off an ellipsoid surface)
+and `fur_limb` (wrapped round a limb segment). Both take a `sweep` - which way the coat lies -
+and blend it against the surface normal, so raising `out` bristles the fur and lowering it lays
+it flat. `BARE` keeps strands off the runes.
 
 A pose is joint angles in degrees on top of the rest skeleton, plus a root height; a solver drops
 each pose onto the floor at build time (`settle()`), so nothing hovers or sinks - except `lunge`,

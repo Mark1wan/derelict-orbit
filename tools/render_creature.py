@@ -66,8 +66,10 @@ def part_triangles(part, m):
                 a, b, cc, d = at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)
                 tris.append((a, b, cc))
                 tris.append((a, cc, d))
-    else:   # "cone": tapered cylinder from r at y=0 to r2 at y=h, the limb/quill/horn primitive
-        r0, r1, h, seg = part["r"], part["r2"], part["h"], 8
+    else:   # "cone"/"strand": tapered cylinder from r at y=0 to r2 at y=h. A strand is the cheap
+            # 3-sided version with no caps - that is what the fur is made of, by the thousand.
+        r0, r1, h = part["r"], part["r2"], part["h"]
+        seg = 3 if shape == "strand" else 8
         for i in range(seg):
             u0 = i * math.tau / seg
             u1 = (i + 1) * math.tau / seg
@@ -77,9 +79,10 @@ def part_triangles(part, m):
             d = (math.cos(u0) * r1, h, math.sin(u0) * r1)
             tris.append((a, b, cc))
             tris.append((a, cc, d))
-            tris.append(((0, 0, 0), b, a))
-            if r1 > 0.0001:
-                tris.append(((0, h, 0), d, cc))
+            if shape != "strand":
+                tris.append(((0, 0, 0), b, a))
+                if r1 > 0.0001:
+                    tris.append(((0, h, 0), d, cc))
     return [tuple(xform(m, p) for p in t) for t in tris]
 
 
