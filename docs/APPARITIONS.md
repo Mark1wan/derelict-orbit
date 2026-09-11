@@ -246,6 +246,30 @@ of those hits are **delayed 0.6-1.6 s**, so the light goes once the thing is alr
 there rather than announcing it. Night is exempt: main power is dead and the dark down there does
 not need help.
 
+### And then the sound
+
+Every stutter, whatever caused it, gets the same two layers: the switching noise, and **`ballast`**
+- what a failing fitting actually sounds like, 120 Hz mains buzz gated into irregular bursts with
+the odd contact tick, pitched and levelled at random per stutter.
+
+Under about **three in five** of the haunted ones there is a third layer. **`underbreath`** is
+something breathing, close, pitched down to a throat and rolled off at 900 Hz, mixed at **-26 dB
+with a seven metre falloff** and started a beat *into* the buzz rather than alongside it. It is
+built so that it does not arrive as a sound. It arrives as a suspicion that the buzz had something
+in it - and only if you happen to be near that lamp, and quiet, and listening.
+
+It also plays under about **one in seven** of the lamps that are genuinely broken.
+
+That last number is the whole trick. A tell with no false positives is not a tell, it is a label:
+the player hears it twice, learns it, and never doubts anything again. At one in seven the signal
+is real - if you hear it, something is more likely to be there than not - but it can never be
+trusted, and the players who learn to listen for it will spend the back half of the run standing
+still in corridors, in the dark, next to a lamp they know is just old, deciding whether they heard
+breathing. That is the game.
+
+Both sounds are synthesised by `tools/gen_flicker_audio.py`, in pure Python with no dependencies,
+because the two files the whole mechanic hangs on should be rebuildable anywhere.
+
 
 ## Cost
 

@@ -210,10 +210,20 @@ func _flicker_near(pos: Vector3) -> void:
 	var l: Light3D = Game.station.nearest_light(pos)
 	if randf() < 0.5:
 		await get_tree().create_timer(randf_range(0.6, 1.6)).timeout
-	_stutter(l)
+	_stutter(l, true)
 
-## One routine, one pool of behaviours, no tell. Every caller lands here.
-func _stutter(l: Light3D) -> void:
+## One routine, one pool of behaviours, no tell in the light itself. Every caller lands here.
+##
+## The sound is where it gets interesting. Every stutter gets the same two layers: the switching
+## noise, and `ballast` - what a failing fitting actually sounds like, mains buzz gated into
+## bursts with the odd contact tick. Under about three in five of the haunted ones there is a
+## third layer, `underbreath`, mixed at -26 dB with a seven metre falloff: something breathing,
+## close, pitched down and rolled off so that it does not arrive as a sound. It arrives as a
+## suspicion that the buzz had something in it, and only if you are near it and quiet.
+##
+## And it plays under about one in seven of the lamps that are genuinely broken, because a tell
+## with no false positives is not a tell. It is a label.
+func _stutter(l: Light3D, haunted := false) -> void:
 	if _flickering or l == null or not Game.power_on:
 		return
 	_flickering = true
@@ -221,6 +231,9 @@ func _stutter(l: Light3D) -> void:
 		Stutter.DYING, Stutter.BANK].pick_random()
 	var db := randf_range(-13.0, -6.0)
 	Sfx.play_at("flicker", l.global_position, db, 25.0, randf_range(0.9, 1.15))
+	Sfx.play_at("ballast", l.global_position, db - randf_range(2.0, 6.0), 18.0, randf_range(0.85, 1.2))
+	if randf() < (0.60 if haunted else 0.14):
+		_under(l.global_position)
 	match kind:
 		Stutter.BLINK:
 			# one or two frames of nothing. Half the time you are not sure it happened
@@ -267,6 +280,12 @@ func _stutter(l: Light3D) -> void:
 				other.visible = Game.power_on
 	l.visible = Game.power_on
 	_flickering = false
+
+## The layer underneath. Started a beat into the stutter so it is inside the buzz rather than
+## alongside it, and quiet enough that half the time the player will decide they imagined it.
+func _under(pos: Vector3) -> void:
+	await get_tree().create_timer(randf_range(0.10, 0.35)).timeout
+	Sfx.play_at("underbreath", pos, -26.0, 7.0, randf_range(0.86, 1.02))
 
 func _blackout() -> void:
 	if not Game.power_on:

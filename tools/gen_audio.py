@@ -1,5 +1,9 @@
-"""Procedurally synthesise every sound the game uses. No external assets.
+"""Procedurally synthesise the sound bank. No external assets.
 Run: python3 tools/gen_audio.py  (writes to audio/*.wav)
+
+Needs numpy. The two sounds the flickering lights depend on - ballast and underbreath - live in
+tools/gen_flicker_audio.py instead, written with nothing but the standard library so the part the
+doubt mechanic hangs on can be rebuilt anywhere.
 """
 import numpy as np, wave, os, math
 
