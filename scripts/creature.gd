@@ -8,6 +8,9 @@ class_name Creature
 ## runes painted over the hide. The hide is near black on purpose: it has to vanish in an unlit
 ## corridor and only resolve when your flashlight finds it.
 ##
+## Used by the night stalker. The daytime apparitions are something else entirely - smoke, not a
+## body: see Apparition.
+##
 ## Movement: it does not animate, it *snaps*. Poses are held, then changed between frames, with a
 ## per-joint jitter on top - the look of something whose joints dislocate and reseat as it walks.
 ## It travels belly up on all fours, head first, which is only geometrically possible if the body
@@ -28,7 +31,6 @@ var _bones: Dictionary = {}          # name -> Node3D
 var _rest: Dictionary = {}           # name -> rest position (bone offset)
 var _mats: Dictionary = {}           # material key -> StandardMaterial3D
 var _eye_mat: StandardMaterial3D
-var _meshes: Array[MeshInstance3D] = []
 var _pose: Dictionary = {}           # name -> current Vector3 of euler degrees
 var _target: Dictionary = {}         # name -> where it is snapping to
 var _root_y := 0.0
@@ -113,7 +115,6 @@ func _build_skeleton() -> void:
 			mi.mesh = _mesh_cache[name]
 			mi.name = "%s_mesh" % name
 			node.add_child(mi)
-			_meshes.append(mi)
 
 func _merge(parts: Array) -> ArrayMesh:
 	var tools := {}
@@ -237,18 +238,6 @@ func _next_pose() -> void:
 func lunge_pose() -> void:
 	set_pose("lunge", true)
 	_hold = 99.0
-
-## Flatten the whole body to one unlit colour and hand the material back, so it can be faded out.
-## The daytime apparitions are a silhouette of this same thing: what crosses a doorway at the far
-## end of a corridor is recognisably what walks the station at night.
-func make_silhouette(col := Color(0, 0, 0, 1)) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = col
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	for mi in _meshes:
-		mi.material_override = m
-	return m
 
 ## Eyes only catch the light from the second night on.
 func set_eye_glow(energy: float) -> void:
