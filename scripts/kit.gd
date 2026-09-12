@@ -130,6 +130,137 @@ static func cell_transform(cell: Vector2i, k: int, roll := 0) -> Transform3D:
 ## closed door in a random corridor would cut the deck in two - keep its bulkhead frame only.
 const SKIP := {"corridor_door": {"Door_Panel": true, "Glass_Port": true}}
 
+# ---------------------------------------------------------------- what is already on the wall
+## Wall fittings only ever mount on a handful of known planes - the two sides of a corridor cell,
+## the three walls of a room - so rather than voxelising a whole piece, each of those planes gets a
+## flat profile: a grid across the wall holding how far the geometry standing on it reaches into
+## the room. Ribs, pipe runs, light strips, window frames, door surrounds, consoles and racks all
+## show up in it, and a patch of wall with nothing proud of it is a patch you can bolt to.
+##
+## Small (a few thousand cells per plane), built once per piece per plane, cached for the session.
+const PROFILE_RES := 0.10    ## grid pitch across the wall
+const PROFILE_DEPTH := 1.7   ## how far into the room we bother looking
+
+## Surfaces nothing gets bolted over however flat they are: lamps, glazing, screens and doors. The
+## kit sets its light strips flush into the wall, so depth alone would happily hang a locker on one.
+const KEEP_OFF := {
+	"Light_Strip": true, "Light_Warn": true, "Light_Data": true, "Light_Green": true,
+	"Screen_Lit": true, "Glass_Window": true, "Glass_Port": true, "Door_Panel": true,
+}
+
+static var _profiles := {}
+
+## `axis` 0 = an X wall, 2 = a Z wall. `coord` is the nominal plane in piece space (1.5 for a
+## corridor side, 5.5 for a room wall). Keys are Vector2i cells across the plane; values are how
+## far the geometry there stands proud of it, in metres - with the keep-off surfaces marked
+## unmountable outright.
+static func wall_profile(piece: String, axis: int, coord: float) -> Dictionary:
+	var key := "%s|%d|%.2f" % [piece, axis, coord]
+	if _profiles.has(key):
+		return _profiles[key]
+	var prof := {}
+	var other := 2 if axis == 0 else 0
+	var sign := signf(coord)
+	var m := mesh(piece)
+	var names := material_names(piece)
+	for s in m.get_surface_count():
+		var forbidden: bool = KEEP_OFF.has(names[s])
+		var arrays := m.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var count := idx.size() if idx.size() > 0 else verts.size()
+		var i := 0
+		while i < count:
+			var tri := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+			for k in 3:
+				tri[k] = verts[idx[i + k]] if idx.size() > 0 else verts[i + k]
+			i += 3
+			# depth is how far inside the wall plane a vertex sits. Anything behind the wall or out
+			# in the middle of the room is not this plane's business.
+			var deepest := -1.0
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for v: Vector3 in tri:
+				var d: float = (coord - v[axis]) * sign
+				if d < -0.06 or d > PROFILE_DEPTH:
+					continue
+				deepest = maxf(deepest, 9.0 if forbidden else d)
+				var p := Vector2(v[other], v.y)
+				lo = Vector2(minf(lo.x, p.x), minf(lo.y, p.y))
+				hi = Vector2(maxf(hi.x, p.x), maxf(hi.y, p.y))
+			if deepest < 0.0:
+				continue
+			var c0 := Vector2i(floori(lo.x / PROFILE_RES), floori(lo.y / PROFILE_RES))
+			var c1 := Vector2i(floori(hi.x / PROFILE_RES), floori(hi.y / PROFILE_RES))
+			for a in range(c0.x, c1.x + 1):
+				for b in range(c0.y, c1.y + 1):
+					var cell := Vector2i(a, b)
+					if deepest > float(prof.get(cell, -1.0)):
+						prof[cell] = deepest
+	_profiles[key] = prof
+	return prof
+
+## Is this rectangle of wall bare enough to bolt to? `face` is how far the finished wall surface
+## itself stands proud of the nominal plane - the corridor pieces panel their walls 6 cm out, the
+## rooms do not - and anything more than a few centimetres beyond that is a rib, a pipe, a console
+## or a lamp, and is somebody else's spot.
+static func wall_clear(piece: String, axis: int, coord: float, lo: Vector2, hi: Vector2,
+		face := 0.0, tolerance := 0.03) -> bool:
+	var prof := wall_profile(piece, axis, coord)
+	var limit := face + tolerance
+	var c0 := Vector2i(floori(lo.x / PROFILE_RES), floori(lo.y / PROFILE_RES))
+	var c1 := Vector2i(floori(hi.x / PROFILE_RES), floori(hi.y / PROFILE_RES))
+	for a in range(c0.x, c1.x + 1):
+		for b in range(c0.y, c1.y + 1):
+			if float(prof.get(Vector2i(a, b), -1.0)) > limit:
+				return false
+	return true
+
+## Find somewhere on this wall a `w` x `h` fitting actually fits, searched rather than guessed:
+## every position on the grid inside [lo, hi] whose whole footprint is bare, picked from at random.
+## Returns Vector2.INF when the wall has no room for it, which is a perfectly good answer - a lot
+## of this kit's wall is rib, pipe, console and lamp, and a fitting that is not there is invisible
+## while a fitting through a pipe is the first thing anyone sees.
+## `taken` is the wall's own running tally of what previous fittings have used - pass the same
+## dictionary for every fitting on one wall and they stop landing on top of each other. The cells
+## the chosen spot covers are marked in it before this returns.
+static func find_clear_spot(piece: String, axis: int, coord: float, face: float, w: float,
+		h: float, lo: Vector2, hi: Vector2, rng: RandomNumberGenerator,
+		taken: Dictionary = {}) -> Vector2:
+	var prof := wall_profile(piece, axis, coord)
+	var limit := face + 0.03
+	# rounded, not ceilinged: the kit's bare panels are only six cells wide and rounding up a
+	# fitting's half-width by a whole cell was enough to reject every one of them
+	var hw := maxi(1, roundi(w * 0.5 / PROFILE_RES))
+	var hh := maxi(1, roundi(h * 0.5 / PROFILE_RES))
+	var c0 := Vector2i(floori(lo.x / PROFILE_RES), floori(lo.y / PROFILE_RES))
+	var c1 := Vector2i(floori(hi.x / PROFILE_RES), floori(hi.y / PROFILE_RES))
+	var spots: Array[Vector2i] = []
+	var a := c0.x
+	while a <= c1.x:
+		var b := c0.y
+		while b <= c1.y:
+			var ok := true
+			for u in range(a - hw, a + hw + 1):
+				for v in range(b - hh, b + hh + 1):
+					var cell := Vector2i(u, v)
+					if taken.has(cell) or float(prof.get(cell, -1.0)) > limit:
+						ok = false
+						break
+				if not ok:
+					break
+			if ok:
+				spots.append(Vector2i(a, b))
+			b += 2
+		a += 2
+	if spots.is_empty():
+		return Vector2.INF
+	var pick: Vector2i = spots[rng.randi() % spots.size()]
+	for u in range(pick.x - hw, pick.x + hw + 1):        # this patch is spoken for now
+		for v in range(pick.y - hh, pick.y + hh + 1):
+			taken[Vector2i(u, v)] = true
+	return Vector2((pick.x + 0.5) * PROFILE_RES, (pick.y + 0.5) * PROFILE_RES)
+
 ## Accumulates surfaces from many placed pieces, grouped by a material key.
 class Merger:
 	var tools := {}

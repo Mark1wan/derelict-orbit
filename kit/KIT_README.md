@@ -60,6 +60,114 @@ wall; rotate in 90° steps to face it wherever you need.
 Every room keeps the area in front of its doorway clear, so nothing blocks you walking
 in from the corridor, and circulation rails are split rather than run wall to wall.
 
+## The loose props
+
+`kit/prop_*.glb` — the small objects that drift through the deck: the things you bump into,
+grab to pull yourself along, and that get shoved around when the haunting escalates. Each one
+is centred on X/Z with its base at **y = 0**, fits inside a 1 m box (so it clears a 3 m corridor
+at any tumble angle) and reuses the same material names as the modules, so a palette remap
+applied to the kit covers the props too.
+
+Every prop is filed under one of three **classes**, which is what decides how the game places it:
+
+- **wall** — bolted flush to a wall surface, upright on its mount. It does not tumble and the
+  haunting cannot shove it. Because the deck's cells are rolled about their axis, "wall" means
+  whichever surface the cell's roll has turned into one.
+
+  **Every wall fitting is a handhold.** In a station with no floor a bare wall is a wall you
+  cannot cross, so these are the furniture and the route at the same time - and the collider is
+  the piece's box plus a 6 cm margin (`Station.GRAB_MARGIN`), so a hand that comes near a rail or
+  a strap catches it instead of passing through the gap in the middle. They sit on collision layer
+  1, the same layer as the hull, so grabbing a fitting and grabbing the wall behind it feel
+  identical.
+
+  They are also placed where there is genuinely room for them - see **Finding the bare wall** below.
+- **floating** — loose in the corridors: tumbling, drifting, shoveable.
+- **equipment** — floating too, but kept in the work area of the room type it belongs to, and kept
+  above about 1.6 m: benches, racks, capacitor towers and seating all live under that, and a
+  canister drifting through a console reads worse than no canister at all.
+
+| File | Tris | Class | Room | Notes |
+|---|---|---|---|---|
+| `prop_ladder.glb` | 308 | wall | corridors, EVA airlock | rail run with four rungs |
+| `prop_grab_loop.glb` | 216 | wall | corridors, all rooms | webbing loop off two anchor plates |
+| `prop_foot_restraint.glb` | 120 | wall | corridors, gym | two angled loops to hook your boots under |
+| `prop_handhold.glb` | 132 | wall | corridors, all rooms | plain grab bar |
+| `prop_valve.glb` | 436 | wall | power, life support, lab, EVA | pipe elbow and a wheel - nothing grabs better |
+| `prop_locker.glb` | 140 | wall | all rooms | shallow locker with a bar handle across it |
+| `prop_control_box.glb` | 152 | wall | corridors, all rooms | junction box, lever, lamps, a little screen |
+| `prop_cable_reel.glb` | 256 | wall | corridors, life support, server | hose coiled on a drum, nozzle hanging off it |
+| `prop_hose_reel.glb` | 272 | wall | power, life support, lab, server | fire hose, with a grab bar across the recess |
+| `prop_tool_rack.glb` | 176 | wall | power, control, server, EVA | clipped tools, one of them missing |
+| `prop_extinguisher.glb` | 328 | wall | corridors, all rooms | bottle in bracket straps, lying along the wall |
+| `prop_medkit.glb` | 108 | wall | corridors, all rooms | first aid pack, red cross panel, status light |
+| `prop_crate.glb` | 240 | floating | corridors | ribbed supply crate, corner cage, hazard edge |
+| `prop_crate_large.glb` | 240 | floating | corridors | pallet-sized box with a lid seam and catches |
+| `prop_debris.glb` | 120 | floating | corridors | torn-off hull panel, bent ribs, cut cable |
+| `prop_ration.glb` | 60 | floating | corridors | sealed food pouch |
+| `prop_canister.glb` | 500 | equipment | life support, laboratory, EVA airlock | pressure cylinder, valve under a collar cage |
+| `prop_drum.glb` | 260 | equipment | life support | fluid drum with rolling hoops and bung caps |
+| `prop_toolbox.glb` | 96 | equipment | control room, power plant, gym | hinged case, carry handle, charge LED |
+| `prop_power_cell.glb` | 156 | equipment | power plant, server room | finned battery pack with charge LEDs |
+| `prop_helmet.glb` | 532 | equipment | EVA airlock, observation deck | EVA helmet, tinted visor, neck ring, lamp |
+| `prop_slate.glb` | 72 | equipment | control, laboratory, observation, gym, server | crew tablet with a lit screen |
+
+![the wall fittings](../docs/props_wall.png)
+
+About 4,900 triangles for the set. `scripts/station.gd` holds that classification in
+`PROP_CLASS`, with `WALL_CORRIDOR`, `WALL_ROOM`, `WALL_BY_ROOM`, `FLOATING` and `EQUIPMENT`
+saying where each class is drawn from. Two thirds of straight corridor cells get a fitting and a
+third of those get one on each side; rooms get two or three on each side wall plus a couple on the
+back wall, half of them drawn from what that room is actually for - valves where there is
+something to shut off, tool racks where something is maintained, hoses where something can burn.
+
+### Finding the bare wall
+
+![what the placer sees](../docs/wall_placement.png)
+
+*Left: a corridor cell's side wall. Right: a wall of the power plant. Dark = bare wall a fitting
+can bolt to; grey = something already standing there; red = a surface nothing gets bolted over
+whatever its depth. The outlines are where fittings actually landed - amber ones are mounted
+upright.*
+
+A fitting is never dropped at a random point and hoped for. `Kit.wall_profile()` builds a flat
+profile of each mounting plane - a 10 cm grid across the wall holding how far the geometry there
+stands proud of it - and `Kit.find_clear_spot()` searches that grid for every position where the
+fitting's whole footprint is bare, then picks one. Four things fall out of doing it that way:
+
+- **Nothing clips.** Ribs, pipe runs, cable trays, window frames, door surrounds, consoles, racks
+  and capacitor towers are all in the profile, and a fitting that would sit on any of them is not
+  placed there.
+- **Lamps, screens, glazing and doors are off limits** whatever their depth - the kit sets its
+  light strips flush into the wall, so depth alone would happily hang a locker on one.
+- **The wall's own panelling is not an obstacle.** Corridor pieces panel their walls 6 cm proud of
+  the nominal plane and rooms 10 cm, so each plane carries that figure (`CORRIDOR_FACE`,
+  `ROOM_FACE`) and a fitting's backplate sits on the finished surface rather than 6 cm inside it.
+- **Fittings do not land on each other.** Every wall keeps a running tally of the cells its
+  fittings have used, and the search treats those as occupied too.
+
+Some fittings mount **upright** (`Station.UPRIGHT`): the bare panels between a corridor's ribs are
+about 0.6 m wide and 2 m tall, so a ladder laid sideways fits nowhere and a ladder stood on its
+end fits almost everywhere - which is also how anyone would actually bolt one on.
+
+If a wall has no room for a fitting, it does not get one. A fitting that is not there is invisible;
+a fitting through a pipe is the first thing anyone sees, and it makes the whole deck look
+generated.
+
+`tools/render_wall_map.py` draws the picture above from the same data, so the rule can be checked
+against the real kit without opening Godot. Every prop gets a box collider either way, so a prop is also something you can grab and
+pull yourself along by — which is the whole point of the wall attachments.
+
+They are built by `tools/build_props.py`, which is self-contained — pure Python, no Blender and no
+third-party modules:
+
+    python3 tools/build_props.py --check   # rewrites kit/prop_*.glb and re-parses each one
+
+`tools/proplib.py` holds the glTF writer, the material palette and the primitives (box, cylinder,
+sphere, corner frame). Adding a prop is a function plus one line in `PROPS`; the builder checks
+every piece rests on y = 0 and stays under a metre before it writes anything.
+
+
 ## The window pieces
 
 Each viewport is a genuine aperture cut through the hull — the slab is laid as four

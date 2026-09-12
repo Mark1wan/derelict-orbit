@@ -1,0 +1,124 @@
+name: WebXR build
+
+# Exports the Quest 3 WebXR build and hands it back two ways: as a downloadable zip on every run
+# (so a branch can be tested without touching Pages), and deployed to GitHub Pages from the default
+# branch, which is what the headset actually opens. WebXR needs HTTPS and the Quest is not
+# localhost, so Pages - or any static HTTPS host - is the short path to a headset.
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "**.gd"
+      - "**.tscn"
+      - "**.glb"
+      - "**.json"
+      - "**.wav"
+      - "project.godot"
+      - "export_presets.cfg"
+      - ".github/workflows/webxr.yml"
+  workflow_dispatch:
+    inputs:
+      godot:
+        description: "Godot version to build with (blank = the one in project.godot, falling back to the latest 4.x stable)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: webxr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PRESET: "Web (WebXR, Quest 3)"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # project.godot names the version the project was authored against. If that build does not
+      # exist on the releases page, fall back to the newest 4.x stable rather than failing - the
+      # project is plain enough that a later 4.x imports it fine.
+      - name: Pick a Godot version
+        id: pick
+        run: |
+          set -euo pipefail
+          want="${{ inputs.godot }}"
+          if [ -z "$want" ]; then
+            want=$(grep -oP 'config/features=PackedStringArray\("\K[0-9]+\.[0-9]+' project.godot || true)
+          fi
+          echo "project asks for: ${want:-unknown}"
+          check() { curl -sfI "https://github.com/godotengine/godot/releases/download/$1-stable/Godot_v$1-stable_linux.x86_64.zip" >/dev/null; }
+          ver=""
+          if [ -n "$want" ] && check "$want"; then
+            ver="$want"
+          else
+            for candidate in $(curl -s https://api.github.com/repos/godotengine/godot/releases?per_page=60 \
+                | grep -oP '"tag_name": "\K4\.[0-9.]+(?=-stable")' | sort -Vr | head -8); do
+              if check "$candidate"; then ver="$candidate"; break; fi
+            done
+          fi
+          if [ -z "$ver" ]; then echo "::error::no usable Godot 4.x release found"; exit 1; fi
+          echo "building with Godot $ver"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install Godot and its export templates
+        run: |
+          set -euo pipefail
+          v="${{ steps.pick.outputs.version }}"
+          curl -sSLo godot.zip "https://github.com/godotengine/godot/releases/download/$v-stable/Godot_v$v-stable_linux.x86_64.zip"
+          curl -sSLo templates.tpz "https://github.com/godotengine/godot/releases/download/$v-stable/Godot_v$v-stable_export_templates.tpz"
+          unzip -q godot.zip && mv Godot_v$v-stable_linux.x86_64 /usr/local/bin/godot && chmod +x /usr/local/bin/godot
+          mkdir -p "$HOME/.local/share/godot/export_templates/$v.stable"
+          unzip -q templates.tpz
+          mv templates/* "$HOME/.local/share/godot/export_templates/$v.stable/"
+          godot --version
+
+      # First pass builds the .godot import cache (glb, wav, textures). It is expected to be noisy
+      # and to exit non-zero on a cold cache; the export that follows is the real check.
+      - name: Import assets
+        run: godot --headless --path . --import || true
+
+      - name: Export ${{ env.PRESET }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/web
+          godot --headless --path . --export-release "$PRESET" build/web/index.html
+          test -f build/web/index.html || { echo "::error::no index.html - the export did not run"; exit 1; }
+          ls -lh build/web
+          # the wasm is the thing that has to be there; everything else is small
+          find build/web -name "*.wasm" -size +1M -print -quit | grep -q . \
+            || { echo "::error::no wasm in the export"; exit 1; }
+
+      - name: Smoke test the game loop headless
+        run: DERELICT_AUTOTEST=1 timeout 180 godot --headless --path . --quit-after 3000 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: derelict-orbit-webxr-${{ github.sha }}
+          path: build/web
+          retention-days: 30
+
+      - uses: actions/configure-pages@v5
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

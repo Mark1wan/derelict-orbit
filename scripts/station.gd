@@ -40,9 +40,14 @@ var pal: Palette
 var root: Node3D
 var colliders: StaticBody3D
 var lights: Array[Light3D] = []
+## Lamps that are genuinely failing - bad ballast, nothing supernatural. Picked with the deck seed,
+## so they are the same ones all run, and they stutter on their own schedule for ever. Their only
+## job is to make sure a stuttering light is never by itself evidence of anything.
+var faulty_lights: Array[Light3D] = []
 var emergency_lights: Array[Light3D] = []
 var interactables := {}
 var props: Array[Node3D] = []
+var carried := {}                       # prop index -> an apparition has hold of it
 var prop_spin: Array[Vector3] = []
 var prop_vel: Array[Vector3] = []
 var power_led: OmniLight3D
@@ -77,6 +82,7 @@ func regenerate(seed_: int) -> void:
 	props.clear()
 	prop_spin.clear()
 	prop_vel.clear()
+	carried.clear()
 	_path_cache.clear()
 	power_led = null
 	layout = StationLayout.new()
@@ -108,6 +114,7 @@ func regenerate(seed_: int) -> void:
 		mergers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key)
 
 	_place_lights()
+	_pick_faulty_lights()
 	_place_rooms()
 	_place_props()
 	_build_outside()
@@ -159,21 +166,190 @@ func _place_rooms() -> void:
 		_sign(ROOM_LABEL[t], plate + toward_room * 0.035, toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 		_sign(ROOM_LABEL[t], plate - toward_room * 0.035, -toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 
+## Every prop in kit/prop_*.glb belongs to one of three classes:
+##
+##   "wall"       bolted flush to a wall surface - upright on its mount, does not tumble and the
+##                haunting cannot shove it. Extinguishers, medkits and spare grab bars.
+##   "floating"   loose in the corridors: tumbling, drifting, shoveable. Crates, debris, rations.
+##   "equipment"  floating too, but kept in the work area of the room it belongs to (EQUIPMENT).
+##
+## A prop is placed by its class, so adding one is a single line here.
+const PROP_CLASS := {
+	"prop_extinguisher": "wall",
+	"prop_medkit": "wall",
+	"prop_handhold": "wall",
+	"prop_ladder": "wall",
+	"prop_grab_loop": "wall",
+	"prop_foot_restraint": "wall",
+	"prop_valve": "wall",
+	"prop_locker": "wall",
+	"prop_control_box": "wall",
+	"prop_cable_reel": "wall",
+	"prop_tool_rack": "wall",
+	"prop_hose_reel": "wall",
+	"prop_crate": "floating",
+	"prop_crate_large": "floating",
+	"prop_debris": "floating",
+	"prop_ration": "floating",
+	"prop_canister": "equipment",
+	"prop_drum": "equipment",
+	"prop_toolbox": "equipment",
+	"prop_power_cell": "equipment",
+	"prop_helmet": "equipment",
+	"prop_slate": "equipment",
+}
+
+## Wall attachments, split by where they belong. Every one of these is a handhold before it is
+## anything else: in a station with no floor, a wall with nothing on it is a wall you cannot cross,
+## so the fittings are the furniture and the route at the same time.
+const WALL_CORRIDOR := ["prop_ladder", "prop_ladder", "prop_grab_loop", "prop_grab_loop",
+	"prop_handhold", "prop_handhold", "prop_foot_restraint", "prop_control_box",
+	"prop_extinguisher", "prop_medkit", "prop_cable_reel"]
+const WALL_ROOM := ["prop_locker", "prop_control_box", "prop_grab_loop", "prop_handhold",
+	"prop_extinguisher", "prop_medkit", "prop_tool_rack", "prop_foot_restraint"]
+
+## Fittings that belong to particular work: the valve where there is something to shut off, the
+## tool rack where something is maintained, the hose where something can burn.
+const WALL_BY_ROOM := {
+	"power": ["prop_valve", "prop_tool_rack", "prop_hose_reel", "prop_control_box"],
+	"plant": ["prop_valve", "prop_valve", "prop_hose_reel", "prop_cable_reel"],
+	"control": ["prop_control_box", "prop_locker", "prop_tool_rack"],
+	"laboratory": ["prop_hose_reel", "prop_locker", "prop_control_box", "prop_valve"],
+	"observation": ["prop_grab_loop", "prop_handhold", "prop_locker"],
+	"exercise": ["prop_foot_restraint", "prop_foot_restraint", "prop_grab_loop", "prop_handhold"],
+	"server": ["prop_tool_rack", "prop_control_box", "prop_cable_reel", "prop_hose_reel"],
+	"eva": ["prop_locker", "prop_tool_rack", "prop_valve", "prop_cable_reel", "prop_ladder"],
+}
+
+## The loose stuff that has drifted out of somebody's hands and never been collected.
+const FLOATING := ["prop_crate", "prop_crate_large", "prop_debris", "prop_ration"]
+
+## Equipment by room type: what that workstation actually works with.
+const EQUIPMENT := {
+	"control": ["prop_slate", "prop_toolbox"],
+	"power": ["prop_power_cell", "prop_toolbox"],
+	"plant": ["prop_canister", "prop_drum"],
+	"laboratory": ["prop_canister", "prop_slate"],
+	"observation": ["prop_slate", "prop_helmet"],
+	"exercise": ["prop_toolbox", "prop_slate"],
+	"server": ["prop_power_cell", "prop_slate"],
+	"eva": ["prop_helmet", "prop_canister"],
+}
+
+## Corridor pieces with both side walls intact - the ones a wall fitting can hang on.
+const PLAIN_CORRIDOR := {"corridor_straight": true, "corridor_door": true}
+
+const GRAB_MARGIN := 0.06   # how much fatter than the mesh a wall fitting's collider is
+const CORRIDOR_HW := 1.5    # nominal interior half-width of a corridor cell
+const CORRIDOR_FACE := 0.06 # ...and how far its panelling stands proud of that, which is where a
+                            #    fitting's backplate actually has to sit
+const ROOM_HW := 5.5        # inner face of a room wall
+const ROOM_FACE := 0.10     # ...rooms panel theirs 10 cm out
+
+## Try to hang `piece` on a wall of `kit_piece`, re-rolling the spot until one of them is on bare
+## wall. `local_for` suggests a candidate in the kit piece's own space, and Kit.wall_clear() throws
+## it out if that patch already has a rib, a pipe run, a light strip, a window frame, a door
+## surround or a console standing on it - which on a kit this greebled is most of the wall.
+##
+## Nothing is nudged and nothing is squeezed in: if none of the tries land, that wall stays bare.
+## A fitting that is not there is invisible; a fitting through a pipe is the first thing anyone
+## sees, and it makes the whole deck look generated.
+const MOUNT_CLEARANCE := 0.03   # air left around a fitting, on top of its own size
+
+## Fittings that run up the wall rather than along it. The kit's bare panels are about 0.6 m wide
+## and 2 m tall, so a ladder laid sideways never fits anywhere and a ladder stood upright fits
+## almost everywhere - which is also the way anyone would actually bolt one on.
+const UPRIGHT := {"prop_ladder": true, "prop_cable_reel": true}
+
+## Hang `piece` on one of `kit_piece`'s walls, in a spot found rather than guessed: Kit searches
+## that wall's profile for somewhere the whole footprint is bare - no rib, no pipe run, no light
+## strip, no window frame, no console - and the fitting goes there, or nowhere.
+func _mount_on_wall(piece: String, kit_piece: String, xf: Transform3D, axis: int, coord: float,
+		face: float, normal: Vector3, tangent: Vector3, lo: Vector2, hi: Vector2,
+		rng: RandomNumberGenerator, taken: Dictionary) -> bool:
+	var size := Kit.mesh(piece).get_aabb().size
+	# _mount() lands the mesh with its Z along the tangent and its X across it, so turning a
+	# fitting upright is just handing it the wall's own up direction as the tangent
+	var upright: bool = UPRIGHT.has(piece)
+	if upright:
+		tangent = Vector3(0, 1, 0)
+	var w := (size.x if upright else size.z) + MOUNT_CLEARANCE * 2.0
+	var h := (size.z if upright else size.x) + MOUNT_CLEARANCE * 2.0
+	var spot := Kit.find_clear_spot(kit_piece, axis, coord, face, w, h, lo, hi, rng, taken)
+	if spot == Vector2.INF:
+		return false
+	var local := Vector3.ZERO
+	local.y = spot.y
+	local[axis] = coord - signf(coord) * face          # sit on the finished wall, not behind it
+	local[2 if axis == 0 else 0] = spot.x
+	_mount(piece, xf, local, normal, tangent)
+	return true
+
 func _place_props() -> void:
-	var cells: Array = []
-	for c: Vector2i in layout.corridor:
-		if layout.corridor[c]["open"].size() == 2:
-			cells.append(c)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = layout.seed_ + 77
-	var n := mini(5, cells.size())
-	for i in n:
-		var c: Vector2i = cells[rng.randi() % cells.size()]
+
+	var straight: Array[Vector2i] = []
+	for c: Vector2i in layout.corridor:
+		if layout.corridor[c]["open"].size() == 2:
+			straight.append(c)
+	if straight.is_empty():
+		return
+
+	# floating: loose in the corridors, tumbling
+	for i in mini(7, straight.size()):
+		var c: Vector2i = straight[rng.randi() % straight.size()]
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
-		_prop(StationProps.CORRIDOR[rng.randi() % StationProps.CORRIDOR.size()], p, rng)
+		_prop(String(FLOATING[rng.randi() % FLOATING.size()]), p, rng)
+
+	# wall: bolted to a corridor side wall (only where the piece still has both side walls). Two
+	# thirds of cells get something, and a third of those get a fitting on each side - a corridor
+	# you can cross hand over hand without letting go is the difference between a route and a gap
+	for c: Vector2i in straight:
+		var cell: Dictionary = layout.corridor[c]
+		if not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.62:
+			continue
+		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
+		var sides := [1.0 if rng.randf() < 0.5 else -1.0]
+		if rng.randf() < 0.33:
+			sides.append(-sides[0])
+		for side: float in sides:
+			_mount_on_wall(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]),
+				cell["piece"], xf, 0, side * CORRIDOR_HW, CORRIDOR_FACE,
+				Vector3(-side, 0, 0), Vector3(0, 0, 1),
+				Vector2(-1.5, 0.35), Vector2(1.5, 2.5), rng, {})
+
 	for r: Dictionary in layout.rooms:
-		var p := StationLayout.world(r["center"], 2.0) + Vector3(rng.randf_range(-2, 2), rng.randf_range(-0.5, 0.8), rng.randf_range(-2, 2))
-		_prop(StationProps.ROOM[rng.randi() % StationProps.ROOM.size()], p, rng)
+		var t: String = r["type"]
+		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
+
+		# equipment: floating inside one work area of the room, not scattered across it
+		var pool: Array = EQUIPMENT.get(t, FLOATING)
+		# kept above the fit-out: benches, racks, capacitor towers and seating all live under about
+		# 1.6 m, and a drifting canister through a console reads worse than no canister at all
+		var anchor := Vector3(rng.randf_range(-1.0, 1.0) * 3.2, 2.05, (1.0 if rng.randf() < 0.5 else -1.0) * 3.2)
+		for i in pool.size():
+			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.45, 0.75), rng.randf_range(-1.1, 1.1))
+			_prop(String(pool[i]), xf * p, rng)
+
+		# wall: two or three fittings on each side wall, plus a couple on the back wall. Half of
+		# them are drawn from what this room is actually for.
+		var trade: Array = WALL_BY_ROOM.get(t, WALL_ROOM)
+		var room_piece := "room_" + t
+		# one tally per wall: fittings on the same wall have to find their own patch
+		for side: float in [-1.0, 1.0]:
+			var taken := {}
+			for i in 2 + (1 if rng.randf() < 0.5 else 0):
+				var wall_pool: Array = trade if rng.randf() < 0.5 else WALL_ROOM
+				_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
+					0, side * ROOM_HW, ROOM_FACE, Vector3(-side, 0, 0), Vector3(0, 0, 1),
+					Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, taken)
+		var back := {}
+		for i in 2:
+			var wall_pool: Array = trade if rng.randf() < 0.6 else WALL_ROOM
+			_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
+				2, ROOM_HW, ROOM_FACE, Vector3(0, 0, -1), Vector3(1, 0, 0),
+				Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, back)
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -320,16 +496,78 @@ func _sign(text: String, pos: Vector3, facing: Vector3, size := 48, col := Color
 	l.look_at(pos - facing, Vector3.UP)
 	return l
 
-## One loose prop, already tumbling. Driven off `rng` rather than the global generator so a
-## given seed always dresses the deck the same way.
-func _prop(name: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
-	var mi := StationProps.make(name, pal)
-	root.add_child(mi)
-	mi.position = pos
-	mi.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
-	props.append(mi)
+## One prop from the kit, tumbling at a random attitude. Its surfaces keep the kit material
+## names, so the same palette remap the hull uses applies here. The glb rests on y = 0, so the
+## mesh is offset inside a pivot node and the pivot is what spins.
+func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	assert(PROP_CLASS.get(piece, "") != "wall", "%s is a wall attachment - use _mount()" % piece)
+	var mesh := Kit.mesh(piece)
+	var names := Kit.material_names(piece)
+	var pivot := Node3D.new()
+	pivot.name = piece
+	pivot.position = pos
+	pivot.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+	root.add_child(pivot)
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var aabb := mesh.get_aabb()
+	mi.position = -aabb.get_center()
+	for s in mesh.get_surface_count():
+		var key: String = Palette.KIT_MAP.get(names[s], "metal")
+		mi.set_surface_override_material(s, pal.get_mat(key))
+	pivot.add_child(mi)
+
+	# one box collider, so a prop is something you can grab and pull off
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = aabb.size
+	cs.shape = shape
+	body.add_child(cs)
+	mi.add_child(body)
+
+	props.append(pivot)
 	prop_spin.append(Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2)))
 	prop_vel.append(Vector3.ZERO)
+
+## A wall attachment: the prop's base sits flat on the wall surface, `normal` pointing off it
+## into the room and `tangent` giving the direction its front faces. `xf` is the piece transform,
+## `local` a point on the wall in that piece's own frame - so a rolled cell mounts it on what is
+## now the ceiling, which is the whole point of a station with no floor.
+func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tangent: Vector3) -> void:
+	assert(PROP_CLASS.get(piece, "") == "wall", "%s is not a wall attachment - use _prop()" % piece)
+	var mesh := Kit.mesh(piece)
+	var names := Kit.material_names(piece)
+	var aabb := mesh.get_aabb()
+	var up := (xf.basis * normal).normalized()
+	var fwd := (xf.basis * tangent).normalized()
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.name = piece
+	for s in mesh.get_surface_count():
+		var key: String = Palette.KIT_MAP.get(names[s], "metal")
+		mi.set_surface_override_material(s, pal.get_mat(key))
+	root.add_child(mi)
+	mi.transform = Transform3D(Basis(up.cross(fwd), up, fwd), xf * local)
+
+	# Every wall fitting is grabbable, and deliberately forgiving about it: the collider is the
+	# piece's box plus a 6 cm margin, so a hand that comes near a rail or a strap catches it rather
+	# than passing through the gap in the middle of it. The player's grab is a 0.18 m sphere against
+	# layer 1 (see player.gd), which is the same layer the hull is on - so grabbing a fitting and
+	# grabbing the wall behind it feel identical, which is the point.
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = aabb.size + Vector3.ONE * GRAB_MARGIN
+	cs.shape = shape
+	cs.position = aabb.get_center()
+	body.add_child(cs)
+	mi.add_child(body)
 
 func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false) -> void:
 	var it := Interactable.new()
@@ -370,6 +608,8 @@ func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	for i in props.size():
+		if carried.has(i):
+			continue          # something else is moving this one
 		var p := props[i]
 		p.rotation += prop_spin[i] * delta
 		p.position += prop_vel[i] * delta
@@ -411,10 +651,68 @@ func _on_task_completed(id: String) -> void:
 	Game.on_task_completed(id)
 
 ## Nudge every prop (paranormal "something moved").
+# ---------------------------------------------------------------- props on loan
+## Nearest loose prop to `point` that nothing else has hold of, or -1. `visible_from` (when given)
+## also requires line of sight from there, for events that want to be watched.
+func find_prop_near(point: Vector3, max_dist := 9.0, visible_from := Vector3.INF) -> int:
+	var best := -1
+	var best_d := max_dist
+	for i in props.size():
+		if carried.has(i):
+			continue
+		var d := props[i].global_position.distance_to(point)
+		if d >= best_d:
+			continue
+		if visible_from != Vector3.INF and not has_line_of_sight(visible_from, props[i].global_position):
+			continue
+		best = i
+		best_d = d
+	return best
+
+## Take a prop out of the drift: whoever asked is moving it now.
+func take_prop(i: int) -> Node3D:
+	if i < 0 or i >= props.size():
+		return null
+	carried[i] = true
+	prop_vel[i] = Vector3.ZERO
+	return props[i]
+
+## Give it back, with a shove. This is what an object flying across a corridor is.
+func release_prop(i: int, velocity: Vector3, spin := Vector3.ZERO) -> void:
+	if i < 0 or i >= props.size():
+		return
+	carried.erase(i)
+	prop_vel[i] = velocity
+	prop_spin[i] = spin
+
 func shove_props(strength := 0.6) -> void:
 	for i in props.size():
 		prop_vel[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * strength
 		prop_spin[i] += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.8
+
+## Three or four lamps on the deck are on their way out. Seeded, so this run's bad lights are this
+## run's bad lights, and the player can learn which ones they are - which is the point: a lamp you
+## know is broken is the best possible place for something to be standing.
+func _pick_faulty_lights() -> void:
+	faulty_lights.clear()
+	if lights.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = layout.seed_ + 404
+	var pool := lights.duplicate()
+	for i in mini(4, pool.size()):
+		faulty_lights.append(pool.pop_at(rng.randi() % pool.size()))
+
+## The light nearest a point, so an event can make the bit of deck it is happening on misbehave.
+func nearest_light(p: Vector3) -> Light3D:
+	var best: Light3D = null
+	var best_d := INF
+	for l in lights:
+		var d := l.global_position.distance_squared_to(p)
+		if d < best_d:
+			best_d = d
+			best = l
+	return best
 
 func random_light() -> Light3D:
 	return lights.pick_random()
@@ -429,6 +727,13 @@ func task_pool() -> Array:
 
 func layout_label() -> String:
 	return "%04d" % layout.seed_
+
+## The room's own frame - its floor, its walls, whichever way the deck plan rolled it. A ritual
+## circle laid in here lands on that room's floor even when the roll has turned the floor into a
+## wall, which is the right answer in a station with no gravity.
+func room_transform(i: int) -> Transform3D:
+	var r: Dictionary = layout.rooms[i % layout.rooms.size()]
+	return Kit.cell_transform(r["center"], r["rot"], r["roll"])
 
 func room_center(i: int) -> Vector3:
 	return StationLayout.world(layout.rooms[i % layout.rooms.size()]["center"], NAV_Y)
@@ -463,6 +768,22 @@ func crossing_spots() -> Array:
 			continue
 		for d: Vector2i in cell["open"]:
 			out.append([StationLayout.world(c, 1.5), Vector3(d.x, 0, d.y)])
+	return out
+
+## Corners something can wait round: a point tucked into a side passage, close enough to its mouth
+## to be seen from the corridor and far enough to one side that the wall has most of it. Returns
+## [position, hide direction] - the hide direction is further into the passage, where it goes.
+func corner_spots() -> Array:
+	var out := []
+	for c: Vector2i in layout.corridor:
+		var cell: Dictionary = layout.corridor[c]
+		if cell["open"].size() < 2:
+			continue
+		for d: Vector2i in cell["open"]:
+			var into := Vector3(d.x, 0, d.y)
+			var lateral := Vector3(d.y, 0, -d.x)
+			for side: float in [-1.0, 1.0]:
+				out.append([StationLayout.world(c, 1.05) + into * 1.15 + lateral * side * 0.95, into])
 	return out
 
 func watcher_spots() -> Array:

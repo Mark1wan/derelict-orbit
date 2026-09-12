@@ -9,8 +9,7 @@ signal caught
 var speed := 0.6
 var lit_factor := 0.0        # speed multiplier while illuminated
 var teleport_enabled := false
-var _mat: StandardMaterial3D
-var _eye_mat: StandardMaterial3D
+var body: Creature
 var _unseen := 0.0
 var _breath: AudioStreamPlayer3D
 var _done := false
@@ -22,30 +21,14 @@ func _ready() -> void:
 	lit_factor = 0.0 if I < 5.0 else 0.3
 	teleport_enabled = I >= 4.0
 
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = Color(0.1, 0.1, 0.11)
-	_mat.roughness = 1.0
-	ShadowFigure.build_body(_mat, self)
-
-	_eye_mat = StandardMaterial3D.new()
-	_eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_eye_mat.albedo_color = Color(1, 0.1, 0.05)
-	_eye_mat.emission_enabled = true
-	_eye_mat.emission = Color(1, 0.1, 0.05)
-	_eye_mat.emission_energy_multiplier = 1.0
-	for side in [-1.0, 1.0]:
-		var eye := MeshInstance3D.new()
-		var em := SphereMesh.new()
-		em.radius = 0.018
-		em.height = 0.036
-		em.radial_segments = 6
-		em.rings = 3
-		eye.mesh = em
-		eye.material_override = _eye_mat
-		eye.position = Vector3(side * 0.05, 0.75, -0.12)
-		add_child(eye)
-	# eyes only glow from night 2 onward - night 1 you hear it before you see it
-	_eye_mat.emission_energy_multiplier = 0.0 if I < 2.0 else 0.8
+	body = Creature.new()
+	body.name = "Body"
+	# the rig's origin is under its feet; the stalker node itself sits at head height, where the
+	# navigation and the catch test want it
+	body.position = Vector3(0, -1.2, 0)
+	body.glitch = 0.7 + 0.25 * I
+	body.step_time = clampf(0.5 - 0.04 * I, 0.16, 0.5)
+	add_child(body)
 
 	_breath = AudioStreamPlayer3D.new()
 	_breath.stream = Sfx.streams.get("breath")
@@ -84,8 +67,12 @@ func _process(delta: float) -> void:
 	var s := speed * (lit_factor if lit else 1.0)
 	var target: Vector3 = Game.station.next_waypoint(global_position, head)
 	var dir: Vector3 = target - global_position
-	if dir.length() > 0.05:
+	var walking := s > 0.02 and dir.length() > 0.05
+	if walking:
 		global_position += dir.normalized() * s * delta
+	# in the beam it stops and stands up, which is worse than it moving
+	body.moving = walking
+	body.glitch = 0.15 if lit else 0.7 + 0.25 * Game.intensity()
 	# always face the player; never look up/down
 	var face := Vector3(head.x, global_position.y, head.z)
 	if face.distance_to(global_position) > 0.05:
@@ -121,5 +108,6 @@ func lunge(player: Player) -> void:
 	var fwd := -cam.global_transform.basis.z
 	global_position = cam.global_position + fwd * 0.55 + Vector3(0, -0.55, 0)
 	look_at(cam.global_position, Vector3.UP)
-	_eye_mat.emission_energy_multiplier = 4.0
+	body.lunge_pose()
+	body.set_eye_glow(4.0)
 	_breath.stop()

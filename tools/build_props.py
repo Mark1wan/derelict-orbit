@@ -1,312 +1,520 @@
 #!/usr/bin/env python3
-"""Loose props and set dressing for Kestrel-9 - written to kit/props/*.glb.
+"""Builds the loose-prop kit: kit/prop_*.glb.
 
-Unlike the corridor and room modules (floor at y = 0, 4 m grid), a prop is
-**centred on its own origin**: in zero-G every one of these tumbles, and the origin is
-the point it spins about. Keep each one roughly symmetric about the origin, or it will
-look like it is orbiting an invisible pivot.
+These are the small objects that drift through the station - the things you bump into,
+grab to pull yourself along, and that get shoved around when the haunting escalates.
+They use the same material names as the modular kit, so scripts/palette.gd remaps them
+onto the game's textured materials with no extra work.
 
-Material names come from kitlib.MATERIALS and are the same stable set the corridor kit
-uses, so scripts/palette.gd's KIT_MAP remaps them onto the station's real textured
-materials with no extra wiring.
+    python3 tools/build_props.py            # writes kit/prop_*.glb
+    python3 tools/build_props.py --check    # re-parses every file it wrote
 
-    python3 tools/build_props.py        # writes kit/props/*.glb
+Each prop is modelled centred on X/Z with its base at y = 0 and is kept inside a 1 m box
+so it fits a 3 m corridor at any tumble angle.
 """
 
+import argparse
+import hashlib
+import json
 import math
 import os
+import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from proplib import Mesh, write_glb, MATERIALS, X, Y, Z
 
-from kitlib import Mesh, rotate, translate, write_glb  # noqa: E402
-
-TAU = 2.0 * math.pi
-OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "kit", "props")
-
-PROPS = {}
+OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kit")
 
 
-def prop(name, description):
-    def deco(fn):
-        PROPS[name] = (fn, description)
-        return fn
-    return deco
-
-
-# ---------------------------------------------------------------- shared details
-
-def bolts(m, mat, center, radius, count, axis="y", head=0.018, depth=0.012):
-    """Ring of bolt heads - the cheapest thing that makes a flat panel read as hardware."""
-    idx = {"x": 0, "y": 1, "z": 2}[axis]
-    others = [i for i in range(3) if i != idx]
-    for i in range(count):
-        a = TAU * i / count
-        p = list(center)
-        p[others[0]] += math.cos(a) * radius
-        p[others[1]] += math.sin(a) * radius
-        m.cylinder(mat, tuple(p), head, depth, axis, segments=6)
-
-
-def latch(m, center, size=(0.09, 0.05, 0.03)):
-    """Toggle catch: a body plus a lighter lever."""
-    m.box("Hull_Dark", center, size)
-    m.box("Hull_Light", (center[0], center[1] + size[1] * 0.35, center[2] + size[2] * 0.55),
-          (size[0] * 0.65, size[1] * 0.5, size[2] * 0.6))
-
-
-def hazard_band(m, center, size, mat="Accent_Warn"):
-    m.box(mat, center, size)
-
-
-# ---------------------------------------------------------------- the props
-
-@prop("prop_crate", "0.6 m ribbed cargo crate: corner posts, lid seam, latches, hazard stripe")
-def crate(m):
-    s = 0.60
+def cargo_crate(m, s=0.52):
+    """Ribbed supply crate: panelled faces, a corner cage, hazard corners and a latch."""
     h = s / 2.0
-    m.box("Hull_Panel", (0, 0, 0), (s, s, s))
-    # corner posts down all four vertical edges
+    m.box("Hull_Panel", (0, h, 0), (s * 0.94, s * 0.94, s * 0.94))
+    m.frame("Hull_Dark", (0, h, 0), (s, s, s), s * 0.09)
+    # recessed rib across two faces
+    for zz in (-1, 1):
+        m.box("Hull_Dark", (0, h, zz * s * 0.49), (s * 0.66, s * 0.16, s * 0.04))
+    for xx in (-1, 1):
+        m.box("Hull_Dark", (xx * s * 0.49, h, 0), (s * 0.04, s * 0.16, s * 0.66))
+    # latch plate and handle on +Z
+    m.box("Door_Panel", (0, h, s * 0.51), (s * 0.2, s * 0.12, s * 0.05))
+    m.box("Accent_Warn", (0, s * 0.94, 0), (s * 0.5, s * 0.04, s * 0.5))
+    # stencilled hazard stripe down one edge
+    m.box("Accent_Warn", (s * 0.5, h, s * 0.5), (s * 0.1, s * 0.7, s * 0.1))
+
+
+def cargo_crate_large(m):
+    """Same family, a pallet-sized double-height box with a lid seam."""
+    w, d, hgt = 0.78, 0.6, 0.56
+    m.box("Hull_Panel", (0, hgt / 2, 0), (w * 0.95, hgt * 0.95, d * 0.95))
+    m.frame("Hull_Dark", (0, hgt / 2, 0), (w, hgt, d), 0.055)
+    m.box("Seal_Gasket", (0, hgt * 0.72, 0), (w * 1.01, 0.014, d * 1.01))
     for sx in (-1, 1):
-        for sz in (-1, 1):
-            m.box("Hull_Dark", (sx * (h - 0.03), 0, sz * (h - 0.03)), (0.07, s + 0.012, 0.07))
-    # ribs across two faces
-    for z in (-1, 1):
-        for y in (-0.14, 0.14):
-            m.box("Hull_Dark", (0, y, z * (h + 0.012)), (s - 0.12, 0.05, 0.03))
-    # lid seam and latches
-    m.box("Hull_Dark", (0, h - 0.05, 0), (s + 0.014, 0.02, s + 0.014))
-    for z in (-1, 1):
-        latch(m, (0, h - 0.05, z * (h + 0.025)), (0.10, 0.06, 0.035))
-    # hazard stripe low on the ±X faces, and a lit status pip
-    for sx in (-1, 1):
-        hazard_band(m, (sx * (h + 0.008), -h + 0.09, 0), (0.012, 0.055, s - 0.10))
-    m.cylinder("Light_Green", (0.12, h - 0.05, h + 0.02), 0.016, 0.016, "z", segments=8)
+        m.box("Door_Panel", (sx * w * 0.3, hgt * 0.72, d * 0.5), (0.1, 0.07, 0.035))
+        m.box("Door_Panel", (sx * w * 0.3, hgt * 0.72, -d * 0.5), (0.1, 0.07, 0.035))
+    m.box("Accent_Warn", (0, hgt * 0.3, d * 0.5), (w * 0.62, 0.07, 0.012))
+    m.box("Hull_Dark", (0, 0.02, 0), (w * 0.8, 0.04, d * 0.8))     # skid
 
 
-@prop("prop_crate_long", "1.1 m transport case: banded shell, recessed handles, stencil plate")
-def crate_long(m):
-    L, W, H = 1.10, 0.46, 0.40
-    m.box("Hull_Panel", (0, 0, 0), (L, H, W))
-    for x in (-0.34, 0.0, 0.34):  # strapping bands
-        m.box("Hull_Dark", (x, 0, 0), (0.07, H + 0.014, W + 0.014))
-    m.box("Hull_Dark", (0, H / 2 - 0.04, 0), (L + 0.012, 0.018, W + 0.012))  # lid seam
-    for sx in (-1, 1):  # end handles
-        m.box("Hull_Dark", (sx * (L / 2 + 0.012), 0, 0), (0.024, 0.20, W - 0.10))
-        m.box("Hull_Light", (sx * (L / 2 + 0.05), 0, 0), (0.05, 0.035, W - 0.16))
-    for sx in (-1, 1):  # latches on the long faces
-        for sz in (-1, 1):
-            latch(m, (sx * 0.17, H / 2 - 0.04, sz * (W / 2 + 0.022)), (0.09, 0.05, 0.032))
-    m.box("Screen_Lit", (0.34, 0.03, W / 2 + 0.009), (0.13, 0.08, 0.004))  # manifest label
+def gas_canister(m):
+    """Pressure cylinder: domed ends, neck valve, protective collar, hazard band."""
+    r, body = 0.13, 0.46
+    y0 = r                      # the bottom dome rests on y = 0
+    top = y0 + body
+    m.cylinder("Pipe_Steel", (0, y0, 0), r, body, Y, 14)
+    m.sphere("Pipe_Steel", (0, y0, 0), r, 14, 4, y_min=-1.0, y_max=0.0)
+    m.sphere("Pipe_Steel", (0, top, 0), r, 14, 4, y_min=0.0, y_max=1.0)
+    m.cylinder("Accent_Warn", (0, y0 + body * 0.35, 0), r * 1.02, 0.07, Y, 14, caps=False)
+    neck = top + r * 0.6
+    m.cylinder("Pipe_Copper", (0, neck, 0), 0.035, 0.09, Y, 8)
+    m.cylinder("Door_Panel", (0, neck + 0.09, 0), 0.055, 0.03, Y, 8)          # valve wheel
+    m.cylinder("Pipe_Copper", (-0.08, neck + 0.02, 0), 0.018, 0.08, X, 6)     # outlet
+    for i in range(4):     # collar cage around the valve
+        a = i * math.pi / 2 + math.pi / 4
+        m.box("Hull_Dark", (math.cos(a) * r * 0.8, neck + 0.02, math.sin(a) * r * 0.8), (0.03, 0.16, 0.03))
+    m.cylinder("Hull_Dark", (0, neck + 0.1, 0), r * 0.85, 0.03, Y, 14)
 
 
-@prop("prop_canister", "0.9 m gas canister: domed ends, neck valve, guard collar, hazard band")
-def canister(m):
-    r, body = 0.14, 0.56
-    m.cylinder("Pipe_Steel", (0, 0, 0), r, body, "y", segments=14, caps=False)
-    m.sphere("Pipe_Steel", (0, body / 2, 0), r, segments=14, rings=3, y0=0.0, y1=1.0)
-    m.sphere("Pipe_Steel", (0, -body / 2, 0), r, segments=14, rings=3, y0=-1.0, y1=0.0)
-    hazard_band(m, (0, 0.10, 0), (r * 2 + 0.008, 0.07, r * 2 + 0.008))
-    m.cylinder("Accent_Warn", (0, 0.10, 0), r + 0.004, 0.07, "y", segments=14, caps=False)
-    # neck, valve body and handwheel
-    m.cylinder("Hull_Dark", (0, body / 2 + r - 0.01, 0), 0.045, 0.09, "y", segments=10)
-    m.box("Pipe_Copper", (0, body / 2 + r + 0.07, 0), (0.09, 0.07, 0.07))
-    m.torus("Pipe_Copper", (0, body / 2 + r + 0.13, 0), 0.055, 0.012, "y", segments=12, sides=6)
-    m.cylinder("Pipe_Copper", (0.075, body / 2 + r + 0.07, 0), 0.02, 0.05, "x", segments=8)
-    # guard collar over the valve
-    m.tube("Hull_Dark", (0, body / 2 + r + 0.10, 0), 0.10, 0.014, 0.12, "y", segments=12)
-    # foot ring
-    m.tube("Hull_Dark", (0, -body / 2 - r + 0.03, 0), r - 0.005, 0.012, 0.07, "y", segments=14)
-
-
-@prop("prop_toolbox", "0.5 m tool chest: two drawers with pulls, lid handle, side clips")
 def toolbox(m):
-    W, H, D = 0.48, 0.30, 0.26
-    m.box("Accent_Red", (0, -0.02, 0), (W, H * 0.72, D))
-    m.box("Hull_Dark", (0, H * 0.36 - 0.02, 0), (W + 0.01, 0.02, D + 0.01))
-    m.box("Accent_Red", (0, H * 0.36 + 0.05, 0), (W, 0.10, D))  # lid
-    for y in (-0.10, 0.02):  # drawer fronts
-        m.box("Hull_Dark", (0, y, D / 2 + 0.006), (W - 0.05, 0.085, 0.012))
-        m.box("Hull_Light", (0, y, D / 2 + 0.022), (0.16, 0.022, 0.022))
-    # carry handle over the lid
-    m.box("Hull_Dark", (0, H * 0.36 + 0.12, 0), (0.20, 0.022, 0.03))
+    """Hinged tool case: lid lip, two catches, a carry handle, a lit charge indicator."""
+    w, d, hgt = 0.44, 0.26, 0.2
+    m.box("Accent_Red", (0, hgt / 2, 0), (w, hgt, d))
+    m.box("Hull_Dark", (0, hgt * 0.78, 0), (w * 1.02, 0.02, d * 1.02))
+    m.box("Hull_Dark", (0, hgt + 0.045, 0), (w * 0.34, 0.02, d * 0.5))     # handle plate
+    m.box("Hull_Dark", (-w * 0.16, hgt + 0.022, 0), (0.02, 0.045, d * 0.5))
+    m.box("Hull_Dark", (w * 0.16, hgt + 0.022, 0), (0.02, 0.045, d * 0.5))
     for sx in (-1, 1):
-        m.box("Hull_Dark", (sx * 0.09, H * 0.36 + 0.10, 0), (0.022, 0.05, 0.03))
-        latch(m, (sx * 0.15, H * 0.36 - 0.02, D / 2 + 0.018), (0.07, 0.05, 0.03))
-    m.box("Screen_Lit", (-0.15, 0.02, D / 2 + 0.014), (0.07, 0.045, 0.004))
+        m.box("Door_Panel", (sx * w * 0.3, hgt * 0.7, d * 0.5), (0.07, 0.06, 0.02))
+    m.box("Light_Green", (w * 0.42, hgt * 0.4, d * 0.5), (0.05, 0.016, 0.012))
 
 
-@prop("prop_helmet", "EVA helmet: shell, tinted visor, neck ring, lamp pods and comms boom")
-def helmet(m):
-    r = 0.17
-    m.sphere("Suit_White", (0, 0.02, 0), r, segments=16, rings=6, y0=-0.55, y1=1.0)
-    # visor: a patch of the shell, not a band all the way round (+Z is "front")
-    m.sphere("Glass_Port", (0, 0.03, 0.0), r + 0.010, segments=12, rings=5,
-             y0=-0.38, y1=0.52, lon0=0.05, lon1=0.45)
-    for lon in (0.05, 0.45):   # visor surround, up each side and across the brow
-        m.sphere("Hull_Dark", (0, 0.03, 0.0), r + 0.012, segments=1, rings=5,
-                 y0=-0.40, y1=0.54, lon0=lon - 0.02, lon1=lon + 0.02)
-    m.sphere("Hull_Dark", (0, 0.03, 0.0), r + 0.012, segments=10, rings=1,
-             y0=0.50, y1=0.60, lon0=0.03, lon1=0.47)
-    # neck ring
-    m.tube("Hull_Light", (0, -0.115, 0), 0.105, 0.016, 0.05, "y", segments=16)
-    m.torus("Seal_Gasket", (0, -0.142, 0), 0.100, 0.013, "y", segments=16, sides=6)
-    bolts(m, "Hull_Dark", (0, -0.092, 0), 0.098, 8, axis="y", head=0.011, depth=0.01)
-    # lamp pods either side of the visor
-    for sx in (-1, 1):
-        m.cylinder("Hull_Dark", (sx * 0.135, 0.06, 0.06), 0.028, 0.05, "x", segments=8)
-        m.cylinder("Light_Strip", (sx * 0.162, 0.06, 0.06), 0.021, 0.012, "x", segments=8)
-    # comms boom and orange cap stripe
-    m.cylinder("Hull_Dark", (0.10, -0.02, 0.10), 0.008, 0.12, "z", segments=6)
-    m.box("Suit_Orange", (0, 0.17, -0.02), (0.10, 0.02, 0.13))
+def med_kit(m):
+    """Wall-pack first aid case with a red cross panel and a status light."""
+    w, d, hgt = 0.34, 0.16, 0.28
+    m.box("Suit_White", (0, hgt / 2, 0), (w, hgt, d))
+    m.box("Hull_Dark", (0, hgt / 2, 0), (w * 1.02, 0.018, d * 1.02))
+    for sz in (-1, 1):
+        m.box("Accent_Red", (0, hgt * 0.55, sz * d * 0.51), (w * 0.5, 0.05, 0.008))
+        m.box("Accent_Red", (0, hgt * 0.55, sz * d * 0.51), (0.05, w * 0.5, 0.008))
+    m.box("Door_Panel", (0, hgt * 0.2, d * 0.5), (0.09, 0.035, 0.018))
+    m.box("Light_Green", (w * 0.38, hgt * 0.85, d * 0.5), (0.04, 0.014, 0.01))
+    m.box("Hull_Dark", (0, hgt + 0.02, 0), (w * 0.3, 0.04, d * 0.35))
 
 
-@prop("prop_extinguisher", "0.55 m extinguisher: bottle, squeeze handle, gauge, horn and hose")
 def extinguisher(m):
-    r, body = 0.085, 0.34
-    m.cylinder("Accent_Red", (0, 0, 0), r, body, "y", segments=14, caps=False)
-    m.sphere("Accent_Red", (0, body / 2, 0), r, segments=14, rings=3, y0=0.0, y1=1.0)
-    m.sphere("Accent_Red", (0, -body / 2, 0), r, segments=14, rings=3, y0=-1.0, y1=0.0)
-    m.box("Suit_White", (0, -0.02, r + 0.004), (0.10, 0.13, 0.006))  # instruction label
-    # valve head, trigger, gauge
-    m.cylinder("Hull_Dark", (0, body / 2 + r - 0.01, 0), 0.035, 0.08, "y", segments=10)
-    m.box("Hull_Dark", (0, body / 2 + r + 0.06, 0), (0.05, 0.045, 0.11))
-    m.box("Hull_Light", (0, body / 2 + r + 0.095, 0.01), (0.045, 0.022, 0.13))
-    m.cylinder("Hull_Dark", (0.055, body / 2 + r + 0.06, 0), 0.028, 0.02, "x", segments=10)
-    m.cylinder("Light_Green", (0.068, body / 2 + r + 0.06, 0), 0.021, 0.004, "x", segments=10)
-    # hose arcing down the side into a horn
-    m.torus("Mat_Rubber", (0.075, body / 2 + r - 0.02, -0.04), 0.10, 0.012, "z",
-            segments=10, sides=6, arc=0.42)
-    m.cylinder("Hull_Dark", (0.13, 0.04, -0.04), 0.022, 0.07, "y", segments=8,
-               r_top=0.05, caps=True)
-    # wall bracket band
-    m.tube("Hull_Dark", (0, -0.06, 0), r + 0.012, 0.012, 0.045, "y", segments=14)
+    """Fire bottle in a wall bracket - lying ALONG the wall, not standing off it, because this is
+    a wall fitting and the two straps across it are a handhold whether or not you need the
+    bottle."""
+    r, body = 0.075, 0.34
+    y = 0.105                                              # how far it stands off the backplate
+    m.box("Hull_Dark", (0, 0.012, 0), (0.20, 0.024, 0.40))  # backplate
+    m.box("Accent_Warn", (0, 0.026, 0.185), (0.16, 0.010, 0.016))
+    for sz in (-1, 1):                                     # the two bracket straps
+        m.box("Door_Panel", (0, 0.055, sz * 0.115), (0.19, 0.080, 0.030))
+        m.cylinder("Door_Panel", (0, y, sz * 0.115), r * 1.12, 0.030, Z, 12, caps=False)
+    # the bottle, running along the wall
+    m.cylinder("Accent_Red", (0, y, -body / 2), r, body, Z, 12)
+    m.sphere("Accent_Red", (0, y, -body / 2), r, 12, 4, y_min=-1.0, y_max=0.0)
+    m.sphere("Accent_Red", (0, y, body / 2), r, 12, 4, y_min=0.0, y_max=1.0)
+    m.box("Suit_White", (0, y + r * 0.85, 0.0), (0.085, 0.008, 0.105))   # the label, facing out
+    # neck, handle and horn at the top end
+    m.cylinder("Pipe_Steel", (0, y, body / 2 + r * 0.4), 0.022, 0.055, Z, 8)
+    m.box("Door_Panel", (0, y + 0.028, body / 2 + 0.075), (0.030, 0.022, 0.115))
+    m.cylinder("Seal_Gasket", (0, y - 0.02, body / 2 + 0.06), 0.013, 0.16, Y, 6)
+    m.cylinder("Door_Panel", (0, y - 0.16, body / 2 + 0.06), 0.026, 0.06, Y, 8, r_top=0.014)
 
 
-@prop("prop_datapad", "0.27 m data pad: lit screen, bezel, grip strap and hard case corners")
-def datapad(m):
-    W, H, T = 0.19, 0.27, 0.018
-    m.box("Hull_Dark", (0, 0, 0), (W, H, T))
-    m.box("Screen_Lit", (0, 0.012, T / 2 + 0.002), (W - 0.032, H - 0.055, 0.004))
-    for sy in (-1, 1):  # rubber bumper corners
-        for sx in (-1, 1):
-            m.box("Mat_Rubber", (sx * (W / 2 - 0.018), sy * (H / 2 - 0.018), 0),
-                  (0.042, 0.042, T + 0.01))
-    m.box("Hull_Light", (0, -H / 2 + 0.022, T / 2 + 0.003), (0.05, 0.012, 0.004))  # home bar
-    m.cylinder("Light_Green", (W / 2 - 0.028, H / 2 - 0.016, T / 2 + 0.003), 0.006, 0.004,
-               "z", segments=6)
-    # strap across the back
-    m.box("Seat_Fabric", (0, 0, -T / 2 - 0.012), (0.05, H - 0.09, 0.022))
+def power_cell(m):
+    """Swappable battery pack: finned case, contact block, charge LEDs."""
+    w, d, hgt = 0.3, 0.18, 0.24
+    m.box("Hull_Dark", (0, hgt / 2, 0), (w, hgt, d))
+    for i in range(5):
+        m.box("Pipe_Steel", (-w * 0.36 + i * w * 0.18, hgt * 0.5, 0), (0.022, hgt * 0.92, d * 1.05))
+    m.box("Pipe_Copper", (0, hgt + 0.02, 0), (w * 0.4, 0.04, d * 0.5))     # contacts
+    for i in range(4):
+        m.box("Light_Green", (-w * 0.3 + i * w * 0.2, hgt * 0.2, d * 0.51), (0.035, 0.016, 0.008))
+    m.box("Accent_Warn", (0, hgt * 0.8, d * 0.51), (w * 0.7, 0.03, 0.008))
+    m.box("Hull_Panel", (0, 0.015, 0), (w * 1.04, 0.03, d * 1.04))
 
 
-@prop("prop_cable_coil", "0.5 m coiled umbilical: three loops, tie wraps, capped end fittings")
-def cable_coil(m):
-    for i, r in enumerate((0.22, 0.195, 0.17)):
-        m.push(translate(0, (i - 1) * 0.035, 0))
-        m.torus("Mat_Rubber", (0, 0, 0), r, 0.026, "y", segments=18, sides=7)
-        m.pop()
-    for a in (0.0, TAU / 3, 2 * TAU / 3):  # tie wraps holding the bundle
-        m.push(rotate("y", a), translate(0.195, 0, 0))
-        m.box("Accent_Warn", (0, 0, 0), (0.05, 0.14, 0.014))
-        m.pop()
-    # both ends: a hose end with a coupling collar, hooked over the coil
-    for sx, sz in ((1, 1), (-1, -1)):
-        m.push(translate(sx * 0.20, 0.085, sz * 0.10), rotate("x", 0.4 * sz))
-        m.cylinder("Mat_Rubber", (0, 0, 0), 0.026, 0.10, "y", segments=8)
-        m.cylinder("Pipe_Copper", (0, 0.07, 0), 0.034, 0.05, "y", segments=10)
-        m.torus("Hull_Dark", (0, 0.095, 0), 0.036, 0.009, "y", segments=10, sides=6)
-        m.pop()
-
-
-@prop("prop_oxygen_pack", "0.7 m life-support pack: twin tanks, frame, regulator, status LEDs")
-def oxygen_pack(m):
-    m.box("Hull_Dark", (0, 0, -0.07), (0.44, 0.50, 0.08))          # back plate
-    m.frame("Hull_Light", (0, 0, -0.07), (0.46, 0.52, 0.10), bar=0.022, axis="y")
-    for sx in (-1, 1):                                              # the two bottles
-        m.cylinder("Suit_White", (sx * 0.12, 0, 0.03), 0.085, 0.36, "y", segments=12, caps=False)
-        m.sphere("Suit_White", (sx * 0.12, 0.18, 0.03), 0.085, segments=12, rings=3, y0=0.0, y1=1.0)
-        m.sphere("Suit_White", (sx * 0.12, -0.18, 0.03), 0.085, segments=12, rings=3, y0=-1.0, y1=0.0)
-        m.cylinder("Accent_Warn", (sx * 0.12, 0.08, 0.03), 0.089, 0.05, "y", segments=12, caps=False)
-        m.cylinder("Pipe_Copper", (sx * 0.12, 0.27, 0.03), 0.024, 0.06, "y", segments=8)
-    # regulator block bridging the bottles, plus the LED row
-    m.box("Hull_Dark", (0, 0.29, 0.03), (0.30, 0.06, 0.09))
-    m.torus("Pipe_Copper", (0, 0.29, 0.03), 0.115, 0.011, "z", segments=12, sides=6, arc=0.5)
-    for i, mat in enumerate(("Light_Green", "Light_Data", "Light_Warn")):
-        m.cylinder(mat, (-0.05 + i * 0.05, 0.29, 0.082), 0.011, 0.006, "z", segments=6)
-    # shoulder straps
+def helmet(m):
+    """EVA helmet: shell, tinted visor, neck ring, lamp bosses."""
+    r = 0.17
+    m.sphere("Suit_White", (0, 0.2, 0), r, 14, 7, y_min=-0.55, y_max=1.0)
+    m.sphere("Glass_Port", (0, 0.2, 0.0), r * 0.99, 10, 4, y_min=-0.3, y_max=0.6, u_min=0.06, u_max=0.44)
+    m.cylinder("Hull_Light", (0, 0.03, 0), r * 0.62, 0.05, Y, 14)           # neck ring
+    m.cylinder("Seal_Gasket", (0, 0.0, 0), r * 0.6, 0.035, Y, 14)
+    m.cylinder("Hull_Light", (0, 0.08, 0), r * 0.66, 0.03, Y, 14)
     for sx in (-1, 1):
-        m.box("Seat_Fabric", (sx * 0.15, 0.10, -0.115), (0.06, 0.28, 0.014))
+        m.cylinder("Door_Panel", (sx * r * 0.72, 0.26, 0), 0.028, 0.04, X, 8)
+    m.box("Light_Strip", (0, 0.33, r * 0.62), (0.07, 0.025, 0.012))          # helmet lamp
+    m.box("Accent_Warn", (0, 0.12, 0), (r * 1.4, 0.02, r * 1.4))
 
 
-@prop("prop_debris_panel", "0.9 m torn hull plate: bent lip, sheared ribs, exposed insulation")
+def data_slate(m):
+    """Crew tablet: bezel, lit screen, a grab lip along the back."""
+    w, hgt, t = 0.24, 0.32, 0.022
+    m.box("Hull_Dark", (0, hgt / 2, 0), (w, hgt, t))
+    m.box("Screen_Lit", (0, hgt * 0.52, t * 0.52), (w * 0.84, hgt * 0.78, 0.004))
+    m.box("Light_Data", (0, hgt * 0.06, t * 0.52), (w * 0.3, 0.01, 0.004))
+    m.box("Hull_Panel", (0, hgt / 2, -t * 0.6), (w * 0.7, hgt * 0.5, 0.008))
+    for sx in (-1, 1):
+        m.box("Mat_Rubber", (sx * w * 0.5, hgt / 2, 0), (0.012, hgt * 0.9, t * 1.2))
+
+
+def drum(m):
+    """Fluid drum: rolling hoops, bung caps, a stencil band."""
+    r, hgt = 0.19, 0.56
+    m.cylinder("Pipe_Copper", (0, 0.01, 0), r, hgt, Y, 14)
+    for a in (hgt * 0.28, hgt * 0.62):
+        m.cylinder("Hull_Dark", (0, 0.01 + a, 0), r * 1.06, 0.04, Y, 14, caps=False)
+    m.cylinder("Hull_Dark", (0, 0.0, 0), r * 1.04, 0.035, Y, 14, caps=False)
+    m.cylinder("Hull_Dark", (0, 0.01 + hgt - 0.035, 0), r * 1.04, 0.035, Y, 14, caps=False)
+    for sx in (-1, 1):
+        m.cylinder("Pipe_Steel", (sx * r * 0.5, 0.01 + hgt, 0), 0.035, 0.02, Y, 8)
+    m.cylinder("Accent_Warn", (0, 0.01 + hgt * 0.44, 0), r * 1.01, 0.06, Y, 14, caps=False)
+
+
 def debris_panel(m):
-    W, H, T = 0.90, 0.55, 0.022
-    m.box("Hull_Panel", (0, 0, 0), (W, H, T))
-    m.box("Seal_Gasket", (0, 0, -T / 2 - 0.008), (W - 0.06, H - 0.06, 0.016))   # insulation
-    for x in (-0.26, 0.0, 0.26):                                                # stiffener ribs
-        m.box("Hull_Dark", (x, 0, -T / 2 - 0.03), (0.05, H - 0.02, 0.05))
-    for sx in (-1, 1):                                                          # bolt rows
-        for i in range(4):
-            m.cylinder("Hull_Dark", (sx * (W / 2 - 0.035), -0.18 + i * 0.12, T / 2),
-                       0.014, 0.012, "z", segments=6)
-    # the torn end: a bent-back lip and three ragged teeth
-    m.push(translate(W / 2, 0, 0), rotate("y", -0.9))
-    m.box("Hull_Panel", (0.055, 0, 0), (0.11, H - 0.05, T))
-    m.pop()
-    for i, (y, w) in enumerate(((0.16, 0.09), (-0.02, 0.13), (-0.19, 0.07))):
-        m.push(translate(-W / 2, y, 0), rotate("z", 0.3 - 0.25 * i))
-        m.tri("Hull_Panel", (0, w / 2, T / 2), (-0.10, 0, T / 2), (0, -w / 2, T / 2))
-        m.tri("Hull_Panel", (0, -w / 2, -T / 2), (-0.10, 0, -T / 2), (0, w / 2, -T / 2))
-        m.pop()
-    # scorch-dark edge strip along the tear
-    m.box("Floor_Walk", (-W / 2 + 0.03, 0, 0), (0.06, H + 0.004, T + 0.006))
+    """A torn-off hull panel: buckled skin, bent ribs, exposed insulation and a cut cable."""
+    t = 0.025
+    m.box("Hull_Panel", (0, t / 2, 0), (0.62, t, 0.4))
+    m.box("Hull_Panel", (0.36, t * 2.4, -0.06), (0.2, 0.02, 0.3))         # folded corner
+    m.box("Hull_Dark", (-0.1, t * 1.6, 0.12), (0.44, 0.03, 0.05))         # rib
+    m.box("Hull_Dark", (-0.1, t * 1.6, -0.12), (0.44, 0.03, 0.05))
+    m.box("Seal_Gasket", (-0.05, t * 1.3, 0), (0.34, 0.02, 0.16))         # insulation batt
+    m.cylinder("Pipe_Copper", (-0.3, t * 1.6, 0.05), 0.012, 0.26, X, 6)   # trailing cable
+    m.cylinder("Pipe_Copper", (-0.32, t * 1.6, -0.1), 0.01, 0.16, Z, 6)
+    m.box("Accent_Warn", (0.12, t * 1.1, 0.16), (0.24, 0.012, 0.04))
 
 
-@prop("prop_stowage_bag", "0.55 m fabric stowage bag: quilted panels, webbing, tag and clips")
-def stowage_bag(m):
-    W, H, D = 0.52, 0.34, 0.30
-    m.box("Seat_Fabric", (0, 0, 0), (W, H, D))
-    for sx in (-1, 1):   # soft corners: chamfer posts
-        for sz in (-1, 1):
-            m.box("Seat_Fabric", (sx * (W / 2 - 0.02), 0, sz * (D / 2 - 0.02)),
-                  (0.05, H + 0.012, 0.05))
-    for x in (-0.13, 0.13):   # webbing straps around the girth
-        m.box("Hull_Dark", (x, 0, 0), (0.045, H + 0.014, D + 0.014))
-        m.box("Hull_Light", (x, H / 2 + 0.012, 0), (0.05, 0.016, 0.06))
-    m.box("Hull_Dark", (0, H / 2 - 0.03, 0), (W + 0.01, 0.016, D + 0.01))   # zip line
-    for sx in (-1, 1):   # grab loops
-        m.torus("Hull_Dark", (sx * (W / 2 + 0.005), 0.02, 0), 0.055, 0.012, "x",
-                segments=12, sides=6, arc=0.5)
-    m.box("Screen_Lit", (0.14, -0.06, D / 2 + 0.006), (0.11, 0.07, 0.004))  # inventory tag
-    m.box("Accent_Warn", (-0.16, -0.10, D / 2 + 0.006), (0.09, 0.03, 0.005))
+def handhold(m):
+    """Loose grab bar knocked off a wall - two feet and a bent rail."""
+    m.cylinder("Pipe_Steel", (-0.22, 0.1, 0), 0.022, 0.44, X, 8)
+    for sx in (-1, 1):
+        m.cylinder("Pipe_Steel", (sx * 0.22, 0.02, 0), 0.022, 0.08, Y, 8)
+        m.box("Door_Panel", (sx * 0.22, 0.012, 0), (0.09, 0.024, 0.09))
+    m.box("Accent_Warn", (0, 0.1, 0), (0.1, 0.05, 0.05))
 
 
-# ---------------------------------------------------------------- entry point
+def ration_pack(m):
+    """Sealed food pouch, printed side, a bit of crumple in the seam."""
+    w, d, hgt = 0.22, 0.1, 0.3
+    m.box("Suit_White", (0, hgt / 2, 0), (w, hgt * 0.86, d))
+    m.box("Hull_Dark", (0, hgt * 0.94, 0), (w * 1.03, 0.03, d * 0.5))    # crimped seam
+    m.box("Hull_Dark", (0, 0.012, 0), (w * 1.03, 0.024, d * 0.5))
+    m.box("Accent_Warn", (0, hgt * 0.6, d * 0.51), (w * 0.7, 0.05, 0.006))
+    m.box("Hull_Dark", (0, hgt * 0.35, d * 0.51), (w * 0.5, 0.09, 0.005))
 
-def build(names=None):
-    os.makedirs(OUT_DIR, exist_ok=True)
-    rows = []
-    for name in sorted(PROPS):
-        if names and name not in names:
-            continue
-        fn, desc = PROPS[name]
-        m = Mesh()
-        fn(m)
-        path = os.path.join(OUT_DIR, name + ".glb")
-        size = write_glb(m, path, name)
-        lo, hi = m.bounds()
-        dims = tuple(round(hi[i] - lo[i], 3) for i in range(3))
-        rows.append((name, m.triangle_count(), len(m.surfaces), dims, size, desc))
-    width = max(len(r[0]) for r in rows)
-    for name, tris, surfs, dims, size, desc in rows:
-        print("%-*s  %5d tris  %2d mats  %-22s %6.1f kB  %s"
-              % (width, name, tris, surfs,
-                 "%.2f x %.2f x %.2f m" % dims, size / 1024.0, desc))
-    print("\n%d props, %d triangles total -> %s"
-          % (len(rows), sum(r[1] for r in rows), OUT_DIR))
-    return rows
+
+# ---------------------------------------------------------------- wall fittings
+# These mount flat: the piece is modelled with its backplate on y = 0 and everything else growing
+# up out of it, because scripts/station.gd's _mount() puts the prop's +Y along the wall normal.
+# Everything here is also something to grab - in a station with no floor that is not decoration,
+# it is the difference between crossing a room and hanging in the middle of it.
+
+
+def ladder_rail(m):
+    """A run of rail with rungs across it: the most useful object on any wall here."""
+    L = 0.84
+    for sx in (-1, 1):
+        m.box("Pipe_Steel", (sx * 0.11, 0.085, 0), (0.030, 0.030, L))
+        for t in (-0.36, 0.0, 0.36):                       # standoffs back to the wall
+            m.box("Hull_Dark", (sx * 0.11, 0.045, t), (0.040, 0.090, 0.040))
+            m.box("Door_Panel", (sx * 0.11, 0.008, t), (0.085, 0.016, 0.085))
+    for t in (-0.28, -0.09, 0.09, 0.28):                   # rungs between the rails
+        m.cylinder("Pipe_Steel", (-0.11, 0.085, t), 0.015, 0.22, X, 8)
+    m.box("Accent_Warn", (0, 0.101, 0.0), (0.024, 0.006, 0.28))
+
+
+def grab_loop(m):
+    """A webbing loop off two anchor plates - the thing you actually grab on a real station."""
+    for sz in (-1, 1):
+        m.box("Door_Panel", (0, 0.010, sz * 0.17), (0.095, 0.020, 0.095))
+        m.box("Hull_Dark", (0, 0.028, sz * 0.17), (0.055, 0.036, 0.055))
+    seg = 16
+    prev = None
+    for i in range(seg + 1):
+        a = math.pi * i / seg
+        z = math.cos(a) * 0.17
+        y = 0.046 + math.sin(a) * 0.165
+        if prev is not None:                               # bridge each pair so the strap is one piece
+            mz = (z + prev[0]) * 0.5
+            my = (y + prev[1]) * 0.5
+            dz = abs(z - prev[0])
+            dy = abs(y - prev[1])
+            m.box("Seal_Gasket", (0, my, mz), (0.048, max(dy, 0.016) + 0.012, max(dz, 0.016) + 0.012))
+        prev = (z, y)
+    m.box("Accent_Warn", (0, 0.046 + 0.165, 0), (0.050, 0.020, 0.040))
+
+
+def foot_restraint(m):
+    """Two angled loops to hook your boots under while both hands are busy."""
+    m.box("Hull_Dark", (0, 0.012, 0), (0.34, 0.024, 0.24))
+    m.box("Accent_Warn", (0, 0.025, 0), (0.30, 0.006, 0.05))
+    for sx in (-1, 1):
+        m.box("Pipe_Steel", (sx * 0.105, 0.055, -0.055), (0.030, 0.085, 0.028))
+        m.box("Pipe_Steel", (sx * 0.105, 0.055, 0.055), (0.030, 0.085, 0.028))
+        m.box("Pipe_Steel", (sx * 0.105, 0.095, 0.0), (0.030, 0.028, 0.140))
+        m.box("Mat_Rubber", (sx * 0.105, 0.082, 0.0), (0.036, 0.012, 0.120))
+
+
+def cable_reel(m):
+    """A hose coiled on a wall drum, with the nozzle hanging off it."""
+    m.box("Hull_Dark", (0, 0.012, 0), (0.30, 0.024, 0.30))
+    for sx in (-1, 1):
+        m.box("Door_Panel", (sx * 0.135, 0.10, 0), (0.026, 0.20, 0.13))
+    m.cylinder("Pipe_Steel", (-0.12, 0.175, 0), 0.055, 0.24, X, 10)
+    for r in (0.105, 0.125, 0.145):                        # the coils
+        m.cylinder("Seal_Gasket", (-0.085, 0.175, 0), r, 0.17, X, 12, caps=False)
+    m.cylinder("Door_Panel", (0.13, 0.175, 0), 0.075, 0.02, X, 10)
+    m.cylinder("Seal_Gasket", (0.05, 0.06, 0.155), 0.016, 0.16, Y, 6)   # the tail, hanging
+    m.cylinder("Pipe_Copper", (0.05, 0.02, 0.155), 0.024, 0.055, Y, 8, r_top=0.014)
+    m.box("Accent_Red", (0, 0.026, -0.145), (0.16, 0.010, 0.012))
+
+
+def control_box(m):
+    """A junction box: lever, a pair of lamps, a little screen nobody has read in months."""
+    w, d, h = 0.32, 0.24, 0.16
+    m.box("Hull_Panel", (0, h / 2, 0), (w, h, d))
+    m.box("Hull_Dark", (0, 0.012, 0), (w * 1.06, 0.024, d * 1.06))
+    m.box("Screen_Lit", (-0.06, h + 0.002, -0.02), (0.13, 0.006, 0.085))
+    m.box("Hull_Dark", (-0.06, h * 0.985, -0.02), (0.15, 0.012, 0.10))
+    m.box("Light_Green", (0.10, h + 0.004, -0.055), (0.032, 0.008, 0.020))
+    m.box("Light_Warn", (0.10, h + 0.004, -0.010), (0.032, 0.008, 0.020))
+    m.box("Door_Panel", (0.10, h + 0.03, 0.055), (0.05, 0.05, 0.028))    # the lever
+    m.cylinder("Pipe_Steel", (0.10, h + 0.05, 0.055), 0.012, 0.075, Y, 8)
+    m.box("Accent_Red", (0.10, h + 0.13, 0.055), (0.045, 0.022, 0.030))
+    m.cylinder("Pipe_Copper", (0, 0.04, d * 0.5), 0.018, 0.09, Z, 6)     # conduit into the wall
+
+
+def wall_locker(m):
+    """A shallow locker with a bar handle across it - the handle is the point."""
+    w, d, h = 0.40, 0.46, 0.20
+    m.box("Hull_Panel", (0, h / 2, 0), (w, h, d))
+    m.box("Hull_Dark", (0, 0.014, 0), (w * 1.05, 0.028, d * 1.05))
+    m.box("Seal_Gasket", (0, h * 0.995, 0), (w * 0.92, 0.008, d * 0.92))
+    m.box("Hull_Dark", (0, h + 0.006, 0), (w * 0.86, 0.012, d * 0.86))
+    for sz in (-1, 1):                                     # the handle, standing proud
+        m.box("Door_Panel", (0, h + 0.035, sz * 0.11), (0.05, 0.055, 0.035))
+    m.cylinder("Pipe_Steel", (0, h + 0.062, -0.12), 0.016, 0.24, Z, 8)
+    m.box("Door_Panel", (0.15, h + 0.02, 0.16), (0.07, 0.03, 0.05))      # latch
+    m.box("Light_Data", (-0.15, h + 0.014, 0.19), (0.05, 0.010, 0.014))
+    m.box("Accent_Warn", (0, h + 0.012, -0.20), (0.22, 0.012, 0.010))
+
+
+def valve_stand(m):
+    """A pipe elbow out of the wall with a wheel on it. Nothing grabs better than a valve wheel."""
+    m.cylinder("Hull_Dark", (0, 0.0, 0), 0.075, 0.035, Y, 10)
+    m.cylinder("Pipe_Steel", (0, 0.03, 0), 0.048, 0.20, Y, 10)
+    m.sphere("Pipe_Steel", (0, 0.235, 0), 0.105, 12, 5)
+    m.cylinder("Pipe_Steel", (0, 0.235, 0.0), 0.042, 0.20, Z, 10)
+    m.cylinder("Pipe_Copper", (0, 0.235, 0.20), 0.050, 0.035, Z, 10)
+    # the wheel
+    m.cylinder("Door_Panel", (0, 0.235, -0.085), 0.028, 0.05, Z, 8)
+    m.cylinder("Door_Panel", (0, 0.235, -0.115), 0.125, 0.022, Z, 16, caps=False)
+    m.cylinder("Door_Panel", (0, 0.235, -0.115), 0.105, 0.022, Z, 16, caps=False)
+    for i in range(4):
+        a = i * math.pi / 2 + math.pi / 4
+        m.box("Door_Panel", (math.cos(a) * 0.065, 0.235 + math.sin(a) * 0.065, -0.115),
+              (0.13 if i % 2 else 0.020, 0.020 if i % 2 else 0.13, 0.018))
+    m.box("Accent_Warn", (0, 0.075, 0), (0.10, 0.012, 0.10))
+
+
+def tool_rack(m):
+    """A rack of clipped tools. Half of them are missing, which is its own small story."""
+    m.box("Hull_Dark", (0, 0.010, 0), (0.44, 0.020, 0.16))
+    m.box("Door_Panel", (0, 0.030, 0.055), (0.44, 0.040, 0.020))
+    for i, x in enumerate((-0.16, -0.05, 0.07, 0.17)):
+        m.box("Pipe_Steel", (x, 0.045, 0.0), (0.030, 0.050, 0.045))      # the clips
+        if i == 1:
+            continue                                                     # one gone
+        if i == 2:
+            m.cylinder("Pipe_Steel", (x, 0.055, 0.0), 0.016, 0.19, Z, 8)  # a bar
+            m.box("Mat_Rubber", (x, 0.055, 0.06), (0.032, 0.032, 0.07))
+        else:
+            m.box("Pipe_Steel", (x, 0.055, -0.01), (0.034, 0.030, 0.17))
+            m.box("Accent_Red", (x, 0.055, 0.055), (0.038, 0.034, 0.06))
+    m.box("Light_Data", (-0.20, 0.024, -0.06), (0.030, 0.010, 0.012))
+
+
+def hose_reel(m):
+    """Fire hose in a shallow wall recess, with the bracket you would haul yourself past it by."""
+    m.box("Accent_Red", (0, 0.015, 0), (0.40, 0.030, 0.34))
+    for sx in (-1, 1):
+        m.box("Hull_Dark", (sx * 0.185, 0.09, 0), (0.030, 0.15, 0.30))
+    m.cylinder("Hull_Dark", (-0.16, 0.15, 0), 0.045, 0.32, X, 10)
+    for r in (0.095, 0.115, 0.135, 0.155):
+        m.cylinder("Accent_Red", (-0.12, 0.15, 0), r, 0.24, X, 12, caps=False)
+    m.cylinder("Pipe_Steel", (0, 0.235, -0.12), 0.016, 0.30, Z, 8)       # the grab bar across it
+    for sz in (-1, 1):
+        m.box("Door_Panel", (0, 0.19, sz * 0.15), (0.04, 0.09, 0.03))
+    m.cylinder("Door_Panel", (0.05, 0.05, 0.175), 0.026, 0.075, Y, 8, r_top=0.016)
+    m.box("Accent_Warn", (0, 0.032, 0.16), (0.22, 0.010, 0.012))
+
+
+
+PROPS = {
+    "prop_crate": cargo_crate,
+    "prop_ladder": ladder_rail,
+    "prop_grab_loop": grab_loop,
+    "prop_foot_restraint": foot_restraint,
+    "prop_cable_reel": cable_reel,
+    "prop_control_box": control_box,
+    "prop_locker": wall_locker,
+    "prop_valve": valve_stand,
+    "prop_tool_rack": tool_rack,
+    "prop_hose_reel": hose_reel,
+    "prop_crate_large": cargo_crate_large,
+    "prop_canister": gas_canister,
+    "prop_toolbox": toolbox,
+    "prop_medkit": med_kit,
+    "prop_extinguisher": extinguisher,
+    "prop_power_cell": power_cell,
+    "prop_helmet": helmet,
+    "prop_slate": data_slate,
+    "prop_drum": drum,
+    "prop_debris": debris_panel,
+    "prop_handhold": handhold,
+    "prop_ration": ration_pack,
+}
+
+
+IMPORT_TEMPLATE = """[remap]
+
+importer="scene"
+importer_version=1
+type="PackedScene"
+uid="uid://{uid}"
+path="res://.godot/imported/{name}.glb-{hash}.scn"
+
+[deps]
+
+source_file="res://kit/{name}.glb"
+dest_files=["res://.godot/imported/{name}.glb-{hash}.scn"]
+
+[params]
+
+nodes/root_type=""
+nodes/root_name=""
+nodes/root_script=null
+mesh_library/use_node_names_as_mesh_names=false
+array_mesh/deduplicate_surfaces=true
+nodes/apply_root_scale=true
+nodes/root_scale=1.0
+nodes/import_as_skeleton_bones=false
+nodes/use_name_suffixes=true
+nodes/use_node_type_suffixes=true
+meshes/ensure_tangents=true
+meshes/generate_lods=true
+meshes/create_shadow_meshes=true
+meshes/light_baking=1
+meshes/lightmap_texel_size=0.2
+meshes/force_disable_compression=false
+skins/use_named_skins=true
+animation/import=true
+animation/fps=30
+animation/trimming=false
+animation/remove_immutable_tracks=true
+animation/import_rest_as_RESET=false
+import_script/path=""
+materials/extract=0
+materials/extract_format=0
+materials/extract_path=""
+_subresources={{}}
+gltf/naming_version=2
+gltf/embedded_image_handling=1
+gltf/texture_map_mode=1
+"""
+
+
+def write_import(name, out_dir):
+    """Godot's .import sidecar, so the editor picks the prop up without a manual reimport.
+
+    The resource uid is derived from the file name (Godot rewrites it if it ever clashes) and
+    the cache file name is the md5 of the res:// path, which is how the importer names it.
+    """
+    path = os.path.join(out_dir, name + ".glb.import")
+    if os.path.exists(path):
+        return False
+    digest = hashlib.md5(("res://kit/%s.glb" % name).encode()).hexdigest()
+    alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+    n = int(hashlib.md5(("uid:" + name).encode()).hexdigest(), 16)
+    uid = ""
+    for _ in range(13):
+        uid, n = uid + alphabet[n % len(alphabet)], n // len(alphabet)
+    with open(path, "w") as f:
+        f.write(IMPORT_TEMPLATE.format(uid=uid, name=name, hash=digest))
+    return True
+
+
+def bounds(mesh):
+    pts = [p for tris in mesh.tris.values() for t in tris for p in t]
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    return lo, hi
+
+
+def check(path):
+    """Re-parse a .glb: header, chunk sizes, and that every accessor fits its buffer view."""
+    data = open(path, "rb").read()
+    magic, version, length = struct.unpack_from("<III", data, 0)
+    assert magic == 0x46546C67 and version == 2, path
+    assert length == len(data), "%s: header length %d != %d" % (path, length, len(data))
+    jlen, jtype = struct.unpack_from("<II", data, 12)
+    assert jtype == 0x4E4F534A
+    gltf = json.loads(data[20:20 + jlen])
+    blen, btype = struct.unpack_from("<II", data, 20 + jlen)
+    assert btype == 0x004E4942
+    assert 20 + jlen + 8 + blen == len(data)
+    assert gltf["buffers"][0]["byteLength"] == blen
+    size = {"VEC3": 3, "VEC2": 2, "SCALAR": 1}
+    comp = {5126: 4, 5125: 4}
+    for acc in gltf["accessors"]:
+        bv = gltf["bufferViews"][acc["bufferView"]]
+        need = acc["count"] * size[acc["type"]] * comp[acc["componentType"]]
+        assert need <= bv["byteLength"], "%s: accessor overruns its view" % path
+        assert bv["byteOffset"] + bv["byteLength"] <= blen
+    for prim in gltf["meshes"][0]["primitives"]:
+        idx = gltf["accessors"][prim["indices"]]
+        verts = gltf["accessors"][prim["attributes"]["POSITION"]]["count"]
+        off = gltf["bufferViews"][idx["bufferView"]]["byteOffset"]
+        raw = struct.unpack_from("<%dI" % idx["count"], data, 20 + jlen + 8 + off)
+        assert max(raw) < verts, "%s: index out of range" % path
+    for mat in gltf["materials"]:
+        assert mat["name"] in MATERIALS
+    return gltf
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--out", default=OUT_DIR, help="output directory (default: kit/)")
+    ap.add_argument("--check", action="store_true", help="re-parse each file after writing")
+    args = ap.parse_args()
+
+    os.makedirs(args.out, exist_ok=True)
+    total = 0
+    for name, build in sorted(PROPS.items()):
+        mesh = Mesh()
+        build(mesh)
+        mesh.settle()
+        lo, hi = bounds(mesh)
+        span = max(hi[i] - lo[i] for i in range(3))
+        assert span <= 1.0, "%s is %.2f m across - too big for a 3 m corridor" % (name, span)
+        assert abs(lo[1]) < 1e-6, "%s does not rest on y = 0 (min y %.3f)" % (name, lo[1])
+        path = os.path.join(args.out, name + ".glb")
+        nbytes = write_glb(mesh, path, name)
+        tris = mesh.triangle_count()
+        total += tris
+        mats = len(mesh.tris)
+        write_import(name, args.out)
+        if args.check:
+            check(path)
+        print("%-22s %5d tris  %2d mats  %6.2f x %.2f x %.2f m  %6d B"
+              % (name, tris, mats, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], nbytes))
+    print("%d props, %d triangles total" % (len(PROPS), total))
 
 
 if __name__ == "__main__":
-    build(set(sys.argv[1:]) or None)
+    main()

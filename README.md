@@ -65,19 +65,36 @@ scripts/palette.gd     the materials the kit's glTF names are remapped to (textu
 scripts/station.gd     builds a deck from the layout: hull, lights, terminals per room type, name plates, props,
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
-kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) - see kit/KIT_README.md
-kit/props/             loose set dressing (glTF, origin-centred so it tumbles) - see kit/props/PROPS_README.md
-scripts/props.gd       loads a prop and swaps the kit materials for the palette's
+kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) plus 22 props
+                       (prop_*.glb), classed wall attachment / floating / room equipment. Every
+                       wall fitting is a handhold - see kit/KIT_README.md
 scripts/geo.gd         SurfaceTool batcher: one mesh per material (+ trimesh collider); used by the classic map and small extras
 scripts/tex.gd         procedural textures: riveted plating + normal maps, grating, hazard stripes,
                        vents, telemetry screens, LED rows, starfield, planet, solar cells
 scripts/interactable.gd  wall terminal (hold-to-complete)
 scripts/haunt_manager.gd daytime events + night stalker spawning
-scripts/shadow_figure.gd / stalker.gd  the apparitions
+scripts/shadow_figure.gd  the two daytime apparition events (crossing, watching)
+scripts/apparition.gd  the apparitions: smoke figures built from kit/apparition_*.json - the
+                       corridor vulto (jinn crossed with the Brazilian shadow person) and the ghul
+scripts/ghoul.gd       the ghul: wears a crew member down a corridor to draw you off your shift,
+                       unlit until it stops pretending (docs/APPARITIONS.md)
+scripts/fae.gd         the Good Neighbours: thirteen wisps envelop a loose prop, carry it, and
+                       throw it across the corridor - and half the time you never see the lights
+scripts/ritual.gd      night only: one room lit by nine candles, a circle of glyphs, and somebody
+                       seated in it - and it all stops the moment you walk in
+scripts/stalker.gd     the night stalker
+scripts/creature.gd    posable creature rigs from kit/*_rig.json: the night stalker's belly-up
+                       crawl and contortions (docs/CREATURE.md), and the chupacabra
+scripts/chupacabra.gd  the 1995 Puerto Rican one: waits round the edge of a side passage with the
+                       wall over most of it, withdraws when noticed, sometimes bolts across the
+                       opening at 7 m/s instead (docs/CHUPACABRA.md)
+tools/build_props.py   builds kit/prop_*.glb (pure Python glTF writer in tools/proplib.py, no Blender)
+tools/build_creature.py builds kit/creature_rig.json and kit/chupacabra_rig.json + their renders
+tools/riglib.py        shared rig machinery: bones, parts, fur, poses, the floor solver
+tools/build_apparition.py builds kit/apparition_corridor.json + its renders in docs/
+docs/APPARITIONS.md    the apparitions: the jinn/vulto basis, the corridor one, what comes next
+docs/CREATURE.md       the night stalker: anatomy, poses, how to change it
 audio/*.wav            all synthesised by tools/gen_audio.py (numpy) - no third-party assets
-tools/kitlib.py        glTF primitives + .glb writer (standard library only)
-tools/build_props.py   builds kit/props/*.glb; tools/validate_glb.py re-parses and checks them
-tools/render_props.py  software-rasterised preview sheet -> out/props_sheet.png
 build/web/             the exported WebXR build (index.html)
 ```
 
@@ -91,6 +108,11 @@ Opens a window, starts desktop mode, jumps the camera through ~20 viewpoints (ev
 corridors, the skylight, the windows, then the same with the power off) and saves a PNG of each.
 
 ## Running on the Quest 3
+
+**Short version: `.github/workflows/webxr.yml` exports the build on every push** - as a
+downloadable artifact from any branch, and to GitHub Pages from the default branch. See
+[docs/PLAYTEST.md](docs/PLAYTEST.md) for the whole route onto the headset and what to look for in a
+test session.
 
 WebXR needs **HTTPS** (localhost is exempt, but the Quest isn't localhost). Two easy routes:
 
