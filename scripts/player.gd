@@ -975,6 +975,7 @@ func _refresh_wrist() -> void:
 				var need := "  [%s]" % Item.SHORT.get(tk, tk.to_upper()) if tk != "" else ""
 				s += "%s %s  -  %s%s\n" % ["[x]" if t["done"] else "[ ]", t["title"], t["room"], need]
 			s += _kit_line()
+			s += Comms.wrist_line() + "\n"
 			if Game.day == 1 and Game.day_time < 45.0:
 				if xr_active:
 					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)\nY (left hand) = hide this terminal"
@@ -987,6 +988,8 @@ func _refresh_wrist() -> void:
 		Game.Phase.NIGHT:
 			s = "NIGHT %d    %s\nPOWER: OFFLINE\n> restore main power (POWER PLANT)\n> light freezes it. dark does not.\n" % [Game.day, _fuel_bar()]
 			s += _kit_line()
+			if Comms.is_playing():
+				s += "COMMS: carrier - something is transmitting\n"
 		Game.Phase.DEAD:
 			s = "SIGNAL LOST"
 		Game.Phase.WON:

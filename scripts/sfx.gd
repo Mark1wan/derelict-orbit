@@ -6,8 +6,11 @@ const NAMES := ["hum", "drone", "heartbeat", "bang", "whisper", "powerdown", "po
 	"beep", "complete", "flicker", "breath", "scream", "static",
 	# the flicker family (tools/gen_flicker_audio.py): what a failing fitting sounds like, and
 	# what is sometimes mixed in underneath it
-	"ballast", "underbreath"]
-const LOOPS := ["hum", "drone", "breath", "heartbeat"]
+	"ballast", "underbreath",
+	# the comms console (tools/gen_voice.py): the hail that opens a transmission, the mic key
+	# when you answer, and the open carrier the console sits on
+	"comms_hail", "comms_key", "comms_carrier"]
+const LOOPS := ["hum", "drone", "breath", "heartbeat", "comms_carrier"]
 
 var streams := {}
 var ambient: AudioStreamPlayer

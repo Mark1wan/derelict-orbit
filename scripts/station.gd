@@ -26,6 +26,10 @@ const ROOM_TASKS := {
 	"server": [["srv_log", "Upload signal log", -4.2, "scanner"], ["srv_cooling", "Reseat rack cooling", 4.2, "multitool"]],
 	"eva": [["eva_suits", "Charge suit batteries", 2.65, "multitool"]],
 }
+## The comms console goes in the first of these room types the deck happens to have (any other
+## room will do if it has none of them) - see _place_comms and scripts/comms_station.gd.
+const COMMS_ROOMS := ["control", "server", "observation", "laboratory"]
+const COMMS_BAYS := [-4.2, 4.2, -2.65, 2.65]
 const POWER_PANEL_X := 2.65
 const PANEL_Y := 1.5
 const PANEL_Z := -5.37      # just proud of the door wall's panelling (wall slab inner face is -5.5)
@@ -50,6 +54,8 @@ var props: Array[Node3D] = []
 var carried := {}                       # prop index -> an apparition has hold of it
 var prop_spin: Array[Vector3] = []
 var prop_vel: Array[Vector3] = []
+var comms: CommsStation
+var comms_room_index := -1
 var power_led: OmniLight3D
 var planet: MeshInstance3D
 var clouds: MeshInstance3D
@@ -117,6 +123,7 @@ func regenerate(seed_: int) -> void:
 	_place_lights()
 	_pick_faulty_lights()
 	_place_rooms()
+	_place_comms()
 	_place_props()
 	_build_outside()
 	_place_window_sun()
@@ -557,6 +564,51 @@ func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vecto
 	it.look_at(pos - facing, Vector3.UP)
 	it.completed.connect(_on_task_completed)
 	interactables[id] = it
+
+## The deep space uplink: one console per deck, in the most plausible room the plan grew, on a wall
+## bay that room's own tasks are not using. It is deliberately not in `interactables` - it is not a
+## maintenance task, nothing about it should be switched on and off with the shift or the lights.
+func _place_comms() -> void:
+	var pick := -1
+	for want: String in COMMS_ROOMS:
+		for r: Dictionary in layout.rooms:
+			if r["type"] == want:
+				pick = r["index"]
+				break
+		if pick >= 0:
+			break
+	if pick < 0:
+		for r: Dictionary in layout.rooms:
+			if r["type"] != "power":
+				pick = r["index"]
+				break
+	if pick < 0:
+		return
+	var room: Dictionary = layout.rooms[pick]
+	var t: String = room["type"]
+	var xf := Kit.cell_transform(room["center"], room["rot"], room["roll"])
+	var used := []
+	for task: Array in ROOM_TASKS[t]:
+		used.append(task[2])
+	if t == "power":
+		used.append(POWER_PANEL_X)
+	var x: float = COMMS_BAYS[0]
+	for bay: float in COMMS_BAYS:
+		if not used.has(bay):
+			x = bay
+			break
+	comms = CommsStation.new()
+	root.add_child(comms)
+	comms.setup_comms(ROOM_LABEL[t])
+	# the panel's +Z is the way it faces, which is the room's own +Z however the deck rolled it
+	comms.global_transform = Transform3D(xf.basis, xf * Vector3(x, PANEL_Y, PANEL_Z))
+	comms_room_index = pick
+
+## Where the console is, in the words on the name plate outside its door.
+func comms_room() -> String:
+	if comms_room_index < 0:
+		return "COMMS"
+	return ROOM_LABEL[layout.rooms[comms_room_index]["type"]]
 
 func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 	var p := CPUParticles3D.new()

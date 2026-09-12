@@ -254,6 +254,22 @@ func _autotest() -> void:
 	player.toggle_panel()
 	assert(player.wrist.is_open == was_open, "and toggle it back")
 	print("[autotest] crew terminal ok: TAB toggles the hologram")
+	# the uplink: Gateway hails, the console prints what it says, and the hold sends the report back
+	assert(station.comms != null, "the deck should have a comms console")
+	assert(Comms.entries.has("d1_in"), "comms/log.json should have loaded")
+	Comms.debug_hail()
+	await get_tree().create_timer(0.6).timeout
+	assert(Comms.is_playing(), "%s should be transmitting" % Comms.ground)
+	var console := Comms.console as CommsStation
+	assert(console != null and console.body.text != "", "the console should print the message")
+	Comms.debug_finish()
+	await get_tree().process_frame
+	assert(Comms.reply_pending, "a shift report should be due once Gateway has finished")
+	station.comms.hold(3.0)
+	await get_tree().create_timer(0.3).timeout
+	assert(not Comms.reply_pending and Comms.is_playing(), "holding the console should key the mic and answer")
+	Comms.debug_finish()
+	print("[autotest] uplink ok: %s hails, the console prints it, the report goes back (%d entries)" % [Comms.ground, Comms.entries.size()])
 	# rotation: spin from the thrusters keeps going after the input stops, a hand on the station stops it
 	Game.comfort_snap = false
 	var fwd0 := -player.camera.global_transform.basis.z
