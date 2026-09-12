@@ -299,3 +299,73 @@ class Merger:
 				body.add_child(cs)
 			out.append(mi)
 		return out
+
+# ---------------------------------------------------------------- windows
+static var _apertures := {}
+
+## The glazed openings in a piece's outer walls, in the piece's own frame: one per glazed wall side,
+## [{center, normal (outward), u, v (half extents across the glass)}]. Read from the Glass_Window
+## surfaces, so a window added to the kit is picked up without code. Glass well inside a module
+## (a fume hood sash) is not an outside window and is skipped, as is anything facing up or down.
+static func window_apertures(piece: String) -> Array:
+	if _apertures.has(piece):
+		return _apertures[piece]
+	var out := []
+	var m := mesh(piece)
+	var names := material_names(piece)
+	var half := 6.0 if piece.begins_with("room_") else CELL * 0.5
+	var groups := {}
+	for s in m.get_surface_count():
+		if names[s] != "Glass_Window":
+			continue
+		var arrays := m.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var count := idx.size() if idx.size() > 0 else verts.size()
+		var i := 0
+		while i < count:
+			var a: Vector3 = verts[idx[i]] if idx.size() > 0 else verts[i]
+			var b: Vector3 = verts[idx[i + 1]] if idx.size() > 0 else verts[i + 1]
+			var c: Vector3 = verts[idx[i + 2]] if idx.size() > 0 else verts[i + 2]
+			i += 3
+			var cr := (b - a).cross(c - a)
+			var area := cr.length() * 0.5
+			if area < 1e-5:
+				continue
+			var nrm := cr.normalized()
+			var axis := 0
+			if absf(nrm.y) > absf(nrm[axis]):
+				axis = 1
+			if absf(nrm.z) > absf(nrm[axis]):
+				axis = 2
+			if axis == 1:
+				continue
+			var coord := (a[axis] + b[axis] + c[axis]) / 3.0
+			if absf(coord) < half - 0.8:
+				continue
+			var key := "%d|%d" % [axis, int(signf(coord))]
+			if not groups.has(key):
+				groups[key] = {"axis": axis, "sign": signf(coord), "area": 0.0,
+					"lo": Vector3(INF, INF, INF), "hi": Vector3(-INF, -INF, -INF)}
+			var g: Dictionary = groups[key]
+			g["area"] = float(g["area"]) + area
+			for v: Vector3 in [a, b, c]:
+				g["lo"] = (g["lo"] as Vector3).min(v)
+				g["hi"] = (g["hi"] as Vector3).max(v)
+	for key in groups:
+		var g: Dictionary = groups[key]
+		if float(g["area"]) < 0.25:
+			continue
+		var lo: Vector3 = g["lo"]
+		var hi: Vector3 = g["hi"]
+		var axis: int = g["axis"]
+		var ext := (hi - lo) * 0.5
+		var normal := Vector3.ZERO
+		normal[axis] = float(g["sign"])
+		var other := 2 if axis == 0 else 0
+		var u := Vector3.ZERO
+		u[other] = ext[other]
+		out.append({"center": (lo + hi) * 0.5, "normal": normal, "u": u, "v": Vector3(0, ext.y, 0)})
+	_apertures[piece] = out
+	return out
+

@@ -53,6 +53,7 @@ var prop_vel: Array[Vector3] = []
 var power_led: OmniLight3D
 var planet: MeshInstance3D
 var clouds: MeshInstance3D
+var window_sun: WindowSun
 var wake_room := 0
 var stalker_room := 0
 var _t := 0.0
@@ -118,6 +119,7 @@ func regenerate(seed_: int) -> void:
 	_place_rooms()
 	_place_props()
 	_build_outside()
+	_place_window_sun()
 	_pick_special_rooms()
 	_place_tools()
 	Game.task_pool = task_pool()
@@ -383,49 +385,8 @@ func _pick_special_rooms() -> void:
 func _build_outside() -> void:
 	var b := layout.bounds()
 	var centre := Vector3((b.position.x + b.end.x - 1) * 0.5 * CELL, 1.5, (b.position.y + b.end.y - 1) * 0.5 * CELL)
-	var sky := SphereMesh.new()
-	sky.radius = 170.0
-	sky.height = 340.0
-	sky.radial_segments = 24
-	sky.rings = 12
-	var sky_mat := StandardMaterial3D.new()
-	sky_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sky_mat.cull_mode = BaseMaterial3D.CULL_FRONT
-	sky_mat.albedo_texture = StationTex.stars()
-	sky_mat.disable_fog = true
-	_mesh(sky, centre, sky_mat)
-	var pm := SphereMesh.new()
-	pm.radius = 26.0
-	pm.height = 52.0
-	pm.radial_segments = 48
-	pm.rings = 24
-	var pmat := StandardMaterial3D.new()
-	pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	pmat.albedo_texture = StationTex.planet()
-	pmat.disable_fog = true
-	planet = _mesh(pm, centre + Vector3(18, 44, -22), pmat)
-	planet.rotation = Vector3(0.3, 0, 0.2)
-	var am := SphereMesh.new()
-	am.radius = 26.9
-	am.height = 53.8
-	am.radial_segments = 32
-	am.rings = 16
-	var amat := StandardMaterial3D.new()
-	amat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	amat.albedo_color = Color(0.45, 0.7, 1.0, 0.18)
-	amat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	amat.disable_fog = true
-	clouds = _mesh(am, planet.position, amat)
-	var sun := SphereMesh.new()
-	sun.radius = 5.0
-	sun.height = 10.0
-	sun.radial_segments = 16
-	sun.rings = 8
-	var smat := StandardMaterial3D.new()
-	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	smat.albedo_color = Color(1.0, 0.97, 0.9)
-	smat.disable_fog = true
-	_mesh(sun, centre + Vector3(-120, 40, 90), smat)
+	# the sky, the Earth and the sun are drawn by the sky shader now (Orbit); what is left out here
+	# is structure, lit by the real sunlight on its own render layer
 	# truss spine over the deck, solar wings past its ends, radiators
 	var ext := Geo.new()
 	var x0 := (b.position.x - 1) * CELL
@@ -441,16 +402,34 @@ func _build_outside() -> void:
 		var wx := (x1 + 11.0) if sx > 0 else (x0 - 11.0)
 		ext.box(Vector3(wx, y + 0.4, centre.z), Vector3(0.3, 0.3, 0.3))
 		ext.box(Vector3((wx + (x1 if sx > 0 else x0)) * 0.5, y + 0.4, centre.z), Vector3(absf(wx - (x1 if sx > 0 else x0)), 0.25, 0.25))
-	ext.commit(pal.get_mat("truss"), root, null, "truss")
+	_exterior(ext.commit(pal.get_mat("truss"), root, null, "truss"))
 	var sol := Geo.new()
 	for sx: float in [-1.0, 1.0]:
 		var wx := (x1 + 11.0) if sx > 0 else (x0 - 11.0)
 		sol.box(Vector3(wx, y + 0.4, centre.z), Vector3(5.0, 0.08, 16.0))
-	sol.commit(pal.get_mat("solar"), root, null, "solar")
+	_exterior(sol.commit(pal.get_mat("solar"), root, null, "solar"))
 	var rad := Geo.new()
 	rad.box(Vector3(centre.x, -6.0, (b.position.y - 2) * CELL), Vector3(10.0, 3.0, 0.1))
 	rad.box(Vector3(centre.x, -6.0, (b.end.y + 1) * CELL), Vector3(10.0, 3.0, 0.1))
-	rad.commit(pal.get_mat("ext"), root, null, "radiators")
+	_exterior(rad.commit(pal.get_mat("ext"), root, null, "radiators"))
+
+## Outside structure: on the exterior render layer too, so the sun lights it.
+func _exterior(mi: MeshInstance3D) -> void:
+	if mi:
+		mi.layers = 1 | Orbit.EXTERIOR_LAYER
+
+## Every outside window on the deck, for WindowSun: corridor window pieces, observation bays and
+## the rooms that have glazing, read off the kit's own glass.
+func _place_window_sun() -> void:
+	window_sun = WindowSun.new()
+	root.add_child(window_sun)
+	for c: Vector2i in layout.corridor:
+		var cell: Dictionary = layout.corridor[c]
+		for ap: Dictionary in Kit.window_apertures(cell["piece"]):
+			window_sun.add_window(Kit.cell_transform(c, cell["rot"], cell["roll"]), ap, 3.5)
+	for r: Dictionary in layout.rooms:
+		for ap: Dictionary in Kit.window_apertures("room_" + r["type"]):
+			window_sun.add_window(Kit.cell_transform(r["center"], r["rot"], r["roll"]), ap, 11.5)
 
 # ---------------------------------------------------------------- small helpers
 func _mesh(m: Mesh, pos: Vector3, mat: Material, rot := Vector3.ZERO) -> MeshInstance3D:
@@ -618,9 +597,6 @@ func _process(delta: float) -> void:
 		p.position.y += sin(_t * 0.5 + float(i)) * 0.03 * delta
 	if power_led and not Game.power_on:
 		power_led.light_energy = 1.2 if fmod(_t, 1.2) < 0.15 else 0.05
-	if planet:
-		planet.rotate_y(delta * 0.006)
-		clouds.rotate_y(delta * 0.009)
 
 func set_power(on: bool) -> void:
 	for l in lights:
@@ -855,6 +831,12 @@ func viewpoints() -> Array:
 			var d: Vector2i = cell["open"][0]
 			var dv := Vector3(d.x, 0, d.y)
 			out.append(["observation_bay", StationLayout.world(c, 1.5) + dv * 1.5, StationLayout.world(c, 1.3) - dv * 4.0])
+	if window_sun:
+		var n_win := 0
+		for pane: WindowSun.Pane in window_sun.windows:
+			if n_win < 2 and window_sun.clear_to_sun(pane, pane.normal):
+				out.append(["window_%d" % n_win, pane.center - pane.normal * 1.4, pane.center + pane.normal * 10.0])
+				n_win += 1
 	var b := layout.bounds()
 	var centre := Vector3((b.position.x + b.end.x - 1) * 0.5 * CELL, 0, (b.position.y + b.end.y - 1) * 0.5 * CELL)
 	out.append(["deck_overview", centre + Vector3(-30, 42, 34), centre])

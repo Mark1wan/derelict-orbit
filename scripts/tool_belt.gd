@@ -2,9 +2,9 @@ class_name ToolBelt
 extends Node3D
 ## Four holsters around the waist, so both hands can be free for the rails.
 ##
-## The belt hangs a fixed drop below the head and turns with the way the body faces - the head's
-## heading, smoothed so a glance over the shoulder does not swing it round - never with pitch or
-## roll. That keeps each holster where the hand learned it was.
+## The belt hangs a fixed drop below the head along the body's own up, and turns with the way the
+## head faces around that axis - smoothed, so a glance over the shoulder does not swing it round. In
+## zero-G there is no world up: upside down, the belt is still at your waist.
 ##
 ## Holsters count left to right: 1 left hip, 2 front left, 3 front right, 4 right hip. Tools hang
 ## through their holster pointing at the deck. The flashlight clips on pointing forward, so on the
@@ -21,7 +21,7 @@ var holsters: Array[Node3D] = []
 var items: Array = []
 var _ring_mats: Array[StandardMaterial3D] = []
 var _numbers: Array[Label3D] = []
-var _yaw := 0.0
+var _q := Quaternion.IDENTITY
 var _placed := false
 
 func _init() -> void:
@@ -73,23 +73,30 @@ func _init() -> void:
 		h.add_child(lb)
 		_numbers.append(lb)
 
-## Keep the belt under `head` (the camera), turned the way the body faces.
-func follow(head: Node3D, delta: float) -> void:
-	var b := head.global_transform.basis
-	var flat := Vector3(-b.z.x, 0.0, -b.z.z)
+## Keep the belt under `head` (the camera), in the body's own frame. `body_up` is the way the body
+## is standing - in zero-G wherever your feet point, not the world's up - and the belt turns with
+## the way the head faces around that axis, so it stays at the waist whichever way up you are.
+func follow(head: Node3D, body_up: Vector3, delta: float) -> void:
+	var up := body_up.normalized()
+	var hb := head.global_transform.basis
+	var fwd := -hb.z
+	var flat := fwd - up * fwd.dot(up)
 	if flat.length() < 0.25:
-		# looking straight up or down: the top of the head points the way the body faces
-		flat = Vector3(b.y.x, 0.0, b.y.z) * signf(b.z.y)
+		# looking straight along the body: the top of the head points the way the body faces
+		var hy := hb.y - up * hb.y.dot(up)
+		flat = hy * -signf(fwd.dot(up))
 	if flat.length() < 0.01:
-		flat = Vector3(0, 0, -1)
-	var target := atan2(-flat.x, -flat.z)
+		flat = up.cross(Vector3.RIGHT) if absf(up.dot(Vector3.RIGHT)) < 0.9 else up.cross(Vector3.FORWARD)
+	var z := -flat.normalized()
+	var x := up.cross(z).normalized()
+	var target := Basis(x, up, z).get_rotation_quaternion()
 	if _placed:
-		_yaw = lerp_angle(_yaw, target, clampf(FOLLOW * delta, 0.0, 1.0))
+		_q = _q.slerp(target, clampf(FOLLOW * delta, 0.0, 1.0))
 	else:
-		_yaw = target
+		_q = target
 		_placed = true
-	global_position = head.global_position + Vector3.DOWN * DROP
-	global_rotation = Vector3(0.0, _yaw, 0.0)
+	global_position = head.global_position - up * DROP
+	global_basis = Basis(_q)
 
 ## Jump straight to the head next frame instead of turning towards it (after a teleport).
 func snap() -> void:

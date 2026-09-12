@@ -40,12 +40,14 @@ The haunting escalates with the day counter (and with every shift you leave unfi
 | Left stick | thruster burn relative to where you look (forward / strafe) - tiny tank, refills slowly |
 | Right stick up / down | thruster up / down |
 | Right stick left / right | snap turn 30 deg |
+| Hold B + left stick | rotation thrusters: forward / back pitches, left / right rolls - the spin keeps going, a grab stops it |
+| Hold B + right stick left / right | rotation thruster: yaw |
 | A / X | flashlight on / off, wherever it is (hand, belt or drifting) |
 | Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names |
 | Left wrist | task list, clock, night instructions |
 
 **Desktop fallback (any browser / the Godot editor)**: **right mouse** on a surface within arm's reach grabs it, drag
-to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you. **1-4** swap
+to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, **R + mouse** rolls and pitches the whole body. **1-4** swap
 your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach or uses the
 held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
 
@@ -69,6 +71,35 @@ You start with the flashlight and the wrench. The multitool and the scanner are 
 two other rooms (seeded per deck). The wrist lists what is in your hands, on the belt, and where the rest was
 last seen. The MAIN POWER panel at night needs no tool.
 
+## Rotation
+
+There is no up on Kestrel-9. Hold **B** and the sticks turn into rotation thrusters: the left stick pitches
+(forward / back) and rolls (left / right), the right stick yaws. It is real zero-G spin - it builds up while you
+burn, keeps going when you let go, costs the same small tank as the linear thrusters, and only stops when a hand
+takes hold of the station. The tool belt follows your body, so it is still at your waist upside down. A vignette
+closes in while you spin; players who get sick from smooth rotation can tick **VR comfort** on the title screen to
+rotate in 30 degree snaps instead. Waking up at night and restarting stand you upright again.
+
+## The orbit: Earth, sun and sunlight
+
+The sky is a shader (`sky/orbit_sky.gdshader`), so the Earth can fill most of the lower half of the view the way it
+does from low orbit without ever intersecting the station: a lit day side with ocean glint, a night side of city
+lights, and a blue atmosphere along the limb that turns orange where the sun rises or sets through it. Its textures
+are baked once by `tools/bake_sky.gd` into `sky/`. From low orbit the ground straight below is magnified far past any
+single texture, so the shader tiles a small detail texture over the surface at two scales - terrain grain, cloud
+wisps, and the city lights, which are town specks cut out of a smooth population map so they stay points of light.
+
+`scripts/orbit.gd` moves the sun along the orbit with the game: each shift opens with the sun rising from behind
+the Earth, it crosses overhead through the shift, sets as the shift ends, and the night is the station passing
+through the Earth's shadow - that is the dark the power failure leaves you in. Restoring power brings the next sunrise.
+
+Sunlight never shines through the hull. The sun's DirectionalLight3D only touches the exterior truss, solar wings
+and radiators (render layer 3). Inside, `scripts/window_sun.gd` gives every outside window the sun can actually
+reach a light of its own - a patch thrown on the far wall and a faint shaft from the glass - and a window with
+another module between it and the sun stays dark, so the station shades itself as the sun moves. The windows are
+read from the kit's glass geometry. Real shadow maps for a whole deck are left out on purpose: too heavy for a
+Quest 3 until measured on one.
+
 ## Project layout
 
 ```
@@ -81,6 +112,10 @@ scripts/main.gd        WebXR session, title UI, environment, autotest
 scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruster tank, flashlight, laser, wrist HUD
 scripts/item.gd        the flashlight and the repair tools (built in code): hand / belt / loose, zero-G drift
 scripts/tool_belt.gd   four holsters at the waist that follow the body's heading
+scripts/orbit.gd       where the sun is: orbit clock tied to day and night, eclipse, sky shader uniforms, exterior sunlight
+scripts/window_sun.gd  sunlight through outside windows: per-window light patch and shaft, shaded by other modules
+sky/                   orbit_sky.gdshader and the baked textures: Earth day, night population, stars, tiling detail
+tools/bake_sky.gd      bakes sky/*.png: godot --headless --path . --script tools/bake_sky.gd
 scripts/layout.gd      the deck plan: seeded corridor growth on the 4 m grid, rooms through their doorway, piece
                        + rotation per cell, BFS path / distances on the cell graph
 scripts/kit.gd         loads kit/*.glb once, merges placed pieces per chunk and material, trimesh colliders

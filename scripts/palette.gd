@@ -48,12 +48,12 @@ func _init() -> void:
 	mats["ext"].disable_fog = true
 	mats["ext"].emission_enabled = true
 	mats["ext"].emission = Color(0.16, 0.18, 0.22)
-	mats["ext"].emission_energy_multiplier = 0.9
+	mats["ext"].emission_energy_multiplier = 0.3
 	var truss := plain(Color(0.5, 0.52, 0.56), 0.6, 0.6)
 	truss.disable_fog = true
 	truss.emission_enabled = true
 	truss.emission = Color(0.22, 0.23, 0.26)
-	truss.emission_energy_multiplier = 0.9
+	truss.emission_energy_multiplier = 0.3
 	mats["truss"] = truss
 	var hazard := plain(Color(1, 1, 1), 0.8, 0.0)
 	hazard.albedo_texture = StationTex.hazard()
@@ -70,7 +70,7 @@ func _init() -> void:
 	solar.emission_enabled = true
 	solar.emission_texture = StationTex.solar()
 	solar.emission = Color(0.6, 0.65, 0.8)
-	solar.emission_energy_multiplier = 0.6
+	solar.emission_energy_multiplier = 0.2
 	mats["solar"] = solar
 	var glass := plain(Color(0.18, 0.28, 0.38, 0.1), 0.15, 0.1)
 	glass.metallic_specular = 0.35

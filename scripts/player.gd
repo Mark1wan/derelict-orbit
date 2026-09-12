@@ -7,6 +7,10 @@ class_name Player
 ##         anchored there. Move the controller and your body follows; let go with a flick and you
 ##         keep the momentum. This is the main way to move.
 ##  THRUST The sticks fire a suit pack with a tiny tank: about two seconds of burn, refills slowly.
+##  ROTATE Hold B (right hand) and the sticks become rotation thrusters: left stick pitches and
+##         rolls, right stick yaws. Spin keeps going after you let go and burns the same fuel; a
+##         hand on the station stops it. A vignette closes in while you spin. Comfort mode (title
+##         screen) snaps 30 degrees per flick instead. Desktop: hold R and move the mouse.
 ##  ITEMS  Grip on a loose item, or on a holstered one at the belt, to hold it - keep gripping to
 ##         keep holding. Let go over an empty holster and it goes on the belt; let go anywhere
 ##         else and it floats off with your hand's motion. A hand holding something cannot grab
@@ -33,6 +37,23 @@ const DESK_PICK_REACH := 1.8   # desktop: how far away a loose item can be picke
 const DESK_HAND := Vector3(0.2, -0.2, -0.42)
 const SNAP_ANGLE := 30.0
 const DEAD_ZONE := 0.18
+const ROT_ACCEL := 1.4         # rad/s^2 of spin from a full stick with B held
+const ROT_MAX := 1.6           # rad/s
+const ROT_DAMP := 0.05         # zero-G: a spin mostly keeps going
+const ROT_FUEL := 0.35         # tank per second at full rotation burn
+const SNAP_ROT := 30.0         # comfort mode: degrees per flick
+const DESK_ROT := 0.004        # desktop R + mouse: radians per pixel
+
+const VIGNETTE_SHADER := """
+shader_type spatial;
+render_mode unshaded, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform float strength = 0.0;
+void fragment() {
+	float d = distance(UV, vec2(0.5)) * 2.0;
+	ALBEDO = vec3(0.0);
+	ALPHA = smoothstep(0.3, 0.85, d) * strength;
+}
+"""
 
 @onready var origin: XROrigin3D = $XROrigin3D
 @onready var camera: XRCamera3D = $XROrigin3D/XRCamera3D
@@ -83,6 +104,11 @@ var _debug_hold := false
 var _grip_prev := {}
 var _hand_prev := {}
 var _hand_vel := {}
+var ang_vel := Vector3.ZERO         # world-space spin, rad/s
+var _rot_burn := false
+var _rot_snap_ready := true
+var _vignette := 0.0
+var vignette_mat: ShaderMaterial
 
 const HAND_IDLE := Color(0.15, 0.16, 0.18)
 const HAND_NEAR := Color(0.25, 0.55, 0.7)
@@ -174,6 +200,21 @@ func _build_attachments() -> void:
 	fade.position = Vector3(0, 0, -0.25)
 	camera.add_child(fade)
 
+	# comfort vignette: the edges of the view close in while the body spins
+	var vig := MeshInstance3D.new()
+	var vq := QuadMesh.new()
+	vq.size = Vector2(0.8, 0.8)
+	vig.mesh = vq
+	vignette_mat = ShaderMaterial.new()
+	var vs := Shader.new()
+	vs.code = VIGNETTE_SHADER
+	vignette_mat.shader = vs
+	vignette_mat.render_priority = 99
+	vig.material_override = vignette_mat
+	vig.position = Vector3(0, 0, -0.26)
+	vig.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	camera.add_child(vig)
+
 func _make_ray() -> RayCast3D:
 	var r := RayCast3D.new()
 	r.target_position = Vector3(0, 0, -5)
@@ -246,8 +287,73 @@ func look_at_point(p: Vector3) -> void:
 	var v := p - camera.global_position
 	yaw = atan2(-v.x, -v.z)
 	pitch = clampf(atan2(v.y, Vector2(v.x, v.z).length()), -1.45, 1.45)
-	origin.rotation.y = yaw
+	var cam := camera.global_position
+	origin.global_basis = Basis(Vector3.UP, yaw)
 	camera.rotation.x = pitch
+	origin.global_position += cam - camera.global_position
+	ang_vel = Vector3.ZERO
+
+## Stand the body upright again, keeping the heading (waking up, restarting).
+func reset_orientation() -> void:
+	var f := -camera.global_transform.basis.z
+	f.y = 0.0
+	if f.length() < 0.1:
+		f = Vector3.FORWARD
+	yaw = atan2(-f.x, -f.z)
+	var cam := camera.global_position
+	origin.global_basis = Basis(Vector3.UP, yaw)
+	origin.global_position += cam - camera.global_position
+	ang_vel = Vector3.ZERO
+	belt.snap()
+
+## Turn the whole body about `axis` by `angle`, pivoting on the head so the view does not swing.
+func _rotate_body(axis: Vector3, angle: float) -> void:
+	if absf(angle) < 1e-6 or axis.length_squared() < 1e-8:
+		return
+	var cam := camera.global_position
+	origin.global_basis = (Basis(axis.normalized(), angle) * origin.global_basis).orthonormalized()
+	origin.global_position += cam - camera.global_position
+	if grab_hand:
+		grab_anchor = grab_hand.global_position
+
+## Rotation thrusters. `input` is (pitch, yaw, roll) in -1..1 about the head's own axes: pitch > 0
+## tips the nose down, yaw > 0 turns right, roll > 0 rolls right. The spin keeps going once the
+## input stops - zero-G - and costs fuel. Comfort mode snaps in steps instead.
+func apply_rotation_input(input: Vector3, delta: float) -> void:
+	if Game.comfort_snap:
+		_snap_rotation(input)
+		return
+	var w := input.limit_length(1.0)
+	if w.length() < 0.01:
+		return
+	if fuel <= 0.0:
+		if not _empty_warned:
+			_empty_warned = true
+			Game.notice.emit("THRUSTERS EMPTY\nGrab a rail to stop the spin.", 2.5)
+		return
+	var b := camera.global_transform.basis
+	ang_vel += (b.x * -w.x + b.y * -w.y + -b.z * w.z) * ROT_ACCEL * delta
+	fuel = maxf(0.0, fuel - ROT_FUEL * delta * w.length())
+	_rot_burn = true
+
+func _snap_rotation(input: Vector3) -> void:
+	var m := maxf(absf(input.x), maxf(absf(input.y), absf(input.z)))
+	if m < 0.3:
+		_rot_snap_ready = true
+		return
+	if m < 0.7 or not _rot_snap_ready:
+		return
+	_rot_snap_ready = false
+	var b := camera.global_transform.basis
+	var a := deg_to_rad(SNAP_ROT)
+	if absf(input.x) == m:
+		_rotate_body(b.x, -a * signf(input.x))
+	elif absf(input.z) == m:
+		_rotate_body(-b.z, a * signf(input.z))
+	else:
+		_rotate_body(b.y, -a * signf(input.y))
+	ang_vel = Vector3.ZERO
+	_vignette = 0.7
 
 # ---------------------------------------------------------------- input helpers
 func _hands() -> Array:
@@ -437,8 +543,9 @@ func _physics_process(delta: float) -> void:
 	if not started:
 		return
 	var frozen := Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.TITLE or Game.phase == Game.Phase.SLEEP
-	belt.follow(camera, delta)
+	belt.follow(camera, origin.global_basis.y, delta)
 	_wrong_cd = maxf(0.0, _wrong_cd - delta)
+	_rot_burn = false
 	var b := camera.global_transform.basis
 	var wish := Vector3.ZERO
 	var turn := 0.0
@@ -447,10 +554,16 @@ func _physics_process(delta: float) -> void:
 	if xr_active:
 		var ls := _stick(left)
 		var rs := _stick(right)
-		turn = rs.x
-		var vert := rs.y if absf(rs.y) > DEAD_ZONE else 0.0
-		if not frozen:
-			wish = -b.z * ls.y + b.x * ls.x + Vector3.UP * vert
+		if _pressed(right, ["by_button"]):
+			# B held: the sticks are rotation thrusters - left pitches and rolls, right yaws
+			if not frozen:
+				apply_rotation_input(Vector3(ls.y, rs.x, ls.x), delta)
+		else:
+			_rot_snap_ready = true
+			turn = rs.x
+			var vert := rs.y if absf(rs.y) > DEAD_ZONE else 0.0
+			if not frozen:
+				wish = -b.z * ls.y + b.x * ls.x + origin.global_basis.y * vert
 		var tog := _pressed(right, ["ax_button"]) or _pressed(left, ["ax_button"])
 		if tog and not _toggle_prev:
 			_toggle_flashlight()
@@ -497,7 +610,7 @@ func _physics_process(delta: float) -> void:
 		var move_in := Vector2(Input.get_axis("d_left", "d_right"), Input.get_axis("d_back", "d_forward"))
 		var vert := Input.get_axis("d_down", "d_up")
 		if not frozen:
-			wish = -b.z * move_in.y + b.x * move_in.x + Vector3.UP * vert
+			wish = -b.z * move_in.y + b.x * move_in.x + origin.global_basis.y * vert
 		if Input.is_action_just_pressed("d_flash"):
 			_toggle_flashlight()
 		if Input.is_action_just_pressed("d_drop") and not frozen:
@@ -534,12 +647,19 @@ func _physics_process(delta: float) -> void:
 		elif not _empty_warned:
 			_empty_warned = true
 			Game.notice.emit("THRUSTERS EMPTY\nGrab a rail and pull.", 2.5)
-	if not thrusting and fuel < 1.0:
+	if not thrusting and not _rot_burn and fuel < 1.0:
 		fuel = minf(1.0, fuel + FUEL_REGEN * delta)
 	if not holding:
 		velocity = velocity.lerp(Vector3.ZERO, clampf(DRIFT_DAMP * delta, 0.0, 1.0))
 		if velocity.length() > MAX_SPEED:
 			velocity = velocity.normalized() * MAX_SPEED
+	# spin: what the rotation thrusters built up keeps turning you - until a hand takes hold
+	if grab_hand or d_grabbing:
+		ang_vel = Vector3.ZERO
+	elif ang_vel.length_squared() > 1e-6:
+		ang_vel = ang_vel.limit_length(ROT_MAX)
+		_rotate_body(ang_vel.normalized(), ang_vel.length() * delta)
+		ang_vel = ang_vel.lerp(Vector3.ZERO, clampf(ROT_DAMP * delta, 0.0, 1.0))
 	# the collider follows the head, so physically you *are* your head
 	body_shape.global_position = camera.global_position
 	move_and_slide()
@@ -552,12 +672,9 @@ func _physics_process(delta: float) -> void:
 			snap_ready = true
 	_update_interaction(delta)
 
+## Snap turn about the body's own up (right stick, B not held).
 func _snap(deg: float) -> void:
-	var cam_pos := camera.global_position
-	origin.rotate_y(deg_to_rad(deg))
-	origin.global_position += cam_pos - camera.global_position
-	if grab_hand:
-		grab_anchor = grab_hand.global_position   # keep the grip where the hand now is
+	_rotate_body(origin.global_basis.y, deg_to_rad(deg))
 
 func _toggle_flashlight() -> void:
 	flashlight_on = not flashlight_on
@@ -583,10 +700,15 @@ func _unhandled_input(e: InputEvent) -> void:
 		if d_grabbing:
 			# the mouse is your arm while you hold on: drag left to pull yourself right
 			d_hand_local += Vector3(e.relative.x, -e.relative.y, 0) * 0.003
+		elif Input.is_physical_key_pressed(KEY_R):
+			# R held: the mouse rolls and pitches the whole body - there is no up in here
+			var cb := camera.global_transform.basis
+			_rotate_body(-cb.z, e.relative.x * DESK_ROT)
+			_rotate_body(cb.x, -e.relative.y * DESK_ROT)
 		else:
 			yaw -= e.relative.x * 0.0022
+			_rotate_body(origin.global_basis.y, -e.relative.x * 0.0022)
 			pitch = clampf(pitch - e.relative.y * 0.0022, -1.45, 1.45)
-			origin.rotation.y = yaw
 			camera.rotation.x = pitch
 
 # ---------------------------------------------------------------- interaction
@@ -650,10 +772,15 @@ func _update_interaction(delta: float) -> void:
 # ---------------------------------------------------------------- per-frame UI
 func _process(delta: float) -> void:
 	if started:
-		belt.follow(camera, delta)
+		belt.follow(camera, origin.global_basis.y, delta)
 	var c := fade_mat.albedo_color
 	c.a = move_toward(c.a, fade_target, delta * fade_speed)
 	fade_mat.albedo_color = c
+	if xr_active and not Game.comfort_snap:
+		_vignette = maxf(_vignette - delta * 1.5, clampf(ang_vel.length() / 0.9, 0.0, 1.0) * 0.8)
+	else:
+		_vignette = maxf(_vignette - delta * 3.0, 0.0)
+	vignette_mat.set_shader_parameter("strength", _vignette)
 	if _notice_timer > 0.0:
 		_notice_timer -= delta
 		if _notice_timer <= 0.0:
@@ -675,6 +802,7 @@ func _on_phase(p: int) -> void:
 		Game.Phase.NIGHT:
 			# wake up in the dark, as far from the power plant as the deck allows - with your belt
 			teleport_head_to(Game.station.wake_point())
+			reset_orientation()
 			fuel = 1.0
 			await get_tree().create_timer(1.5).timeout
 			fade_speed = 0.5
@@ -701,6 +829,7 @@ func _on_reset() -> void:
 	if not xr_active and desk_hand:
 		_put_in_hand(desk_hand, belt.take(belt.slot_of(Item.FLASHLIGHT)))
 	teleport_head_to(Game.station.start_point())
+	reset_orientation()
 	_restart_hold = 0.0
 	fade_speed = 1.5
 	fade_target = 0.0
@@ -780,9 +909,9 @@ func _refresh_wrist() -> void:
 			s += _kit_line()
 			if Game.day == 1 and Game.day_time < 45.0:
 				if xr_active:
-					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool"
+					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)"
 				else:
-					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool"
+					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool   R + mouse = roll / pitch"
 		Game.Phase.SLEEP:
 			s = "Shift over.\nGo to sleep."
 		Game.Phase.NIGHT:

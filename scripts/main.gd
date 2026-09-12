@@ -42,11 +42,19 @@ func _photo_mode(dir: String) -> void:
 	await get_tree().create_timer(1.8).timeout
 	player.hud_label.visible = false
 	player.wrist.visible = false
+	# DERELICT_SHOTS_ONLY=sky renders just the sky and window-light shots
+	var only_sky := OS.get_environment("DERELICT_SHOTS_ONLY") == "sky"
+	if only_sky and station.has_method("place_name"):
+		await _sky_shots(dir)
+		print("[shots] done -> ", dir)
+		get_tree().quit()
+		return
 	var shots: Array = station.viewpoints()
 	for sh in shots:
 		await _shot(dir, sh[0], sh[1], sh[2])
 	if station.has_method("place_name"):
 		await _item_shots(dir)
+		await _sky_shots(dir)
 	# night: power off, flashlight on
 	station.set_power(false)
 	_on_power(false)
@@ -80,15 +88,75 @@ func _item_shots(dir: String) -> void:
 			player.debug_equip(Item.FLASHLIGHT)
 			break
 
+## The sky out of a window at noon, afternoon, sunset, in the Earth's shadow and at sunrise; then
+## a window the sun comes straight through, seen from inside with its shaft and the patch it throws.
+func _sky_shots(dir: String) -> void:
+	var orbit: Orbit = Game.orbit
+	var ws: WindowSun = station.window_sun
+	if orbit == null or ws == null or ws.windows.is_empty():
+		return
+	# a window with nothing of the station outside it, facing the Earth as much as possible
+	player.belt.visible = false
+	var view: WindowSun.Pane = null
+	var view_score := -2.0
+	for p: WindowSun.Pane in ws.windows:
+		if ws.clear_to_sun(p, p.normal):
+			var sc := p.normal.dot(orbit.earth_dir)
+			if sc > view_score:
+				view_score = sc
+				view = p
+	print("[shots] %d outside windows, clear view: %s" % [ws.windows.size(), "yes" if view else "none"])
+	if view:
+		var eye := view.center - view.normal * 1.2
+		var look := view.center + view.normal * 10.0 + orbit.earth_dir * 4.0
+		for sh: Array in [["noon", 0.0], ["afternoon", 70.0], ["sunset", 116.0], ["eclipse", 180.0], ["sunrise", -117.0]]:
+			orbit.hold(sh[1])
+			await _shot(dir, "sky_" + sh[0], eye, look)
+	# find a sun angle that comes squarely through some window
+	var best: WindowSun.Pane = null
+	var best_angle := 0.0
+	var best_score := 0.25
+	for p: WindowSun.Pane in ws.windows:
+		for a in range(-100, 105, 10):
+			orbit.set_angle(float(a))
+			var f := p.normal.dot(orbit.sun_dir)
+			if f > best_score and orbit.sun_visible > 0.9 and ws.clear_to_sun(p, orbit.sun_dir):
+				best_score = f
+				best = p
+				best_angle = float(a)
+	if best:
+		orbit.hold(best_angle)
+		var travel := -orbit.sun_dir
+		var q := PhysicsRayQueryParameters3D.create(best.center + travel * 0.3, best.center + travel * 15.0, 1)
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		var patch: Vector3 = hit["position"] if not hit.is_empty() else best.center + travel * 4.0
+		var eye := best.center - best.normal * 0.9 + best.u.normalized() * 1.1
+		player.teleport_head_to(eye)
+		ws.refresh_now()
+		var on := 0
+		for p: WindowSun.Pane in ws.windows:
+			if p.light.visible:
+				on += 1
+		print("[shots] window light: facing %.2f, %d window lights on, patch %.1f m from the glass" % [best_score, on, patch.distance_to(best.center)])
+		player.flashlight.visible = false
+		await _shot(dir, "sky_window_light", eye, (best.center + patch) * 0.5)
+		# the same with the station's own lights out, so only the sunlight is left
+		for l in station.lights:
+			l.visible = false
+		await _shot(dir, "sky_window_light_sunonly", eye, (best.center + patch) * 0.5)
+		var eye2 := patch + (best.center - patch) * 0.3 + best.u.normalized() * 1.2
+		await _shot(dir, "sky_window_shaft_sunonly", eye2, best.center)
+		for l in station.lights:
+			l.visible = true
+		player.flashlight.visible = player.flashlight_on
+	else:
+		print("[shots] no window takes direct sun on this deck")
+	orbit.release()
+	player.belt.visible = true
+
 func _shot(dir: String, name_: String, pos: Vector3, target: Vector3) -> void:
 	player.teleport_head_to(pos)
-	var v := target - pos
-	var yaw := atan2(-v.x, -v.z)
-	var pitch := atan2(v.y, Vector2(v.x, v.z).length())
-	player.yaw = yaw
-	player.pitch = pitch
-	player.origin.rotation.y = yaw
-	player.camera.rotation.x = pitch
+	player.look_at_point(target)
 	player.velocity = Vector3.ZERO
 	for i in 4:
 		await get_tree().process_frame
@@ -142,6 +210,42 @@ func _autotest() -> void:
 		loose_kinds.append((n as Item).kind)
 	assert(loose_kinds.has(Item.SCANNER) and loose_kinds.has(Item.MULTITOOL), "the scanner and multitool should be out on the deck")
 	print("[autotest] belt ok: swap, let go (%.2f m away), catch, holster. On the deck: %s" % [drifted, loose_kinds])
+	# rotation: spin from the thrusters keeps going after the input stops, a hand on the station stops it
+	Game.comfort_snap = false
+	var fwd0 := -player.camera.global_transform.basis.z
+	var up0 := player.origin.global_basis.y
+	for i in 30:
+		player.apply_rotation_input(Vector3(0.0, 0.0, 1.0), 1.0 / 30.0)
+		await get_tree().physics_frame
+	var spin := player.ang_vel.length()
+	await get_tree().create_timer(0.5).timeout
+	var rolled := rad_to_deg(up0.angle_to(player.origin.global_basis.y))
+	assert(spin > 0.5 and player.ang_vel.length() > spin * 0.8, "spin should keep going once the thrusters stop")
+	assert(rolled > 30.0 and fwd0.angle_to(-player.camera.global_transform.basis.z) < 0.35, "a roll turns the body about the view axis")
+	var belt_err := player.belt.global_position.distance_to(player.camera.global_position - player.origin.global_basis.y * ToolBelt.DROP)
+	assert(belt_err < 0.05, "the belt should stay at the waist whichever way up the body is")
+	player.debug_grab_pull(Vector3.ZERO)
+	await get_tree().create_timer(0.2).timeout
+	player.debug_release()
+	assert(player.ang_vel.length() < 0.01, "a hand on the station should stop the spin")
+	Game.comfort_snap = true
+	var up_snap := player.origin.global_basis.y
+	player.apply_rotation_input(Vector3(1.0, 0.0, 0.0), 0.016)
+	var snapped := rad_to_deg(up_snap.angle_to(player.origin.global_basis.y))
+	assert(absf(snapped - 30.0) < 1.0, "comfort mode should pitch in 30 degree snaps")
+	player.apply_rotation_input(Vector3.ZERO, 0.016)
+	Game.comfort_snap = false
+	player.reset_orientation()
+	assert(player.origin.global_basis.y.angle_to(Vector3.UP) < 0.01, "reset should stand the body upright")
+	print("[autotest] rotation ok: spin %.2f rad/s kept after release, rolled %.0f deg, belt at the waist, grab stops it, snap %.0f deg" % [spin, rolled, snapped])
+	# the orbit: the sun is up at noon and hidden behind the Earth at midnight
+	var orbit: Orbit = Game.orbit
+	orbit.hold(0.0)
+	assert(orbit.sun_visible > 0.99, "the sun should be up at noon")
+	orbit.hold(180.0)
+	assert(orbit.sun_visible < 0.01, "the sun should be behind the Earth at midnight")
+	orbit.release()
+	print("[autotest] orbit ok: %d outside windows on this deck" % station.window_sun.windows.size())
 	# force a few day events of every kind
 	for kind in ["shadow", "bang", "flicker", "whisper", "watcher", "drift", "blackout", "shadow_close"]:
 		haunt._fire_day_event(9.0)
@@ -168,6 +272,7 @@ func _autotest() -> void:
 	player.flashlight_on = false
 	await get_tree().create_timer(3.0).timeout
 	print("[autotest] stalker moved to %s lit=%s" % [haunt.stalker.global_position, haunt.stalker.is_lit(player)])
+	assert((Game.orbit as Orbit).sun_visible < 0.01, "night should be the Earth's shadow")
 	# restore power
 	var pp: Interactable = station.interactables["power"]
 	player.teleport_head_to(pp.global_position + pp.global_transform.basis.z * 1.5)
@@ -205,6 +310,11 @@ func _make_env() -> void:
 	env.fog_density = 0.018
 	env.fog_sky_affect = 0.0
 	env_node.environment = env
+	# the sky, the Earth and the sun - and where the sun is, which is where the light comes from
+	var orbit := Orbit.new()
+	orbit.name = "Orbit"
+	add_child(orbit)
+	orbit.attach(env)
 
 func _make_ui() -> void:
 	var bg := ColorRect.new()
@@ -241,8 +351,13 @@ func _make_ui() -> void:
 	desk_btn.text = "  Play on desktop (WASD + mouse)  "
 	desk_btn.pressed.connect(_start_desktop)
 	box.add_child(desk_btn)
+	var comfort := CheckButton.new()
+	comfort.text = "VR comfort: rotate in 30 degree snaps instead of a smooth spin"
+	comfort.button_pressed = Game.comfort_snap
+	comfort.toggled.connect(func(on: bool) -> void: Game.comfort_snap = on)
+	box.add_child(comfort)
 	var help := Label.new()
-	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool on a terminal - sticks = thrusters - A/X flashlight\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - 1-4 swap hand with belt - Q let go - E/click pick up or use tool - F flashlight"
+	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool - sticks = thrusters - hold B + sticks = rotate - A/X flashlight\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - R + mouse = roll/pitch - 1-4 swap hand with belt - Q let go - E/click pick up or use - F flashlight"
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.modulate = Color(0.5, 0.55, 0.6)
 	help.add_theme_font_size_override("font_size", 13)

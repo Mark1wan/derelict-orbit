@@ -41,6 +41,8 @@ var night_penalty := 0          # unfinished shifts make the nights worse
 var nights_survived := 0
 var player: Node3D = null
 var station: Node3D = null
+var orbit: Node3D = null
+var comfort_snap := false      # VR: rotate in 30 degree snaps instead of a smooth spin (title screen)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS

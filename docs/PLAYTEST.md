@@ -54,6 +54,8 @@ Open the https URL the tunnel prints in the Quest browser.
 | Right stick up/down | thruster up/down |
 | Right stick left/right | snap turn 30° |
 | A / X | flashlight on / off (in a hand, on the belt, or drifting) |
+| Hold B + left stick | rotation thrusters: pitch (forward / back) and roll (left / right) |
+| Hold B + right stick left / right | rotation thruster: yaw |
 | Trigger | hold while pointing the hand's tool at a wall terminal - each names the tool it needs |
 | Left wrist | task list, clock, night instructions |
 
@@ -96,3 +98,13 @@ DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000    # the whole l
 - A hand holding a tool must not grab rails. Does moving one-handed with a tool out feel right, or annoying?
 - Wrong tool on a terminal: red blink, buzz, and a notice saying where the right tool is.
 - Belt the flashlight at night: the beam should point where your body faces and still freeze the stalker.
+
+## Rotation and the orbit - what to check in the headset
+
+- Hold B and spin with the sticks. Does the spin carrying on after you let go feel like zero-G, or just nauseating?
+  Is the vignette enough, too much? Try the VR comfort snaps from the title screen too.
+- Upside down: grab, pull, use a terminal, draw from the belt. Does the belt stay at your waist?
+- Look out of a window at the start of a shift: the sun should rise from behind the Earth's limb with an orange glow.
+- Sunlit windows: a warm patch on the far wall and a faint shaft. Does a window go dark when another module is
+  between it and the sun? Frame rate in a room with several lit windows?
+- Night: no sunlight anywhere, city lights on the Earth's dark side.
