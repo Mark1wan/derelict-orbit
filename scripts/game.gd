@@ -43,12 +43,28 @@ var player: Node3D = null
 var station: Node3D = null
 var orbit: Node3D = null
 var comfort_snap := false      # VR: rotate in 30 degree snaps instead of a smooth spin (title screen)
+var touch := false             # playing with on-screen touch controls (a phone or tablet)
+var low_quality := false       # lower render resolution, fewer lights - on by default on phones
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
 	layout_seed = randi() % 10000
 	_setup_input()
+
+## A phone or tablet: a touch screen whose main pointer is a finger. Headset browsers report touch
+## too, so they are left out. DERELICT_TOUCH=1 forces it (tests, review shots).
+func is_touch_device() -> bool:
+	if OS.has_environment("DERELICT_TOUCH"):
+		return true
+	if not OS.has_feature("web"):
+		return false
+	var v: Variant = JavaScriptBridge.eval("/OculusBrowser|Quest|Pico|Wolvic/.test(navigator.userAgent) ? 0 : ((navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches) ? 1 : 0)", true)
+	return v != null and int(v) == 1
+
+## The control that restarts the game and works terminals, in this session's words.
+func use_word() -> String:
+	return "USE" if touch else "TRIGGER"
 
 ## How bad things are. Day number, plus one per unfinished shift.
 func intensity() -> float:
@@ -81,10 +97,12 @@ func _begin_day() -> void:
 	phase_changed.emit(phase)
 	tasks_changed.emit()
 	day_started.emit(day)
-	if day == 1:
+	if day == 1 and touch:
+		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nTASKS: what to fix and the tool each needs.\nPress and hold a wall to grab it, drag to pull." % [day, layout_seed, TASKS_PER_DAY], 8.0)
+	elif day == 1:
 		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nTAB, or Y on the left hand: tasks and the tool each needs.\nGrab rails to move, belt what you are not holding." % [day, layout_seed, TASKS_PER_DAY], 8.0)
 	else:
-		notice.emit("DAY %d\nShift begins. %d maintenance tasks.\nTAB / Y: your crew terminal." % [day, TASKS_PER_DAY], 7.0)
+		notice.emit("DAY %d\nShift begins. %d maintenance tasks.\n%s: your crew terminal." % [day, TASKS_PER_DAY, "TASKS" if touch else "TAB / Y"], 7.0)
 
 func _process(delta: float) -> void:
 	if phase == Phase.DAY:
@@ -142,7 +160,7 @@ func _on_power_restored() -> void:
 	if day > MAX_DAYS:
 		phase = Phase.WON
 		phase_changed.emit(phase)
-		notice.emit("DAY %d\nA docking alarm. The rescue shuttle is here.\nYou kept Kestrel-9 alive.\n\nHold TRIGGER to play again." % day, 999.0)
+		notice.emit("DAY %d\nA docking alarm. The rescue shuttle is here.\nYou kept Kestrel-9 alive.\n\nHold %s to play again." % [day, use_word()], 999.0)
 		return
 	_begin_day()
 
@@ -151,7 +169,7 @@ func player_caught() -> void:
 		return
 	phase = Phase.DEAD
 	phase_changed.emit(phase)
-	notice.emit("SIGNAL LOST\n\nYou survived %d night%s.\n\nHold TRIGGER to try again." % [nights_survived, "" if nights_survived == 1 else "s"], 999.0)
+	notice.emit("SIGNAL LOST\n\nYou survived %d night%s.\n\nHold %s to try again." % [nights_survived, "" if nights_survived == 1 else "s", use_word()], 999.0)
 
 func clock_string() -> String:
 	var frac := clampf(day_time / DAY_LENGTH, 0.0, 1.0)

@@ -12,10 +12,22 @@ var env: Environment
 var status: Label
 var vr_btn: Button
 var desk_btn: Button
+var touch_btn: Button
+var touch_ui: TouchControls
+var touch_device := false
 
 func _ready() -> void:
+	touch_device = Game.is_touch_device()
+	if touch_device:
+		# a smaller base size: the 2D UI comes out at thumb size on a phone held sideways
+		get_window().content_scale_size = Vector2i(800, 450)
+		Game.low_quality = true
 	_make_env()
 	_make_ui()
+	_make_touch_ui()
+	get_tree().root.size_changed.connect(func() -> void:
+		if player.started and not player.xr_active:
+			_apply_quality())
 	Game.power_changed.connect(_on_power)
 
 	webxr = XRServer.find_interface("WebXR")
@@ -28,7 +40,9 @@ func _ready() -> void:
 		webxr.is_session_supported("immersive-vr")
 	else:
 		status.text = "WebXR not available here. Desktop mode."
-	if OS.has_environment("DERELICT_AUTOTEST"):
+	if OS.get_environment("DERELICT_AUTOTEST") == "touch":
+		_autotest_touch()
+	elif OS.has_environment("DERELICT_AUTOTEST"):
 		_autotest()
 	if OS.has_environment("DERELICT_SHOTS"):
 		_photo_mode(OS.get_environment("DERELICT_SHOTS"))
@@ -38,6 +52,11 @@ func _ready() -> void:
 ## by day and again with the power off, then quits.
 func _photo_mode(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
+	if OS.get_environment("DERELICT_SHOTS_ONLY") == "touch":
+		await _touch_shots(dir)
+		print("[shots] done -> ", dir)
+		get_tree().quit()
+		return
 	_start_desktop()
 	await get_tree().create_timer(1.8).timeout
 	player.hud_label.visible = false
@@ -321,6 +340,170 @@ func _autotest() -> void:
 	print("[autotest] ALL OK  station children=%d" % station.get_child_count())
 	get_tree().quit()
 
+## Touch controls, headless: DERELICT_TOUCH=1 DERELICT_AUTOTEST=touch godot --headless --path .
+## Fingers are fed straight to TouchControls, in its own 2D coordinates.
+func _autotest_touch() -> void:
+	print("[touch-test] start")
+	# headless has no real window to be landscape: pin the 2D layout to the 800x450 base
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	_start_touch()
+	await get_tree().create_timer(2.0).timeout
+	assert(Game.phase == Game.Phase.DAY and Game.touch, "should be a touch DAY")
+	var tc := touch_ui
+	var sz := tc.size
+	print("[touch-test] controls %s, low graphics %s, 3D scale %.2f, msaa %d" % [sz, Game.low_quality, get_viewport().scaling_3d_scale, get_viewport().msaa_3d])
+	assert(tc.visible and sz.x > sz.y, "the controls should be up, landscape")
+	assert(not Game.low_quality or get_viewport().msaa_3d == Viewport.MSAA_DISABLED, "low graphics should drop MSAA")
+	# a mouse event made up from a touch must not turn the view or grab the pointer
+	var basis0 := player.camera.global_transform.basis
+	var em := InputEventMouseMotion.new()
+	em.device = InputEvent.DEVICE_ID_EMULATION
+	em.relative = Vector2(300, 120)
+	player._unhandled_input(em)
+	assert(player.camera.global_transform.basis.is_equal_approx(basis0) and not player.mouse_captured, "an emulated mouse should be ignored")
+	# left thumb pushed up: forward thrust
+	player.velocity = Vector3.ZERO
+	var fuel0 := player.fuel
+	var fwd := -player.camera.global_transform.basis.z
+	var s0 := Vector2(150, sz.y - 110)
+	tc.finger_down(0, s0)
+	tc.finger_move(0, s0 + Vector2(0, -80))
+	assert(Input.get_action_strength("d_forward") > 0.9, "the stick pushed up should press forward")
+	await get_tree().create_timer(0.3).timeout
+	tc.finger_up(0, s0)
+	assert(Input.get_action_strength("d_forward") == 0.0, "lifting the thumb should stop the burn")
+	print("[touch-test] stick: fuel %.2f -> %.2f, speed along the view %.2f" % [fuel0, player.fuel, player.velocity.dot(fwd)])
+	assert(player.fuel < fuel0 and player.velocity.dot(fwd) > 0.2, "the stick should fire the thrusters")
+	player.velocity = Vector3.ZERO
+	# one finger dragged right on the look side: turn right
+	var right0 := player.camera.global_transform.basis.x
+	var l0 := Vector2(sz.x * 0.62, sz.y * 0.4)
+	tc.finger_down(1, l0)
+	for k in 6:
+		tc.finger_move(1, l0 + Vector2(15.0 * (k + 1), 0))
+	tc.finger_up(1, l0 + Vector2(90, 0))
+	var fwd1 := -player.camera.global_transform.basis.z
+	print("[touch-test] look: a 90 px drag turned %.0f deg" % rad_to_deg(fwd.angle_to(fwd1)))
+	assert(fwd1.dot(right0) > 0.2, "dragging right should turn right")
+	# press and hold on a wall in reach, drag down: the body is pulled up; lift: let go
+	var term: Interactable = station.interactables.values()[0]
+	player.teleport_head_to(term.global_position + term.global_transform.basis.z * 0.9)
+	player.look_at_point(term.global_position)
+	await get_tree().physics_frame
+	var c := sz * 0.5
+	tc.finger_down(2, c)
+	await get_tree().create_timer(0.45).timeout
+	assert(player.d_grabbing, "a finger resting on the wall in reach should take hold")
+	var head0 := player.camera.global_position
+	var up := player.camera.global_transform.basis.y
+	for k in 5:
+		tc.finger_move(2, c + Vector2(0, 20.0 * (k + 1)))
+		await get_tree().physics_frame
+	await get_tree().create_timer(0.3).timeout
+	var pulled := (player.camera.global_position - head0).dot(up)
+	tc.finger_up(2, c + Vector2(0, 100))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	print("[touch-test] grab: took hold after %.2f s, dragging the wall down 100 px pulled the body up %.2f m" % [TouchControls.LONG_PRESS, pulled])
+	assert(pulled > 0.15 and not player.d_grabbing, "the drag should pull and lifting should let go")
+	player.velocity = Vector3.ZERO
+	# two fingers twisted clockwise: the body rolls clockwise (the top of the head goes right)
+	player.reset_orientation()
+	await get_tree().physics_frame
+	var right1 := player.camera.global_transform.basis.x
+	var a := Vector2(sz.x * 0.55, sz.y * 0.35)
+	tc.finger_down(3, a)
+	tc.finger_down(4, a + Vector2(120, 0))
+	await get_tree().create_timer(0.4).timeout
+	assert(not player.d_grabbing, "two fingers should not grab")
+	for k in 7:
+		var ang := deg_to_rad(5.0 * k)
+		tc.finger_move(4, a + Vector2(cos(ang), sin(ang)) * 120.0)
+	tc.finger_up(4, a)
+	tc.finger_up(3, a)
+	var tilt := player.camera.global_transform.basis.y.dot(right1)
+	print("[touch-test] twist: 30 deg clockwise rolled the head %.0f deg toward its right" % rad_to_deg(asin(clampf(tilt, -1.0, 1.0))))
+	assert(tilt > 0.3, "a clockwise twist should roll clockwise")
+	player.reset_orientation()
+	# buttons: TASKS toggles the terminal, a belt button swaps the hand
+	var was_open := player.wrist.is_open
+	await _tap(tc.button_center("tasks"))
+	assert(player.wrist.is_open != was_open, "TASKS should toggle the crew terminal")
+	await _tap(tc.button_center("tasks"))
+	var wslot := player.belt.slot_of(Item.WRENCH)
+	await _tap(tc.button_center("belt%d" % wslot))
+	assert(player.held_kind() == Item.WRENCH, "a belt button should swap the wrench into the hand")
+	# USE held on a task terminal with its tool makes progress
+	var task_term: Interactable = station.interactables[Game.tasks[0]["id"]]
+	assert(player.debug_equip(task_term.tool), "could not get hold of the %s" % task_term.tool)
+	player.teleport_head_to(task_term.global_position + task_term.global_transform.basis.z * 1.2)
+	player.look_at_point(task_term.global_position)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var use_c := tc.button_center("use")
+	tc.finger_down(8, use_c)
+	await get_tree().create_timer(0.8).timeout
+	var prog := task_term.progress
+	tc.finger_up(8, use_c)
+	print("[touch-test] USE: %s at %s with the %s, progress %.2f" % [task_term.id, task_term.room, task_term.tool, prog])
+	assert(prog > 0.1, "holding USE on the terminal with its tool should make progress")
+	# low graphics: only a couple of windows get sunlight
+	var ws: WindowSun = station.window_sun
+	if ws and Game.low_quality:
+		(Game.orbit as Orbit).hold(0.0)
+		ws.refresh_now()
+		var on := 0
+		for p: WindowSun.Pane in ws.windows:
+			if p.light.visible:
+				on += 1
+		(Game.orbit as Orbit).release()
+		print("[touch-test] low graphics: %d sunlit window lights" % on)
+		assert(on <= WindowSun.MAX_LIT_LOW, "low graphics should light at most %d windows" % WindowSun.MAX_LIT_LOW)
+	print("[touch-test] ALL OK")
+	get_tree().quit()
+
+func _tap(p: Vector2) -> void:
+	touch_ui.finger_down(9, p)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	touch_ui.finger_up(9, p)
+	await get_tree().physics_frame
+
+## Review shots of the phone UI: the title, play with the controls idle, a thumb on the stick and a
+## finger holding the wall, the 3D view at half resolution, and the phone held upright.
+func _touch_shots(dir: String) -> void:
+	await get_tree().create_timer(1.2).timeout
+	await _save(dir, "touch_title")
+	_start_touch()
+	await get_tree().create_timer(2.5).timeout
+	var term: Interactable = station.interactables.values()[0]
+	player.teleport_head_to(term.global_position + term.global_transform.basis.z * 1.4 + term.global_transform.basis.x * 0.4)
+	player.look_at_point(term.global_position)
+	await get_tree().create_timer(0.3).timeout
+	await _save(dir, "touch_play")
+	player.hud_label.visible = false
+	var sz := touch_ui.size
+	touch_ui.finger_down(0, Vector2(160, sz.y - 120))
+	touch_ui.finger_move(0, Vector2(185, sz.y - 165))
+	touch_ui.finger_down(1, sz * 0.5 + Vector2(130, -10))
+	await get_tree().create_timer(0.5).timeout
+	await _save(dir, "touch_grab")
+	touch_ui.release_all()
+	player.velocity = Vector3.ZERO
+	player.wrist.set_open(false)
+	get_viewport().scaling_3d_scale = 0.5
+	await get_tree().create_timer(0.4).timeout
+	await _save(dir, "touch_scale50")
+	_apply_quality()
+	get_window().size = Vector2i(405, 760)
+	await get_tree().create_timer(0.8).timeout
+	await _save(dir, "touch_portrait")
+
+func _save(dir: String, name_: String) -> void:
+	for i in 3:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(dir.path_join(name_ + ".png"))
+
 func _make_env() -> void:
 	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -372,28 +555,69 @@ func _make_ui() -> void:
 	vr_btn.add_theme_font_size_override("font_size", 30)
 	vr_btn.pressed.connect(_enter_vr)
 	box.add_child(vr_btn)
+	# phones and tablets: on-screen controls (TouchControls)
+	touch_btn = Button.new()
+	touch_btn.text = "  PLAY  "
+	touch_btn.visible = touch_device
+	touch_btn.add_theme_font_size_override("font_size", 30)
+	touch_btn.pressed.connect(_start_touch)
+	box.add_child(touch_btn)
 	desk_btn = Button.new()
-	desk_btn.text = "  Play on desktop (WASD + mouse)  "
+	desk_btn.text = "  Play with keyboard + mouse  " if touch_device else "  Play on desktop (WASD + mouse)  "
 	desk_btn.pressed.connect(_start_desktop)
 	box.add_child(desk_btn)
 	var comfort := CheckButton.new()
 	comfort.text = "VR comfort: rotate in 30 degree snaps instead of a smooth spin"
 	comfort.button_pressed = Game.comfort_snap
 	comfort.toggled.connect(func(on: bool) -> void: Game.comfort_snap = on)
+	comfort.visible = not touch_device
 	box.add_child(comfort)
+	var gfx := CheckButton.new()
+	gfx.text = "Low graphics (smoother on phones)"
+	gfx.button_pressed = Game.low_quality
+	gfx.toggled.connect(func(on: bool) -> void: Game.low_quality = on)
+	gfx.visible = touch_device
+	box.add_child(gfx)
 	var help := Label.new()
-	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool - sticks = thrusters - hold B + sticks = rotate - A/X flashlight - Y = crew terminal\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - R + mouse = roll/pitch - TAB = crew terminal - 1-4 swap hand with belt - Q let go - E/click pick up or use - F flashlight"
+	if touch_device:
+		help.text = "Hold the phone sideways. Left thumb: thrusters. Right side: drag to look.\nPress and hold a wall to grab it, then drag to pull yourself. Two fingers twist to roll.\nUSE works a terminal with the right tool. The belt buttons swap what is in your hand."
+		help.add_theme_font_size_override("font_size", 14)
+	else:
+		help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool - sticks = thrusters - hold B + sticks = rotate - A/X flashlight - Y = crew terminal\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - R + mouse = roll/pitch - TAB = crew terminal - 1-4 swap hand with belt - Q let go - E/click pick up or use - F flashlight"
+		help.add_theme_font_size_override("font_size", 13)
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.modulate = Color(0.5, 0.55, 0.6)
-	help.add_theme_font_size_override("font_size", 13)
 	box.add_child(help)
+
+func _make_touch_ui() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "TouchLayer"
+	layer.layer = 2
+	add_child(layer)
+	touch_ui = TouchControls.new()
+	touch_ui.player = player
+	touch_ui.visible = false
+	layer.add_child(touch_ui)
+	touch_ui.debug_log = OS.has_environment("DERELICT_TOUCH_DEBUG")
+	if OS.has_feature("web"):
+		var q: Variant = JavaScriptBridge.eval("location.search.indexOf('touchdebug') >= 0 ? 1 : 0", true)
+		touch_ui.debug_log = touch_ui.debug_log or (q != null and int(q) == 1)
+	if touch_ui.debug_log:
+		# where to tap PLAY, for the browser phone test
+		get_tree().create_timer(1.0).timeout.connect(func() -> void:
+			print("[touch] play button %s in a %s view, window %s" % [touch_btn.get_global_rect(), get_viewport().get_visible_rect().size, get_window().size]))
 
 # ---------------------------------------------------------------- WebXR
 func _on_session_supported(session_mode: String, supported: bool) -> void:
 	if session_mode != "immersive-vr":
 		return
 	vr_btn.visible = supported
-	status.text = "VR headset ready." if supported else "No immersive VR available in this browser."
+	if supported:
+		status.text = "VR headset ready."
+	elif touch_device:
+		status.text = "Touch controls ready. Hold your phone sideways."
+	else:
+		status.text = "No immersive VR available in this browser."
 
 func _enter_vr() -> void:
 	webxr.session_mode = "immersive-vr"
@@ -420,7 +644,35 @@ func _start_desktop() -> void:
 	ui.visible = false
 	_begin(false)
 
+## Phones and tablets: on-screen controls, and fullscreen sideways where the browser allows it
+## (Android Chrome does; an iPhone keeps its browser bars).
+func _start_touch() -> void:
+	Game.touch = true
+	Input.emulate_mouse_from_touch = false
+	touch_ui.visible = true
+	_start_desktop()
+	if OS.has_feature("web"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		get_tree().create_timer(0.8).timeout.connect(func() -> void:
+			JavaScriptBridge.eval("try { screen.orientation.lock('landscape').catch(function () {}); } catch (e) {}"))
+
+## Low graphics: the 3D view at about 1100 pixels across whatever the screen (a phone's is often
+## 2500), no MSAA, a smaller shadow map for the flashlight, and fewer windows lit by the sun.
+func _apply_quality() -> void:
+	var vp := get_viewport()
+	if Game.low_quality:
+		var wide := float(get_window().size.x)
+		vp.scaling_3d_scale = clampf(1100.0 / wide, 0.35, 1.0) if wide > 1.0 else 0.6
+		vp.msaa_3d = Viewport.MSAA_DISABLED
+		vp.positional_shadow_atlas_size = 1024
+	else:
+		vp.scaling_3d_scale = 1.0
+		vp.msaa_3d = Viewport.MSAA_2X
+		vp.positional_shadow_atlas_size = 2048
+
 func _begin(xr: bool) -> void:
+	if not xr:
+		_apply_quality()
 	player.begin(xr)
 	player.teleport_head_to(station.start_point())
 	Sfx.set_ambient("hum")

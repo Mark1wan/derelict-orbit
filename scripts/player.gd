@@ -24,6 +24,8 @@ class_name Player
 ##          thrusters, Shift hold on. 1-4 swap your hand with that belt holster, Q let go of what
 ##          you hold, E / LEFT click pick up a loose item in reach or use the held tool on a
 ##          terminal, F flashlight, Esc releases the mouse.
+## Touch:   phones and tablets, through TouchControls: a thumb stick, drag to look, press and hold a
+##          surface to grab it and drag to pull, two fingers to roll and pitch, buttons for the rest.
 
 const THRUST := 2.4            # m/s^2 at full stick
 const FUEL_DRAIN := 0.55       # tank per second at full burn (~1.8 s of burn)
@@ -100,6 +102,7 @@ var _reach_shape := SphereShape3D.new()
 var d_grabbing := false
 var d_anchor := Vector3.ZERO
 var d_hand_local := Vector3.ZERO
+var _touch_grab := false            # touch: a finger has hold of the station (desktop grab underneath)
 var _empty_warned := false
 var _debug_hold := false
 var _grip_prev := {}
@@ -259,6 +262,8 @@ func begin(xr: bool) -> void:
 		rays = {desk_hand: r}
 		lasers = {}
 		wrist.attach_view(camera)
+		if Game.touch:
+			hud_label.pixel_size = 0.0019      # notices at phone size
 		left.visible = false
 		right.visible = false
 		belt.show_numbers(true)
@@ -523,6 +528,52 @@ func pick_up_nearest(reach := DESK_PICK_REACH) -> bool:
 	Sfx.play("beep", -24.0, 1.2)
 	return true
 
+# ---------------------------------------------------------------- touch (see TouchControls)
+## Drag to look: `rel` is the drag in radians (x turns about the body's up, y tilts the head).
+func touch_look(rel: Vector2) -> void:
+	yaw -= rel.x
+	_rotate_body(origin.global_basis.y, -rel.x)
+	pitch = clampf(pitch - rel.y, -1.45, 1.45)
+	camera.rotation.x = pitch
+
+## Two fingers: roll about the view axis (> 0 clockwise, the way the fingers turned) and pitch the
+## whole body (> 0 nose up) - no clamp, there is no up in here.
+func touch_turn_body(roll: float, pitch_by: float) -> void:
+	var cb := camera.global_transform.basis
+	_rotate_body(-cb.z, roll)
+	_rotate_body(cb.x, pitch_by)
+
+## A finger resting on the screen at `sp`: take hold of the surface under it, if one is in reach.
+func touch_grab_begin(sp: Vector2) -> bool:
+	if not started or xr_active or d_grabbing:
+		return false
+	if Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.TITLE or Game.phase == Game.Phase.SLEEP:
+		return false
+	var from := camera.project_ray_origin(sp)
+	var q := PhysicsRayQueryParameters3D.create(from, from + camera.project_ray_normal(sp) * DESK_REACH, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return false
+	_touch_grab = true
+	d_grabbing = true
+	d_anchor = hit["position"]
+	d_hand_local = camera.global_transform.affine_inverse() * d_anchor
+	Sfx.play("beep", -28.0, 0.5)
+	return true
+
+## The holding finger moved: the hand moves with it (metres, screen right / down), so the station
+## follows the finger and the body goes the other way.
+func touch_pull(rel: Vector2) -> void:
+	if d_grabbing:
+		d_hand_local += Vector3(rel.x, -rel.y, 0.0)
+
+func touch_grab_end() -> void:
+	_touch_grab = false
+
+## A quick tap: catch the loose item nearest the middle of the view.
+func touch_tap(_sp: Vector2) -> void:
+	pick_up_nearest()
+
 func _wrong_tool(it: Interactable) -> void:
 	if _wrong_cd > 0.0 or it.tool == "":
 		return
@@ -612,7 +663,7 @@ func _physics_process(delta: float) -> void:
 			toggle_panel()
 		if Input.is_action_just_pressed("d_drop") and not frozen:
 			_let_go(desk_hand, -b.z * 0.5 + velocity)
-		var rmb := (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and mouse_captured and not frozen) or _debug_hold
+		var rmb := (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and mouse_captured and not frozen) or _debug_hold or (_touch_grab and not frozen)
 		if rmb and not d_grabbing:
 			var hit := _reach_hit()
 			if not hit.is_empty():
@@ -622,6 +673,7 @@ func _physics_process(delta: float) -> void:
 				Sfx.play("beep", -28.0, 0.5)
 		elif not rmb and d_grabbing:
 			d_grabbing = false
+			_touch_grab = false
 			if velocity.length() > MAX_SPEED:
 				velocity = velocity.normalized() * MAX_SPEED
 		if d_grabbing:
@@ -681,6 +733,9 @@ func _toggle_flashlight() -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if xr_active or not started:
+		return
+	# a finger is not a mouse: touch play goes through TouchControls, never pointer lock
+	if e is InputEventMouse and (Game.touch or e.device == InputEvent.DEVICE_ID_EMULATION):
 		return
 	if e is InputEventKey and e.pressed and not e.echo:
 		var k: int = (e as InputEventKey).physical_keycode
@@ -923,6 +978,8 @@ func _refresh_wrist() -> void:
 			if Game.day == 1 and Game.day_time < 45.0:
 				if xr_active:
 					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)\nY (left hand) = hide this terminal"
+				elif Game.touch:
+					s += "\nleft thumb = thrusters   drag = look\nhold a surface = grab, drag to pull\ntwo fingers: twist = roll, slide = pitch\nUSE = use tool   tap = pick up   TASKS = hide"
 				else:
 					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool   R + mouse = roll / pitch\nTAB = hide this terminal"
 		Game.Phase.SLEEP:

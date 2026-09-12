@@ -16,6 +16,8 @@ const OPEN_TIME := 0.22
 const EMITTER_POS := Vector3(0.0, 0.028, 0.06)   # on top of the left controller, toward the wrist
 const DESK_SCALE := 3.4
 const DESK_POS := Vector3(-0.86, -0.46, -1.3)
+const TOUCH_SCALE := 4.2         # phones: bigger, up in the top left clear of the thumbs
+const TOUCH_DIST := 1.3
 
 const SHEET_SHADER := """
 shader_type spatial;
@@ -60,6 +62,7 @@ var beam_mat: ShaderMaterial
 var _emitter: MeshInstance3D
 var _emitter_mat: StandardMaterial3D
 var _mode := "view"
+var _view_scale := DESK_SCALE
 var _controller: Node3D
 var _camera: Node3D
 var _amount := 0.0
@@ -167,11 +170,28 @@ func attach_view(cam: Node3D) -> void:
 	_move_under(cam)
 	holo.position = DESK_POS
 	holo.rotation = Vector3(0.0, deg_to_rad(14.0), 0.0)
+	_view_scale = DESK_SCALE
 	holo.scale = Vector3.ONE * DESK_SCALE
 	hint.position = Vector3(-1.45, -0.9, -1.3)
 	beam.visible = false
 	if _emitter:
 		_emitter.visible = false
+	if Game.touch:
+		text.font_size = 26
+		_place_touch_view()
+
+## Phones: as big as fits in the left half of the screen, below the TASKS button. Kept up to date
+## every frame, so turning the phone or leaving fullscreen does not push it off the edge.
+func _place_touch_view() -> void:
+	var c := _camera as Camera3D
+	if c == null:
+		return
+	var vs := get_viewport().get_visible_rect().size
+	var half_h := tan(deg_to_rad(c.fov * 0.5)) * TOUCH_DIST
+	var half_w := half_h * vs.x / maxf(vs.y, 1.0)
+	_view_scale = minf(TOUCH_SCALE, half_w * 0.9 / W)
+	holo.position = Vector3(-half_w + W * _view_scale * 0.5 + half_w * 0.06, half_h * 0.69 - H * _view_scale * 0.5, -TOUCH_DIST)
+	holo.rotation = Vector3.ZERO
 
 func _move_under(p: Node) -> void:
 	if get_parent() == p:
@@ -227,8 +247,10 @@ func _process(delta: float) -> void:
 		if _emitter_mat:
 			_emitter_mat.emission_energy_multiplier = 1.8 if is_open else closed_glow
 	else:
-		holo.scale = Vector3(DESK_SCALE, DESK_SCALE * squash, DESK_SCALE)
-		hint.visible = not is_open
+		if Game.touch:
+			_place_touch_view()
+		holo.scale = Vector3(_view_scale, _view_scale * squash, _view_scale)
+		hint.visible = not is_open and not Game.touch
 		hint.modulate = Color(0.55, 0.95, 1.0, clampf(0.25 + 0.3 * closed_glow, 0.0, 1.0))
 
 func _place_on_wrist(squash: float, a: float) -> void:

@@ -51,6 +51,25 @@ to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on 
 your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach or uses the
 held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
 
+**Phones and tablets (held sideways)**: the title screen shows **PLAY** when the page is opened on a touch device
+(`scripts/touch_controls.gd`). Android Chrome goes fullscreen and locks to landscape; an iPhone keeps its browser bars.
+
+| Touch | Action |
+|---|---|
+| Left thumb, anywhere lower left | thruster stick - it centres where your thumb lands |
+| UP / DN (bottom left edge) | thruster up / down |
+| Drag on the right side | look |
+| Press and hold on a surface within reach | grab it (ring fills, phone buzzes) - then drag to pull yourself, lift to let go with momentum |
+| Two fingers: twist / slide up or down | roll / pitch the whole body |
+| Quick tap | pick up the loose item nearest the middle of the view |
+| USE (hold) | use the tool in your hand on the terminal in the middle of the view; hold it to restart after dying |
+| BRACE (hold) | hold on to whatever is in front of you |
+| DROP, LIGHT, TASKS | let go of what you hold, flashlight, crew terminal |
+| Belt buttons 1-4 | swap your hand with that holster |
+
+**Low graphics** is on by default on touch devices (title screen toggle): the 3D view renders at about 1100 px across,
+no MSAA, a 1024 shadow map, and at most 2 sunlit windows. There is a small fps readout top right for testing.
+
 ## Tools and the belt
 
 A hand that holds something cannot grab a rail, so what you are not using goes on the **tool belt**: four holsters

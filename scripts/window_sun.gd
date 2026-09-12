@@ -11,6 +11,7 @@ extends Node3D
 ## get a real light at a time.
 
 const MAX_LIT := 6
+const MAX_LIT_LOW := 2        # low graphics (phones)
 const NEAR := 24.0            # metres from the player within which a window's light switches on
 const OUTSIDE := 8.0          # how far outside the glass each window's light sits: far enough that
                               # its rays are near parallel and the patch keeps the window's shape
@@ -103,7 +104,7 @@ func _update() -> void:
 			candidates.append(p)
 	candidates.sort_custom(func(a: Pane, b: Pane) -> bool: return a.center.distance_squared_to(eye) < b.center.distance_squared_to(eye))
 	var on := {}
-	for i in mini(MAX_LIT, candidates.size()):
+	for i in mini(MAX_LIT_LOW if Game.low_quality else MAX_LIT, candidates.size()):
 		on[candidates[i]] = true
 	for p: Pane in windows:
 		var show := on.has(p)

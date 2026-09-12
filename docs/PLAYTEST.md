@@ -90,6 +90,26 @@ DERELICT_SHOTS=/tmp/kestrel-shots godot --path .    # jump the camera through ev
 DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000    # the whole loop, no window
 ```
 
+## On a phone - what to check
+
+Open https://games.biocrafted.xyz/derelict-orbit/ directly (not inside the hub window), turn the phone sideways
+and tap **PLAY**. Controls are in the README. Please note the phone model and browser with anything you report.
+
+- **Frame rate**: the fps number top right, in a corridor, in the power plant and server room, and at night with the
+  flashlight on. Is it steady? Try the title screen's *Low graphics* off as well.
+- **Loading**: how long from opening the link to the title screen, on Wi-Fi and on mobile data. Does the page
+  reload itself or crash (older iPhones can run out of memory)?
+- **Grab**: press and hold on a wall - does the ring fill and the phone buzz (Android only), and does dragging pull
+  you the way you expect? Is 0.28 s too slow or too twitchy?
+- **Look vs grab**: can you look around near walls without grabbing by accident?
+- **Buttons**: big enough? Anything covered by your thumbs, or covering the crew terminal text?
+- **Two-finger roll**: usable, or does it fight with looking?
+- **Sound** starts after the first tap? Fullscreen on Android, and does it stay landscape?
+- **Held upright** it should ask you to turn the phone.
+
+`DERELICT_TOUCH=1 DERELICT_AUTOTEST=touch godot --headless --path .` tests the touch controls without a phone;
+`DERELICT_TOUCH=1 DERELICT_SHOTS=/tmp/touch DERELICT_SHOTS_ONLY=touch godot --path .` saves screenshots of the phone UI.
+
 ## Tools and the belt - what to check in the headset
 
 - Look down: four holster rings at the waist, following your heading but not your head tilt. Seated and standing.
