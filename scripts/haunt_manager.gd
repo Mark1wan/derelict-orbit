@@ -77,7 +77,10 @@ func _day_tick(delta: float) -> void:
 		var I := Game.intensity()
 		var base := lerpf(28.0, 7.0, clampf((I - 1.0) / 7.0, 0.0, 1.0))
 		next_event = randf_range(base * 0.6, base * 1.4)
-		_fire_day_event(I)
+		if Game.player.outside:
+			_outside_event()
+		else:
+			_fire_day_event(I)
 	if is_instance_valid(watcher):
 		_update_watcher(delta)
 	else:
@@ -126,6 +129,15 @@ func _fire_day_event(I: float) -> void:
 			Sfx.play_at("bang", Game.player.camera.global_position + Vector3(randf_range(-3, 3), 0, randf_range(-3, 3)), -10.0, 20.0, 1.4)
 		"blackout":
 			_blackout()
+
+## Out on the hull there is no corridor for anything to cross. What reaches you comes through the
+## suit: a breath under the static on the radio, or a knock in the metal you are holding on to.
+func _outside_event() -> void:
+	if randf() < 0.5:
+		Sfx.play("static", -16.0, randf_range(0.5, 0.8))
+		Sfx.play("underbreath", -14.0, randf_range(0.8, 1.0))
+	else:
+		Sfx.play("bang", -9.0, randf_range(0.35, 0.55))
 
 ## A silhouette crosses a doorway the player is looking toward. Returns false if no spot fits.
 func _shadow_cross(min_dist: float, min_dot: float) -> bool:

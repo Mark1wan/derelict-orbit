@@ -28,7 +28,7 @@ const PULL_GAIN := 1.3        # metres of hand travel per screen height of drag
 const PITCH_GAIN := 2.0       # two-finger slide: radians of body pitch per screen height
 
 const HOLD_ACTIONS := {"use": "d_interact", "brace": "d_brake", "up": "d_up", "down": "d_down",
-	"drop": "d_drop", "light": "d_flash", "tasks": "d_menu"}
+	"drop": "d_drop", "light": "d_flash", "tasks": "d_menu", "rope": "d_tether"}
 
 var player: Player
 var debug_log := false        # print gestures to the console (?touchdebug in the page URL)
@@ -62,6 +62,7 @@ func _layout() -> void:
 		{"id": "drop", "c": Vector2(w - 180, h - 146), "r": 28.0, "label": "DROP"},
 		{"id": "light", "c": Vector2(w - 70, h - 196), "r": 28.0, "label": "LIGHT"},
 		{"id": "tasks", "c": Vector2(52, 40), "r": 30.0, "label": "TASKS"},
+		{"id": "rope", "c": Vector2(w - 184, h - 244), "r": 30.0, "label": "ROPE", "suit": true},
 		{"id": "up", "c": Vector2(36, h - 122), "r": 25.0, "label": "UP"},
 		{"id": "down", "c": Vector2(36, h - 56), "r": 25.0, "label": "DN"},
 	]
@@ -77,6 +78,8 @@ func button_center(id: String) -> Vector2:
 
 func _button_at(p: Vector2) -> Dictionary:
 	for b: Dictionary in _buttons:
+		if b.get("suit", false) and not (player and player.suit_on):
+			continue
 		if p.distance_to(b["c"]) <= float(b["r"]) * 1.2:
 			return b
 	return {}
@@ -292,6 +295,8 @@ func _draw() -> void:
 			held[f["id"]] = true
 	var hand := player.held_kind() if player else ""
 	for b: Dictionary in _buttons:
+		if b.get("suit", false) and not (player and player.suit_on):
+			continue
 		var id: String = b["id"]
 		var c: Vector2 = b["c"]
 		var r: float = b["r"]

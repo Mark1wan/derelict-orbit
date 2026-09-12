@@ -57,6 +57,22 @@ void fragment() {
 }
 """
 
+const O2_TIME := 300.0         # seconds of suit air in vacuum
+const O2_REFILL := 0.08        # per second, back in air
+## The helmet: the view through a visor, its rim dark at the edges, a faint glint across the glass.
+const VISOR_SHADER := """
+shader_type spatial;
+render_mode unshaded, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+void fragment() {
+	vec2 p = (UV - 0.5) * vec2(1.5, 1.0);
+	float r = length(p * vec2(0.85, 1.12));
+	float rim = smoothstep(0.5, 0.64, r);
+	float glint = (1.0 - smoothstep(0.0, 0.025, abs(UV.x + UV.y * 0.55 - 0.42))) * (1.0 - rim);
+	ALBEDO = mix(vec3(0.65, 0.85, 1.0) * 0.5, vec3(0.012), rim);
+	ALPHA = clamp(rim * 0.96 + glint * 0.05 + 0.025, 0.0, 1.0);
+}
+"""
+
 @onready var origin: XROrigin3D = $XROrigin3D
 @onready var camera: XRCamera3D = $XROrigin3D/XRCamera3D
 @onready var left: XRController3D = $XROrigin3D/LeftHand
@@ -114,6 +130,21 @@ var _rot_snap_ready := true
 var _vignette := 0.0
 var vignette_mat: ShaderMaterial
 
+# the EVA suit (mission days): air, the tether, and whether we are out in it
+var suit_on := false
+var suit_o2 := 1.0
+var outside := false
+var in_vacuum := false
+var tether: Tether
+var _visor: MeshInstance3D
+var _breath: AudioStreamPlayer
+var _trig_prev := {}
+var _tether_hand: Node3D = null
+var _debug_reel := false
+var _ext_lit := false
+var _ext_t := 0.0
+var _o2_warned := false
+
 const HAND_IDLE := Color(0.15, 0.16, 0.18)
 const HAND_NEAR := Color(0.25, 0.55, 0.7)
 const HAND_HELD := Color(0.3, 0.85, 0.45)
@@ -134,6 +165,9 @@ func _ready() -> void:
 	Game.day_started.connect(func(_d: int) -> void: wrist.notify())
 	Game.phase_changed.connect(_on_phase)
 	Game.game_reset.connect(_on_reset)
+	Game.step_done.connect(func(id: String) -> void:
+		if id == "eva_suit":
+			set_suit(true))
 	_refresh_wrist()
 
 func _build_attachments() -> void:
@@ -211,6 +245,28 @@ func _build_attachments() -> void:
 	vig.position = Vector3(0, 0, -0.26)
 	vig.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	camera.add_child(vig)
+
+	# the helmet visor, the suit's breathing, and its tether
+	_visor = MeshInstance3D.new()
+	var visor_q := QuadMesh.new()
+	visor_q.size = Vector2(1.3, 0.86)
+	_visor.mesh = visor_q
+	var visor_mat := ShaderMaterial.new()
+	var visor_sh := Shader.new()
+	visor_sh.code = VISOR_SHADER
+	visor_mat.shader = visor_sh
+	visor_mat.render_priority = 97
+	_visor.material_override = visor_mat
+	_visor.position = Vector3(0, 0, -0.24)
+	_visor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_visor.visible = false
+	camera.add_child(_visor)
+	_breath = AudioStreamPlayer.new()
+	_breath.stream = Sfx.streams.get("breath")
+	_breath.volume_db = -24.0
+	add_child(_breath)
+	tether = Tether.new()
+	add_child(tether)
 
 func _make_ray() -> RayCast3D:
 	var r := RayCast3D.new()
@@ -586,6 +642,11 @@ func _physics_process(delta: float) -> void:
 		return
 	var frozen := Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.TITLE or Game.phase == Game.Phase.SLEEP
 	belt.follow(camera, origin.global_basis.y, delta)
+	var st := Game.station as Station
+	if st:
+		outside = st.is_outside(camera.global_position)
+		in_vacuum = st.in_vacuum(camera.global_position)
+	_update_suit(delta)
 	_wrong_cd = maxf(0.0, _wrong_cd - delta)
 	_rot_burn = false
 	var b := camera.global_transform.basis
@@ -649,6 +710,21 @@ func _physics_process(delta: float) -> void:
 				_end_grab()
 			_tint_hand(c, near or loose != null or (item == null and slot >= 0), grab_hand == c or held.get(c) != null)
 		belt.highlight(lit)
+		# the tether: trigger with a hand aimed at an anchor (and not at a terminal) fires it, holding
+		# reels in; trigger aimed at nothing unclips
+		for c: XRController3D in [left, right]:
+			var t := _trigger(c)
+			var was_t: bool = _trig_prev.get(c, false)
+			_trig_prev[c] = t
+			if not suit_on or frozen:
+				continue
+			if t and not was_t and not (rays[c] as RayCast3D).is_colliding():
+				if tether.fire(c.global_position, -c.global_transform.basis.z):
+					_tether_hand = c
+				elif tether.latched and outside:
+					tether.release()
+			if tether.latched and _tether_hand == c:
+				tether.reeling = t or _debug_reel
 		if grab_hand:
 			holding = true
 			velocity = ((grab_anchor - grab_hand.global_position) / delta).limit_length(GRAB_PULL_SPEED)
@@ -663,6 +739,12 @@ func _physics_process(delta: float) -> void:
 			toggle_panel()
 		if Input.is_action_just_pressed("d_drop") and not frozen:
 			_let_go(desk_hand, -b.z * 0.5 + velocity)
+		if suit_on and not frozen:
+			# T (or ROPE on a phone) at an anchor fires the tether, held it reels in, at nothing it unclips
+			if Input.is_action_just_pressed("d_tether"):
+				if not tether.fire(camera.global_position, -b.z) and tether.latched:
+					tether.release()
+			tether.reeling = tether.latched and (Input.is_action_pressed("d_tether") or _debug_reel)
 		var rmb := (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and mouse_captured and not frozen) or _debug_hold or (_touch_grab and not frozen)
 		if rmb and not d_grabbing:
 			var hit := _reach_hit()
@@ -683,6 +765,11 @@ func _physics_process(delta: float) -> void:
 		elif Input.is_action_pressed("d_brake") and not _reach_hit().is_empty():
 			holding = true
 			velocity = velocity.lerp(Vector3.ZERO, clampf(6.0 * delta, 0.0, 1.0))
+
+	if suit_on and not frozen and not holding:
+		tether.apply(self, belt.global_position, delta)
+	elif frozen or not suit_on:
+		tether.release()
 
 	# thrusters: a small tank, empties fast, refills slowly
 	thrusting = false
@@ -833,6 +920,20 @@ func _process(delta: float) -> void:
 	else:
 		_vignette = maxf(_vignette - delta * 3.0, 0.0)
 	vignette_mat.set_shader_parameter("strength", _vignette)
+	if started and (suit_on or tether.latched):
+		var aim_from := right.global_position if xr_active else camera.global_position
+		var aim_dir := -(right.global_transform.basis.z if xr_active else camera.global_transform.basis.z)
+		tether.draw(belt.global_position, camera.global_position, aim_from, aim_dir, suit_on and (outside or in_vacuum))
+	# out in the sun, what you carry has to be on the exterior layer too or it stays unlit
+	_ext_t -= delta
+	if outside != _ext_lit or (outside and _ext_t <= 0.0):
+		_ext_t = 0.5
+		_ext_lit = outside
+		var parts: Array[Node] = [left, right, belt]
+		if desk_hand:
+			parts.append(desk_hand)
+		for n: Node in parts:
+			_set_layers(n, outside)
 	if _notice_timer > 0.0:
 		_notice_timer -= delta
 		if _notice_timer <= 0.0:
@@ -851,6 +952,7 @@ func _on_phase(p: int) -> void:
 		Game.Phase.SLEEP:
 			fade_speed = 0.6
 			fade_target = 1.0
+			set_suit(false)
 		Game.Phase.NIGHT:
 			# wake up in the dark, as far from the power plant as the deck allows - with your belt
 			teleport_head_to(Game.station.wake_point())
@@ -877,6 +979,7 @@ func _on_reset() -> void:
 			it.queue_free()
 	held.clear()
 	belt.clear()
+	set_suit(false)
 	_give_starting_kit()
 	if not xr_active and desk_hand:
 		_put_in_hand(desk_hand, belt.take(belt.slot_of(Item.FLASHLIGHT)))
@@ -925,6 +1028,60 @@ func debug_equip(kind: String) -> bool:
 		return pick_up_nearest() and held_kind(desk_hand) == kind
 	return false
 
+# ---------------------------------------------------------------- the EVA suit
+func set_suit(on: bool) -> void:
+	if on == suit_on:
+		return
+	suit_on = on
+	suit_o2 = 1.0
+	_o2_warned = false
+	_visor.visible = on
+	if on:
+		if _breath.stream:
+			_breath.play()
+		Sfx.play("powerup", -14.0, 1.7)
+		var how := "Aim a hand at an anchor and pull the trigger" if xr_active else ("Aim at an anchor and hold ROPE" if Game.touch else "Aim at an anchor and hold T")
+		Game.notice.emit("SUIT SEALED  -  %d minutes of air outside\nTether: %s to latch on and reel in." % [roundi(O2_TIME / 60.0), how], 6.0)
+	else:
+		_breath.stop()
+		tether.release()
+
+func _update_suit(delta: float) -> void:
+	if Game.phase != Game.Phase.DAY:
+		return
+	if in_vacuum and not suit_on:
+		Game.abort_shift("DECOMPRESSION\nNo suit. The emergency bulkheads dragged you back.")
+		return
+	if not suit_on:
+		return
+	if in_vacuum:
+		suit_o2 = maxf(0.0, suit_o2 - delta / O2_TIME)
+		if suit_o2 < 0.25 and not _o2_warned:
+			_o2_warned = true
+			Game.notice.emit("SUIT O2 LOW\nGet back to the airlock.", 4.0)
+			Sfx.play("beep", -6.0, 2.2)
+		if suit_o2 <= 0.0:
+			Game.abort_shift("SUIT O2 DEPLETED\nThe emergency reel hauled you in.\nThe array stays broken tonight.")
+	else:
+		suit_o2 = minf(1.0, suit_o2 + delta * O2_REFILL)
+		if suit_o2 > 0.3:
+			_o2_warned = false
+
+func _set_layers(n: Node, ext: bool) -> void:
+	if n is VisualInstance3D:
+		(n as VisualInstance3D).layers = (1 | Orbit.EXTERIOR_LAYER) if ext else 1
+	for c in n.get_children():
+		_set_layers(c, ext)
+
+## Test hooks: fire the tether at the anchor at `p` from the head, and hold the reel.
+func debug_tether_to(p: Vector3) -> bool:
+	return tether.fire(camera.global_position, (p - camera.global_position).normalized())
+
+func debug_reel(on: bool) -> void:
+	_debug_reel = on
+	if xr_active == false:
+		tether.reeling = on and tether.latched
+
 ## Show or hide the crew terminal (Y on the left hand, TAB on the desktop).
 func toggle_panel() -> void:
 	wrist.toggle()
@@ -969,12 +1126,18 @@ func _refresh_wrist() -> void:
 		Game.Phase.TITLE:
 			s = "KESTREL-9  maintenance terminal\nstandby"
 		Game.Phase.DAY:
-			s = "DAY %d    %s    %s\n" % [Game.day, Game.clock_string(), _fuel_bar()]
+			var o2 := ("    O2 %d%%" % roundi(suit_o2 * 100.0)) if suit_on else ""
+			s = "DAY %d    %s    %s%s\n" % [Game.day, Game.clock_string(), _fuel_bar(), o2]
+			var nxt := Game.next_step_id()
 			for t in Game.tasks:
 				var tk: String = t.get("tool", "")
 				var need := "  [%s]" % Item.SHORT.get(tk, tk.to_upper()) if tk != "" else ""
-				s += "%s %s  -  %s%s\n" % ["[x]" if t["done"] else "[ ]", t["title"], t["room"], need]
+				var mark := "[x]" if t["done"] else (">>>" if t["id"] == nxt else "[ ]")
+				s += "%s %s  -  %s%s\n" % [mark, t["title"], t["room"], need]
 			s += _kit_line()
+			if suit_on:
+				var how := "trigger" if xr_active else ("ROPE" if Game.touch else "T")
+				s += "%s at an anchor = tether, hold to reel%s\n" % [how, "   (clipped on)" if tether.latched else ""]
 			if Game.day == 1 and Game.day_time < 45.0:
 				if xr_active:
 					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)\nY (left hand) = hide this terminal"

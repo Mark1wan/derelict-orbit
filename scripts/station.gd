@@ -58,6 +58,10 @@ var wake_room := 0
 var stalker_room := 0
 var _t := 0.0
 var _path_cache := {}
+var _module_boxes := {}                 # corridor cell -> its world AABB (what counts as inside)
+var _room_boxes := {}                   # room index -> its world AABB
+var airlock: Airlock
+var exterior: Exterior
 
 ## Lists the haunt manager toggles directly during a blackout.
 var emissive_mats: Array[StandardMaterial3D]:
@@ -70,6 +74,7 @@ func _ready() -> void:
 	regenerate(Game.layout_seed)
 	Game.power_changed.connect(set_power)
 	Game.day_started.connect(_on_day_started)
+	Game.tasks_changed.connect(_refresh_active)
 	Game.game_reset.connect(func(): regenerate(Game.layout_seed); set_power(true))
 
 # ---------------------------------------------------------------- build
@@ -85,6 +90,10 @@ func regenerate(seed_: int) -> void:
 	prop_vel.clear()
 	carried.clear()
 	_path_cache.clear()
+	_module_boxes.clear()
+	_room_boxes.clear()
+	airlock = null
+	exterior = null
 	power_led = null
 	layout = StationLayout.new()
 	if not layout.generate(seed_):
@@ -98,21 +107,35 @@ func regenerate(seed_: int) -> void:
 	colliders.collision_mask = 0
 	root.add_child(colliders)
 
-	# hull: every placed piece merged per 3x3-cell chunk and material
+	# hull: every placed piece merged per 3x3-cell chunk and material - the inside, and separately
+	# the outside faces, which go on the exterior render layer where the sun can light them
 	var mergers := {}
+	var outers := {}
 	var keymap := func(n: String) -> String: return Palette.KIT_MAP.get(n, "metal")
 	for c: Vector2i in layout.corridor:
 		var cell: Dictionary = layout.corridor[c]
 		var key := "c%d_%d" % [floori(c.x / 3.0), floori(c.y / 3.0)]
 		if not mergers.has(key):
 			mergers[key] = Kit.Merger.new()
-		mergers[key].add(cell["piece"], Kit.cell_transform(c, cell["rot"], cell["roll"]), keymap)
+			outers[key] = Kit.Merger.new()
+		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
+		mergers[key].add(Kit.part(cell["piece"], "in"), xf, keymap)
+		outers[key].add(Kit.part(cell["piece"], "out"), xf, keymap)
+		_module_boxes[c] = xf * Kit.mesh(cell["piece"]).get_aabb()
 	for r: Dictionary in layout.rooms:
 		var key := "room%d" % r["index"]
 		mergers[key] = Kit.Merger.new()
-		mergers[key].add("room_" + r["type"], Kit.cell_transform(r["center"], r["rot"], r["roll"]), keymap)
+		outers[key] = Kit.Merger.new()
+		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
+		var piece: String = "room_" + String(r["type"])
+		var hatch: bool = r["type"] == "eva"
+		mergers[key].add(Kit.part(piece, "in", hatch), xf, keymap)
+		outers[key].add(Kit.part(piece, "out", hatch), xf, keymap)
+		_room_boxes[r["index"]] = xf * Kit.mesh(piece).get_aabb()
 	for key: String in mergers:
 		mergers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key)
+		for mi: MeshInstance3D in outers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key + "_out"):
+			_exterior(mi)
 
 	_place_lights()
 	_pick_faulty_lights()
@@ -120,6 +143,7 @@ func regenerate(seed_: int) -> void:
 	_place_props()
 	_build_outside()
 	_place_window_sun()
+	_build_eva()
 	_pick_special_rooms()
 	_place_tools()
 	Game.task_pool = task_pool()
@@ -402,16 +426,68 @@ func _build_outside() -> void:
 		var wx := (x1 + 11.0) if sx > 0 else (x0 - 11.0)
 		ext.box(Vector3(wx, y + 0.4, centre.z), Vector3(0.3, 0.3, 0.3))
 		ext.box(Vector3((wx + (x1 if sx > 0 else x0)) * 0.5, y + 0.4, centre.z), Vector3(absf(wx - (x1 if sx > 0 else x0)), 0.25, 0.25))
-	_exterior(ext.commit(pal.get_mat("truss"), root, null, "truss"))
+	_exterior(ext.commit(pal.get_mat("truss"), root, colliders, "truss"))
 	var sol := Geo.new()
 	for sx: float in [-1.0, 1.0]:
 		var wx := (x1 + 11.0) if sx > 0 else (x0 - 11.0)
 		sol.box(Vector3(wx, y + 0.4, centre.z), Vector3(5.0, 0.08, 16.0))
-	_exterior(sol.commit(pal.get_mat("solar"), root, null, "solar"))
+	_exterior(sol.commit(pal.get_mat("solar"), root, colliders, "solar"))
 	var rad := Geo.new()
 	rad.box(Vector3(centre.x, -6.0, (b.position.y - 2) * CELL), Vector3(10.0, 3.0, 0.1))
 	rad.box(Vector3(centre.x, -6.0, (b.end.y + 1) * CELL), Vector3(10.0, 3.0, 0.1))
 	_exterior(rad.commit(pal.get_mat("ext"), root, null, "radiators"))
+
+## The spacewalk: the airlock chamber behind the EVA room, the suit rack panel on its back wall, and
+## the anchors, pylons and damaged array outside (Exterior).
+func _build_eva() -> void:
+	var i := layout.eva_room()
+	if i < 0:
+		return
+	var r: Dictionary = layout.rooms[i]
+	var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
+	airlock = Airlock.new()
+	root.add_child(airlock)
+	airlock.build(self, xf)
+	_panel("eva_suit", "SUIT UP", ROOM_LABEL["eva"], xf * Vector3(-2.65, PANEL_Y, PANEL_Z * -1.0), xf.basis * Vector3(0, 0, -1))
+	exterior = Exterior.new()
+	root.add_child(exterior)
+	exterior.build(self)
+	exterior.finish()
+	interactables["eva_unbolt"] = exterior.unbolt
+	interactables["eva_splice"] = exterior.splice
+
+## Inside a module's hull: a corridor cell or a room (the airlock chamber is not counted).
+func inside_hull(p: Vector3) -> bool:
+	var c := StationLayout.cell_at(p)
+	for dc: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var k := c + dc
+		if _module_boxes.has(k) and (_module_boxes[k] as AABB).grow(0.05).has_point(p):
+			return true
+		if layout.occupied.has(k) and (_room_boxes[layout.occupied[k]] as AABB).grow(0.05).has_point(p):
+			return true
+	return false
+
+## Out in space: neither in a module nor in the airlock chamber.
+func is_outside(p: Vector3) -> bool:
+	return not inside_hull(p) and not (airlock != null and airlock.contains(p))
+
+## No air here: outside, or in the chamber while it is open to space.
+func in_vacuum(p: Vector3) -> bool:
+	if inside_hull(p):
+		return false
+	if airlock != null and airlock.contains(p):
+		return airlock.is_vacuum()
+	return true
+
+## Mission days light up one step's panel at a time; ordinary days all of today's.
+func _refresh_active() -> void:
+	if Game.mission == "":
+		return
+	var nxt := Game.next_step_id()
+	if interactables.has(nxt):
+		var it: Interactable = interactables[nxt]
+		if not it.active and not it.done:
+			it.set_active(true)
 
 ## Outside structure: on the exterior render layer too, so the sun lights it.
 func _exterior(mi: MeshInstance3D) -> void:
@@ -618,11 +694,17 @@ func _on_day_started(_day: int) -> void:
 	var ids := []
 	for t in Game.tasks:
 		ids.append(t["id"])
+	if Game.mission != "":
+		ids = [Game.next_step_id()]
 	for id in interactables:
 		var it: Interactable = interactables[id]
 		if it.is_power:
 			continue
 		it.set_active(id in ids)
+	if airlock:
+		airlock.reset()
+	if exterior:
+		exterior.reset()
 
 func _on_task_completed(id: String) -> void:
 	Game.on_task_completed(id)
