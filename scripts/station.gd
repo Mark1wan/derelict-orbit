@@ -170,11 +170,10 @@ func _place_props() -> void:
 	for i in n:
 		var c: Vector2i = cells[rng.randi() % cells.size()]
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
-		var s := rng.randf_range(0.35, 0.65)
-		_prop_box(p, Vector3(s, s, s * rng.randf_range(0.8, 1.6)), pal.get_mat("crate"))
+		_prop(StationProps.CORRIDOR[rng.randi() % StationProps.CORRIDOR.size()], p, rng)
 	for r: Dictionary in layout.rooms:
 		var p := StationLayout.world(r["center"], 2.0) + Vector3(rng.randf_range(-2, 2), rng.randf_range(-0.5, 0.8), rng.randf_range(-2, 2))
-		_prop_box(p, Vector3(0.3, 0.3, 0.3), pal.get_mat("crate"))
+		_prop(StationProps.ROOM[rng.randi() % StationProps.ROOM.size()], p, rng)
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -321,13 +320,15 @@ func _sign(text: String, pos: Vector3, facing: Vector3, size := 48, col := Color
 	l.look_at(pos - facing, Vector3.UP)
 	return l
 
-func _prop_box(pos: Vector3, size: Vector3, mat: Material) -> void:
-	var m := BoxMesh.new()
-	m.size = size
-	var mi := _mesh(m, pos, mat)
-	mi.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
+## One loose prop, already tumbling. Driven off `rng` rather than the global generator so a
+## given seed always dresses the deck the same way.
+func _prop(name: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var mi := StationProps.make(name, pal)
+	root.add_child(mi)
+	mi.position = pos
+	mi.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
 	props.append(mi)
-	prop_spin.append(Vector3(randf_range(-0.2, 0.2), randf_range(-0.2, 0.2), randf_range(-0.2, 0.2)))
+	prop_spin.append(Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2)))
 	prop_vel.append(Vector3.ZERO)
 
 func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false) -> void:

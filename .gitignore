@@ -2,3 +2,5 @@
 build/
 .DS_Store
 *.blend1
+__pycache__/
+out/

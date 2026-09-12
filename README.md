@@ -66,6 +66,8 @@ scripts/station.gd     builds a deck from the layout: hull, lights, terminals pe
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
 kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) - see kit/KIT_README.md
+kit/props/             loose set dressing (glTF, origin-centred so it tumbles) - see kit/props/PROPS_README.md
+scripts/props.gd       loads a prop and swaps the kit materials for the palette's
 scripts/geo.gd         SurfaceTool batcher: one mesh per material (+ trimesh collider); used by the classic map and small extras
 scripts/tex.gd         procedural textures: riveted plating + normal maps, grating, hazard stripes,
                        vents, telemetry screens, LED rows, starfield, planet, solar cells
@@ -73,6 +75,9 @@ scripts/interactable.gd  wall terminal (hold-to-complete)
 scripts/haunt_manager.gd daytime events + night stalker spawning
 scripts/shadow_figure.gd / stalker.gd  the apparitions
 audio/*.wav            all synthesised by tools/gen_audio.py (numpy) - no third-party assets
+tools/kitlib.py        glTF primitives + .glb writer (standard library only)
+tools/build_props.py   builds kit/props/*.glb; tools/validate_glb.py re-parses and checks them
+tools/render_props.py  software-rasterised preview sheet -> out/props_sheet.png
 build/web/             the exported WebXR build (index.html)
 ```
 
