@@ -1,18 +1,25 @@
 extends CharacterBody3D
 class_name Player
-## Zero-G player. Two ways to get around, in VR (Quest 3) and on the desktop fallback:
+## Zero-G player: two hands, a tool belt, and two ways to get around - in VR (Quest 3) and on the
+## desktop fallback.
 ##
-##  GRAB   Hold GRIP with a hand next to any surface (rail, wall, console, crate) and that hand is
-##         anchored to it. Move the controller and your body follows - pull yourself along, then
-##         let go with a flick and you keep the momentum. This is the main way to move.
+##  GRAB   Grip with an EMPTY hand next to any surface (rail, wall, console, crate) and that hand is
+##         anchored there. Move the controller and your body follows; let go with a flick and you
+##         keep the momentum. This is the main way to move.
 ##  THRUST The sticks fire a suit pack with a tiny tank: about two seconds of burn, refills slowly.
-##         Enough to correct a drift or reach the next rail, not to cruise.
+##  ITEMS  Grip on a loose item, or on a holstered one at the belt, to hold it - keep gripping to
+##         keep holding. Let go over an empty holster and it goes on the belt; let go anywhere
+##         else and it floats off with your hand's motion. A hand holding something cannot grab
+##         rails, so belt what you are not using. Tasks need the right repair tool: point it at
+##         the terminal and hold trigger. See Item and ToolBelt.
 ##
 ## VR:      left stick = thrust relative to where you look, right stick = up/down + snap turn,
-##          grip = grab (either hand), A / X = flashlight, right trigger = hold on a terminal.
-## Desktop: RIGHT MOUSE on a surface within reach grabs it - drag the mouse to pull (release to
-##          let go), WASD / Space / C = thrusters, Shift = hold on to what's in front of you,
-##          F flashlight, E or LEFT click = use a terminal, Esc releases the mouse.
+##          grip = grab / hold, A / X = flashlight on-off wherever it is, trigger = use what that
+##          hand holds on the terminal it points at.
+## Desktop: RIGHT MOUSE on a surface within reach grabs it, drag to pull. WASD / Space / C
+##          thrusters, Shift hold on. 1-4 swap your hand with that belt holster, Q let go of what
+##          you hold, E / LEFT click pick up a loose item in reach or use the held tool on a
+##          terminal, F flashlight, Esc releases the mouse.
 
 const THRUST := 2.4            # m/s^2 at full stick
 const FUEL_DRAIN := 0.55       # tank per second at full burn (~1.8 s of burn)
@@ -22,6 +29,8 @@ const GRAB_PULL_SPEED := 6.0   # how fast a grabbed hand snaps back to its ancho
 const DRIFT_DAMP := 0.12       # zero-G: you mostly keep drifting
 const GRAB_REACH := 0.18       # metres from the hand to a surface that counts as touching it
 const DESK_REACH := 2.2        # desktop arm's length, from the eye
+const DESK_PICK_REACH := 1.8   # desktop: how far away a loose item can be picked up
+const DESK_HAND := Vector3(0.2, -0.2, -0.42)
 const SNAP_ANGLE := 30.0
 const DEAD_ZONE := 0.18
 
@@ -31,9 +40,13 @@ const DEAD_ZONE := 0.18
 @onready var right: XRController3D = $XROrigin3D/RightHand
 @onready var body_shape: CollisionShape3D = $BodyShape
 
-var flashlight: SpotLight3D
-var ray: RayCast3D
-var laser: MeshInstance3D
+var flashlight: SpotLight3D       # the beam of the flashlight item, wherever that item is
+var flash_item: Item
+var belt: ToolBelt
+var held := {}                    # hand node -> Item
+var rays := {}                    # hand node -> RayCast3D (terminals, layer 2)
+var lasers := {}                  # hand node -> MeshInstance3D
+var desk_hand: Node3D             # desktop: the one virtual hand, bottom right of the view
 var wrist: Label3D
 var hud_label: Label3D
 var fade_mat: StandardMaterial3D
@@ -44,7 +57,8 @@ var xr_active := false
 var started := false
 var flashlight_on := true
 var snap_ready := true
-var focused: Interactable = null
+var focused := {}                 # Interactable -> true: what some hand points at this frame
+var _using := {}                  # Interactable -> true: what a trigger is held on this frame
 var yaw := 0.0
 var pitch := 0.0
 var mouse_captured := false
@@ -52,6 +66,7 @@ var _toggle_prev := false
 var _notice_timer := 0.0
 var _wrist_tick := 0.0
 var _restart_hold := 0.0
+var _wrong_cd := 0.0
 
 # locomotion state
 var fuel := 1.0
@@ -65,6 +80,9 @@ var d_anchor := Vector3.ZERO
 var d_hand_local := Vector3.ZERO
 var _empty_warned := false
 var _debug_hold := false
+var _grip_prev := {}
+var _hand_prev := {}
+var _hand_vel := {}
 
 const HAND_IDLE := Color(0.15, 0.16, 0.18)
 const HAND_NEAR := Color(0.25, 0.55, 0.7)
@@ -77,6 +95,9 @@ func _ready() -> void:
 	camera.current = true
 	_reach_shape.radius = GRAB_REACH
 	_build_attachments()
+	belt = ToolBelt.new()
+	add_child(belt)
+	_give_starting_kit()
 	Game.notice.connect(_on_notice)
 	Game.tasks_changed.connect(_refresh_wrist)
 	Game.phase_changed.connect(_on_phase)
@@ -84,7 +105,7 @@ func _ready() -> void:
 	_refresh_wrist()
 
 func _build_attachments() -> void:
-	for c in [left, right]:
+	for c: XRController3D in [left, right]:
 		var hand_mat := StandardMaterial3D.new()
 		hand_mat.albedo_color = HAND_IDLE
 		hand_mat.metallic = 0.4
@@ -94,7 +115,7 @@ func _build_attachments() -> void:
 		bm.size = Vector3(0.05, 0.04, 0.13)
 		mi.mesh = bm
 		mi.material_override = hand_mat
-		mi.position = Vector3(0, 0, 0.03)
+		mi.position = Vector3(0, -0.03, 0.06)
 		c.add_child(mi)
 		# a finger loop: the grab point
 		var ring := MeshInstance3D.new()
@@ -107,68 +128,12 @@ func _build_attachments() -> void:
 		ring.material_override = hand_mat
 		ring.position = Vector3(0, -0.02, -0.02)
 		c.add_child(ring)
-
-	# flashlight body + lens on the right controller
-	var hand_mat_r: StandardMaterial3D = hand_mats[right]
-	var body := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.025
-	cm.bottom_radius = 0.02
-	cm.height = 0.14
-	cm.radial_segments = 10
-	body.mesh = cm
-	body.material_override = hand_mat_r
-	body.rotation.x = PI * 0.5
-	body.position = Vector3(0, 0.02, -0.07)
-	right.add_child(body)
-	var lens := MeshInstance3D.new()
-	var lm := CylinderMesh.new()
-	lm.top_radius = 0.022
-	lm.bottom_radius = 0.022
-	lm.height = 0.01
-	lm.radial_segments = 10
-	lens.mesh = lm
-	var lens_mat := StandardMaterial3D.new()
-	lens_mat.emission_enabled = true
-	lens_mat.emission = Color(1, 0.95, 0.8)
-	lens_mat.emission_energy_multiplier = 3.0
-	lens.material_override = lens_mat
-	lens.rotation.x = PI * 0.5
-	lens.position = Vector3(0, 0.02, -0.145)
-	lens.name = "Lens"
-	right.add_child(lens)
-
-	flashlight = SpotLight3D.new()
-	flashlight.name = "Flashlight"
-	flashlight.position = Vector3(0, 0.02, -0.15)
-	flashlight.light_color = Color(1.0, 0.94, 0.82)
-	flashlight.light_energy = 3.2
-	flashlight.spot_range = 20.0
-	flashlight.spot_angle = 23.0
-	flashlight.spot_attenuation = 1.1
-	flashlight.shadow_enabled = true
-	flashlight.shadow_bias = 0.06
-	right.add_child(flashlight)
-
-	ray = RayCast3D.new()
-	ray.target_position = Vector3(0, 0, -5)
-	ray.collision_mask = 2
-	ray.collide_with_areas = true
-	ray.collide_with_bodies = false
-	ray.enabled = true
-	right.add_child(ray)
-
-	laser = MeshInstance3D.new()
-	var lb := BoxMesh.new()
-	lb.size = Vector3(0.003, 0.003, 1.0)
-	laser.mesh = lb
-	var lmat := StandardMaterial3D.new()
-	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lmat.albedo_color = Color(1.0, 0.3, 0.2, 0.35)
-	lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	laser.material_override = lmat
-	laser.position = Vector3(0, 0, -0.5)
-	right.add_child(laser)
+		var r := _make_ray()
+		c.add_child(r)
+		rays[c] = r
+		var lz := _make_laser()
+		c.add_child(lz)
+		lasers[c] = lz
 
 	wrist = Label3D.new()
 	wrist.font_size = 40
@@ -209,25 +174,64 @@ func _build_attachments() -> void:
 	fade.position = Vector3(0, 0, -0.25)
 	camera.add_child(fade)
 
+func _make_ray() -> RayCast3D:
+	var r := RayCast3D.new()
+	r.target_position = Vector3(0, 0, -5)
+	r.collision_mask = 2
+	r.collide_with_areas = true
+	r.collide_with_bodies = false
+	r.enabled = true
+	return r
+
+func _make_laser() -> MeshInstance3D:
+	var laser := MeshInstance3D.new()
+	var lb := BoxMesh.new()
+	lb.size = Vector3(0.003, 0.003, 1.0)
+	laser.mesh = lb
+	var lmat := StandardMaterial3D.new()
+	lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lmat.albedo_color = Color(1.0, 0.3, 0.2, 0.35)
+	lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	laser.material_override = lmat
+	laser.position = Vector3(0, 0, -0.5)
+	laser.visible = false
+	return laser
+
+## The flashlight and the wrench, both on the belt. Everything else is somewhere on the deck.
+func _give_starting_kit() -> void:
+	flash_item = Item.make(Item.FLASHLIGHT)
+	flashlight = flash_item.light
+	belt.stow(flash_item, 1, true)
+	belt.stow(Item.make(Item.WRENCH), 2, true)
+	flashlight_on = true
+	flash_item.set_light(true)
+
 ## Called once the session mode is known.
 func begin(xr: bool) -> void:
 	xr_active = xr
 	started = true
+	belt.snap()
 	if not xr:
 		camera.position = Vector3(0, 1.6, 0)
-		flashlight.reparent(camera, false)
-		flashlight.position = Vector3(0.18, -0.15, 0)
-		flashlight.rotation = Vector3.ZERO
-		ray.reparent(camera, false)
-		ray.position = Vector3.ZERO
-		ray.rotation = Vector3.ZERO
-		laser.visible = false
+		for c: XRController3D in [left, right]:
+			(rays[c] as RayCast3D).enabled = false
+		desk_hand = Node3D.new()
+		desk_hand.name = "DeskHand"
+		desk_hand.position = DESK_HAND
+		camera.add_child(desk_hand)
+		var r := _make_ray()
+		camera.add_child(r)
+		rays = {desk_hand: r}
+		lasers = {}
 		wrist.reparent(camera, false)
 		wrist.position = Vector3(-1.15, -0.3, -1.5)
 		wrist.rotation = Vector3.ZERO
 		wrist.pixel_size = 0.0011
 		left.visible = false
 		right.visible = false
+		belt.show_numbers(true)
+		# on a flat screen the flashlight is most use in the hand: it aims where you look
+		_put_in_hand(desk_hand, belt.take(belt.slot_of(Item.FLASHLIGHT)))
 	fade_target = 0.0
 
 func teleport_head_to(p: Vector3) -> void:
@@ -236,8 +240,21 @@ func teleport_head_to(p: Vector3) -> void:
 	velocity = Vector3.ZERO
 	grab_hand = null
 	d_grabbing = false
+	belt.snap()
+
+func look_at_point(p: Vector3) -> void:
+	var v := p - camera.global_position
+	yaw = atan2(-v.x, -v.z)
+	pitch = clampf(atan2(v.y, Vector2(v.x, v.z).length()), -1.45, 1.45)
+	origin.rotation.y = yaw
+	camera.rotation.x = pitch
 
 # ---------------------------------------------------------------- input helpers
+func _hands() -> Array:
+	if xr_active:
+		return [left, right]
+	return [desk_hand] if desk_hand else []
+
 func _stick(c: XRController3D) -> Vector2:
 	for n in ["thumbstick", "primary", "touchpad"]:
 		var v: Vector2 = c.get_vector2(n)
@@ -272,27 +289,156 @@ func _reach_hit() -> Dictionary:
 	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
 	return get_world_3d().direct_space_state.intersect_ray(q)
 
+func _buzz(hand: Node3D, amp: float) -> void:
+	if hand is XRController3D and hand.has_method("trigger_haptic_pulse"):
+		(hand as XRController3D).trigger_haptic_pulse("haptic", 0.0, amp, 0.05, 0.0)
+
 func _start_grab(c: XRController3D) -> void:
 	grab_hand = c
 	grab_anchor = c.global_position
 	Sfx.play("beep", -28.0, 0.5)
-	if c.has_method("trigger_haptic_pulse"):
-		c.trigger_haptic_pulse("haptic", 0.0, 0.5, 0.05, 0.0)
+	_buzz(c, 0.5)
 
 func _end_grab() -> void:
 	grab_hand = null
 	if velocity.length() > MAX_SPEED:
 		velocity = velocity.normalized() * MAX_SPEED
 
-func _tint_hand(c: XRController3D, near: bool, held: bool) -> void:
+func _tint_hand(c: XRController3D, near: bool, holding: bool) -> void:
 	var m: StandardMaterial3D = hand_mats[c]
-	m.albedo_color = HAND_HELD if held else (HAND_NEAR if near else HAND_IDLE)
+	m.albedo_color = HAND_HELD if holding else (HAND_NEAR if near else HAND_IDLE)
+
+# ---------------------------------------------------------------- items and the belt
+func held_item(hand: Node3D = null) -> Item:
+	if hand == null:
+		hand = right if xr_active else desk_hand
+	return held.get(hand)
+
+func held_kind(hand: Node3D = null) -> String:
+	var it := held_item(hand)
+	return it.kind if it else ""
+
+func _put_in_hand(hand: Node3D, item: Item) -> void:
+	if item == null or hand == null:
+		return
+	held[hand] = item
+	item.attach_to(hand, Transform3D.IDENTITY, Item.Where.HAND)
+	_buzz(hand, 0.3)
+
+func _take_from_hand(hand: Node3D) -> Item:
+	var it: Item = held.get(hand)
+	held.erase(hand)
+	return it
+
+func _stow_from_hand(hand: Node3D, slot: int) -> bool:
+	var it: Item = held.get(hand)
+	if it == null or not belt.stow(it, slot):
+		return false
+	held.erase(hand)
+	_buzz(hand, 0.2)
+	return true
+
+## Open the hand: the item floats off into the station with `vel`.
+func _let_go(hand: Node3D, vel: Vector3) -> void:
+	var it := _take_from_hand(hand)
+	if it == null:
+		return
+	var parent: Node = Game.station
+	var r = Game.station.get("root")
+	if r is Node:
+		parent = r
+	it.release_into(parent, vel)
+	Sfx.play("beep", -30.0, 0.7)
+
+func _nearest_loose(p: Vector3, reach: float) -> Item:
+	var best: Item = null
+	var best_d := reach
+	for n in get_tree().get_nodes_in_group(Item.GROUP):
+		var it := n as Item
+		if it == null:
+			continue
+		var d := it.grab_point().distance_to(p)
+		if d < best_d:
+			best_d = d
+			best = it
+	return best
+
+func _carried(kind: String) -> bool:
+	for hand in held:
+		var it: Item = held[hand]
+		if it and it.kind == kind:
+			return true
+	return belt.slot_of(kind) >= 0
+
+## Where an item is, in words for the wrist and for "wrong tool" notices.
+func _where_is(kind: String) -> String:
+	for hand in held:
+		var it: Item = held[hand]
+		if it and it.kind == kind:
+			return "in your hand"
+	var s := belt.slot_of(kind)
+	if s >= 0:
+		return "on your belt" if xr_active else "on your belt (%d)" % (s + 1)
+	for n in get_tree().get_nodes_in_group(Item.GROUP):
+		var it := n as Item
+		if it and it.kind == kind:
+			if Game.station.has_method("place_name"):
+				return "last seen: " + String(Game.station.call("place_name", it.global_position))
+			return "somewhere on the deck"
+	return "lost"
+
+## Desktop: swap whatever is in the hand with holster `i` (0-based). Keys 1-4.
+func desk_slot(i: int) -> void:
+	if desk_hand == null or i < 0 or i >= ToolBelt.SLOTS:
+		return
+	var in_hand := _take_from_hand(desk_hand)
+	var in_slot := belt.take(i)
+	if in_hand:
+		belt.stow(in_hand, i)
+	if in_slot:
+		_put_in_hand(desk_hand, in_slot)
+
+## Desktop: the loose item nearest the middle of the view within reach, into the empty hand.
+func pick_up_nearest(reach := DESK_PICK_REACH) -> bool:
+	if desk_hand == null or held.get(desk_hand) != null:
+		return false
+	var eye := camera.global_position
+	var fwd := -camera.global_transform.basis.z
+	var best: Item = null
+	var best_off := INF
+	for n in get_tree().get_nodes_in_group(Item.GROUP):
+		var it := n as Item
+		if it == null:
+			continue
+		var v := it.grab_point() - eye
+		var d := v.length()
+		if d > reach:
+			continue
+		var off := (v - fwd * v.dot(fwd)).length()     # distance from the line of sight
+		if d > 0.7 and (v.dot(fwd) <= 0.0 or off > 0.4):
+			continue
+		if off < best_off:
+			best_off = off
+			best = it
+	if best == null:
+		return false
+	_put_in_hand(desk_hand, best)
+	Sfx.play("beep", -24.0, 1.2)
+	return true
+
+func _wrong_tool(it: Interactable) -> void:
+	if _wrong_cd > 0.0 or it.tool == "":
+		return
+	_wrong_cd = 2.5
+	Game.notice.emit("NEEDS THE %s\n%s" % [Item.LABEL.get(it.tool, it.tool.to_upper()), _where_is(it.tool)], 2.5)
 
 # ---------------------------------------------------------------- movement
 func _physics_process(delta: float) -> void:
 	if not started:
 		return
 	var frozen := Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.TITLE or Game.phase == Game.Phase.SLEEP
+	belt.follow(camera, delta)
+	_wrong_cd = maxf(0.0, _wrong_cd - delta)
 	var b := camera.global_transform.basis
 	var wish := Vector3.ZERO
 	var turn := 0.0
@@ -309,14 +455,41 @@ func _physics_process(delta: float) -> void:
 		if tog and not _toggle_prev:
 			_toggle_flashlight()
 		_toggle_prev = tog
-		for c in [left, right]:
-			var near := _near_surface(c.global_position)
-			var g := _grip(c) and not frozen
-			if g and grab_hand == null and near:
+		var lit := {}
+		for c: XRController3D in [left, right]:
+			var p := c.global_position
+			var prev: Vector3 = _hand_prev.get(c, p)
+			var hv: Vector3 = _hand_vel.get(c, Vector3.ZERO)
+			_hand_vel[c] = hv.lerp((p - prev) / delta, 0.5)
+			_hand_prev[c] = p
+			var g := _grip(c)                 # items follow the raw grip, so a fade never drops them
+			var was: bool = _grip_prev.get(c, false)
+			_grip_prev[c] = g
+			var item: Item = held.get(c)
+			# an empty hand looks for a full holster to draw from, a full hand for an empty one
+			var slot := belt.nearest(p, item == null)
+			var loose: Item = null
+			if item == null and slot < 0 and grab_hand != c:
+				loose = _nearest_loose(p, Item.GRAB_REACH)
+			var near := _near_surface(p)
+			if slot >= 0:
+				lit[slot] = true
+			if g and not was:
+				if item == null and slot >= 0:
+					_put_in_hand(c, belt.take(slot))
+				elif item == null and loose:
+					_put_in_hand(c, loose)
+			elif not g and was and item != null:
+				if slot >= 0:
+					_stow_from_hand(c, slot)
+				else:
+					_let_go(c, _hand_vel[c])
+			if g and not frozen and held.get(c) == null and grab_hand == null and near:
 				_start_grab(c)
-			elif not g and grab_hand == c:
+			elif (not g or frozen) and grab_hand == c:
 				_end_grab()
-			_tint_hand(c, near, grab_hand == c)
+			_tint_hand(c, near or loose != null or (item == null and slot >= 0), grab_hand == c or held.get(c) != null)
+		belt.highlight(lit)
 		if grab_hand:
 			holding = true
 			velocity = ((grab_anchor - grab_hand.global_position) / delta).limit_length(GRAB_PULL_SPEED)
@@ -327,6 +500,8 @@ func _physics_process(delta: float) -> void:
 			wish = -b.z * move_in.y + b.x * move_in.x + Vector3.UP * vert
 		if Input.is_action_just_pressed("d_flash"):
 			_toggle_flashlight()
+		if Input.is_action_just_pressed("d_drop") and not frozen:
+			_let_go(desk_hand, -b.z * 0.5 + velocity)
 		var rmb := (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and mouse_captured and not frozen) or _debug_hold
 		if rmb and not d_grabbing:
 			var hit := _reach_hit()
@@ -386,15 +561,18 @@ func _snap(deg: float) -> void:
 
 func _toggle_flashlight() -> void:
 	flashlight_on = not flashlight_on
-	flashlight.visible = flashlight_on
-	var lens := right.get_node_or_null("Lens")
-	if lens:
-		lens.visible = flashlight_on
+	if is_instance_valid(flash_item):
+		flash_item.set_light(flashlight_on)
 	Sfx.play("beep", -20.0, 0.5)
 
 func _unhandled_input(e: InputEvent) -> void:
 	if xr_active or not started:
 		return
+	if e is InputEventKey and e.pressed and not e.echo:
+		var k: int = (e as InputEventKey).physical_keycode
+		if k >= KEY_1 and k <= KEY_4:
+			desk_slot(k - KEY_1)
+			return
 	if e is InputEventMouseButton and e.pressed and not mouse_captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		mouse_captured = true
@@ -413,41 +591,66 @@ func _unhandled_input(e: InputEvent) -> void:
 
 # ---------------------------------------------------------------- interaction
 func _update_interaction(delta: float) -> void:
-	var hit: Interactable = null
-	if ray.is_colliding():
-		var c := ray.get_collider()
-		if c is Interactable:
-			hit = c
-	if hit != focused:
-		if is_instance_valid(focused):
-			focused.set_focused(false)
-		focused = hit
-		if focused:
-			focused.set_focused(true)
-	var pressing := _trigger(right) if xr_active else Input.is_action_pressed("d_interact")
-	if Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.WON:
-		if pressing:
+	var dead := Game.phase == Game.Phase.DEAD or Game.phase == Game.Phase.WON
+	var now_focused := {}
+	var now_using := {}
+	var any_press := false
+	for hand: Node3D in _hands():
+		var r: RayCast3D = rays.get(hand)
+		if r == null:
+			continue
+		var hit: Interactable = null
+		if r.is_colliding():
+			hit = r.get_collider() as Interactable
+		var pressing := _trigger(hand as XRController3D) if xr_active else Input.is_action_pressed("d_interact")
+		any_press = any_press or pressing
+		var item: Item = held.get(hand)
+		if lasers.has(hand):
+			var lz: MeshInstance3D = lasers[hand]
+			lz.visible = hit != null or (item != null and item.kind != Item.FLASHLIGHT)
+			var d := 5.0
+			if r.is_colliding():
+				d = r.global_position.distance_to(r.get_collision_point())
+			lz.scale.z = d
+			lz.position.z = -d * 0.5
+		if hit == null:
+			continue
+		now_focused[hit] = true
+		if dead or not pressing:
+			continue
+		now_using[hit] = true
+		if hit.hold(delta, item.kind if item else ""):
+			if item:
+				item.working(delta)
+		elif hit.active and not hit.done:
+			_wrong_tool(hit)
+	# desktop: pressing use with an empty hand and no terminal in sight picks up a loose item
+	if not xr_active and not dead and now_focused.is_empty() and Input.is_action_just_pressed("d_interact"):
+		pick_up_nearest()
+	for it in focused.keys():
+		if not now_focused.has(it) and is_instance_valid(it):
+			(it as Interactable).set_focused(false)
+	for it in now_focused.keys():
+		if not focused.has(it):
+			(it as Interactable).set_focused(true)
+	focused = now_focused
+	for it in _using.keys():
+		if not now_using.has(it) and is_instance_valid(it):
+			(it as Interactable).release()
+	_using = now_using
+	if dead:
+		if any_press:
 			_restart_hold += delta
 			if _restart_hold > 1.5:
 				_restart_hold = -99.0
 				Game.restart.call_deferred()
 		else:
 			_restart_hold = 0.0
-		return
-	if focused:
-		if pressing:
-			focused.hold(delta)
-		else:
-			focused.release()
-	if laser.visible:
-		var d := 5.0
-		if ray.is_colliding():
-			d = ray.global_position.distance_to(ray.get_collision_point())
-		laser.scale.z = d
-		laser.position.z = -d * 0.5
 
 # ---------------------------------------------------------------- per-frame UI
 func _process(delta: float) -> void:
+	if started:
+		belt.follow(camera, delta)
 	var c := fade_mat.albedo_color
 	c.a = move_toward(c.a, fade_target, delta * fade_speed)
 	fade_mat.albedo_color = c
@@ -470,7 +673,7 @@ func _on_phase(p: int) -> void:
 			fade_speed = 0.6
 			fade_target = 1.0
 		Game.Phase.NIGHT:
-			# wake up in the dark, as far from the power plant as the deck allows
+			# wake up in the dark, as far from the power plant as the deck allows - with your belt
 			teleport_head_to(Game.station.wake_point())
 			fuel = 1.0
 			await get_tree().create_timer(1.5).timeout
@@ -488,12 +691,19 @@ func _on_phase(p: int) -> void:
 	_refresh_wrist()
 
 func _on_reset() -> void:
+	for hand in held.keys():
+		var it: Item = held[hand]
+		if is_instance_valid(it):
+			it.queue_free()
+	held.clear()
+	belt.clear()
+	_give_starting_kit()
+	if not xr_active and desk_hand:
+		_put_in_hand(desk_hand, belt.take(belt.slot_of(Item.FLASHLIGHT)))
 	teleport_head_to(Game.station.start_point())
 	_restart_hold = 0.0
 	fade_speed = 1.5
 	fade_target = 0.0
-	flashlight_on = true
-	flashlight.visible = true
 	fuel = 1.0
 	hud_label.text = ""
 
@@ -508,9 +718,53 @@ func debug_grab_pull(offset: Vector3) -> void:
 func debug_release() -> void:
 	_debug_hold = false
 
+func debug_let_go() -> void:
+	_let_go(desk_hand, -camera.global_transform.basis.z * 0.5)
+
+## Test hook (autotest): get `kind` into the desktop hand the way a player would - from the belt,
+## or by going to wherever it floats and picking it up. False if it cannot be had.
+func debug_equip(kind: String) -> bool:
+	if held_kind(desk_hand) == kind:
+		return true
+	var s := belt.slot_of(kind)
+	if s >= 0:
+		desk_slot(s)
+		return held_kind(desk_hand) == kind
+	for n in get_tree().get_nodes_in_group(Item.GROUP):
+		var it := n as Item
+		if it == null or it.kind != kind:
+			continue
+		if held.get(desk_hand) != null:
+			var spare := belt.first_empty()
+			if spare < 0:
+				return false
+			_stow_from_hand(desk_hand, spare)
+		teleport_head_to(it.grab_point() + Vector3(0, 0, 0.6))
+		look_at_point(it.grab_point())
+		return pick_up_nearest() and held_kind(desk_hand) == kind
+	return false
+
 func _fuel_bar() -> String:
 	var n := int(round(fuel * 6.0))
 	return "THRUST [" + "#".repeat(n) + "-".repeat(6 - n) + "]"
+
+## Hands, belt, and where the tools you are not carrying were last seen.
+func _kit_line() -> String:
+	var hands := PackedStringArray()
+	for hand in _hands():
+		var it: Item = held.get(hand)
+		hands.append(Item.SHORT[it.kind] if it else "-")
+	var s := "HAND %s    BELT" % " / ".join(hands)
+	for i in ToolBelt.SLOTS:
+		var it: Item = belt.items[i]
+		s += " %d:%s" % [i + 1, Item.SHORT[it.kind] if it else "-"]
+	var away := PackedStringArray()
+	for kind: String in Item.TOOLS + [Item.FLASHLIGHT]:
+		if not _carried(kind):
+			away.append("%s @ %s" % [Item.SHORT[kind], _where_is(kind).trim_prefix("last seen: ")])
+	if not away.is_empty():
+		s += "\n" + "   ".join(away)
+	return s + "\n"
 
 func _refresh_wrist() -> void:
 	var s := ""
@@ -520,13 +774,20 @@ func _refresh_wrist() -> void:
 		Game.Phase.DAY:
 			s = "DAY %d    %s    %s\n" % [Game.day, Game.clock_string(), _fuel_bar()]
 			for t in Game.tasks:
-				s += "%s %s  -  %s\n" % ["[x]" if t["done"] else "[ ]", t["title"], t["room"]]
-			if Game.day == 1 and Game.day_time < 40.0:
-				s += "\n" + ("grip = grab a rail, pull, let go" if xr_active else "right mouse = grab, drag to pull")
+				var tk: String = t.get("tool", "")
+				var need := "  [%s]" % Item.SHORT.get(tk, tk.to_upper()) if tk != "" else ""
+				s += "%s %s  -  %s%s\n" % ["[x]" if t["done"] else "[ ]", t["title"], t["room"], need]
+			s += _kit_line()
+			if Game.day == 1 and Game.day_time < 45.0:
+				if xr_active:
+					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool"
+				else:
+					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool"
 		Game.Phase.SLEEP:
 			s = "Shift over.\nGo to sleep."
 		Game.Phase.NIGHT:
-			s = "NIGHT %d    %s\nPOWER: OFFLINE\n> restore main power (POWER PLANT)\n> light freezes it. dark does not." % [Game.day, _fuel_bar()]
+			s = "NIGHT %d    %s\nPOWER: OFFLINE\n> restore main power (POWER PLANT)\n> light freezes it. dark does not.\n" % [Game.day, _fuel_bar()]
+			s += _kit_line()
 		Game.Phase.DEAD:
 			s = "SIGNAL LOST"
 		Game.Phase.WON:

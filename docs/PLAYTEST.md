@@ -48,12 +48,13 @@ Open the https URL the tunnel prints in the Quest browser.
 
 | | |
 |---|---|
-| Grip (hold), hand near anything | grab it - move the controller to pull yourself, release to let go with momentum |
+| Grip (hold), empty hand near anything | grab it - move the controller to pull yourself, release to let go with momentum |
+| Grip on an item (loose, or at your belt) | hold it - release over an empty holster to belt it, anywhere else and it floats off |
 | Left stick | thruster, relative to where you look. About two seconds of burn, then it refills slowly |
 | Right stick up/down | thruster up/down |
 | Right stick left/right | snap turn 30° |
-| A / X | flashlight |
-| Trigger (right) | hold while pointing at a wall terminal |
+| A / X | flashlight on / off (in a hand, on the belt, or drifting) |
+| Trigger | hold while pointing the hand's tool at a wall terminal - each names the tool it needs |
 | Left wrist | task list, clock, night instructions |
 
 **Every wall fitting is a handhold** - ladders, grab loops, foot restraints, valve wheels, locker
@@ -78,9 +79,20 @@ handles. In a station with no floor those are the route, not the scenery. The co
 ## Desktop, without a headset
 
 `godot --path .` and play it flat: right mouse grabs a surface within reach, WASD/Space/C are the
-thrusters, F the flashlight, E or left click uses a terminal, `Ctrl+Shift+N` ends the shift.
+thrusters, 1-4 swap the hand with a belt holster, Q lets go, E or left click picks up a loose item or
+uses the held tool on a terminal, F the flashlight, `Ctrl+Shift+N` ends the shift.
 
 ```
 DERELICT_SHOTS=/tmp/kestrel-shots godot --path .    # jump the camera through every room, save PNGs
 DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000    # the whole loop, no window
 ```
+
+## Tools and the belt - what to check in the headset
+
+- Look down: four holster rings at the waist, following your heading but not your head tilt. Seated and standing.
+- Grip an empty hand on a holstered tool to draw it; let go over an empty ring to stow it. Is 0.17 m of reach
+  forgiving enough without grabbing the wrong holster?
+- Let go of a tool mid-air with a flick: does it drift, bounce off a wall and glow amber so you find it again?
+- A hand holding a tool must not grab rails. Does moving one-handed with a tool out feel right, or annoying?
+- Wrong tool on a terminal: red blink, buzz, and a notice saying where the right tool is.
+- Belt the flashlight at night: the beam should point where your body faces and still freeze the stalker.

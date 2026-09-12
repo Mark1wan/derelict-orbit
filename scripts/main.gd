@@ -45,6 +45,8 @@ func _photo_mode(dir: String) -> void:
 	var shots: Array = station.viewpoints()
 	for sh in shots:
 		await _shot(dir, sh[0], sh[1], sh[2])
+	if station.has_method("place_name"):
+		await _item_shots(dir)
 	# night: power off, flashlight on
 	station.set_power(false)
 	_on_power(false)
@@ -56,6 +58,27 @@ func _photo_mode(dir: String) -> void:
 		await _shot(dir, "night_" + sh[0], sh[1], sh[2])
 	print("[shots] done -> ", dir)
 	get_tree().quit()
+
+## The kit: the belt seen from above, a tool floating on the deck, the wrench up at its terminal.
+func _item_shots(dir: String) -> void:
+	var eye := station.wake_point()
+	player.desk_slot(1)                     # flashlight onto the belt too, so the belt is full
+	await _shot(dir, "kit_belt", eye, eye + Vector3(0, -1.0, -0.35))
+	player.desk_slot(1)
+	var loose := get_tree().get_nodes_in_group(Item.GROUP)
+	if not loose.is_empty():
+		var it := loose[0] as Item
+		var p := it.global_position
+		var rc := StationLayout.world(station.layout.node_of(p), 1.4)
+		await _shot(dir, "kit_loose_" + it.kind, p + (rc - p).normalized() * 1.2 + Vector3(0, 0.15, 0), p)
+	for id in station.interactables:
+		var term: Interactable = station.interactables[id]
+		if term.tool == Item.WRENCH:
+			player.debug_equip(Item.WRENCH)
+			var tp := term.global_position
+			await _shot(dir, "kit_wrench_at_terminal", tp + term.global_transform.basis.z * 1.0 + Vector3(0.15, -0.05, 0), tp)
+			player.debug_equip(Item.FLASHLIGHT)
+			break
 
 func _shot(dir: String, name_: String, pos: Vector3, target: Vector3) -> void:
 	player.teleport_head_to(pos)
@@ -100,20 +123,42 @@ func _autotest() -> void:
 	player.debug_release()
 	print("[autotest] grab pull moved %s (hand offset +0.6 x)" % moved)
 	assert(moved.x < -0.3 and absf(moved.z) < 0.2, "a grab should pull the body opposite to the hand offset")
+	# tool belt: on the desktop you start holding the flashlight, the wrench is in holster 3
+	assert(player.held_kind() == Item.FLASHLIGHT, "desktop should start holding the flashlight")
+	assert(player.belt.slot_of(Item.WRENCH) == 2, "the wrench should start in holster 3")
+	player.desk_slot(2)
+	assert(player.held_kind() == Item.WRENCH and player.belt.slot_of(Item.FLASHLIGHT) == 2, "a number key swaps hand and holster")
+	var wrench: Item = player.held_item()
+	player.debug_let_go()
+	await get_tree().create_timer(0.5).timeout
+	assert(player.held_kind() == "" and wrench.where == Item.Where.WORLD and wrench.is_in_group(Item.GROUP), "Q lets the wrench float off")
+	var drifted := wrench.global_position.distance_to(player.camera.global_position)
+	assert(player.pick_up_nearest(), "the drifting wrench should be catchable")
+	assert(player.held_kind() == Item.WRENCH, "caught the wrench")
+	player.desk_slot(2)
+	assert(player.held_kind() == Item.FLASHLIGHT and player.belt.slot_of(Item.WRENCH) == 2, "back to the starting kit")
+	var loose_kinds := []
+	for n in get_tree().get_nodes_in_group(Item.GROUP):
+		loose_kinds.append((n as Item).kind)
+	assert(loose_kinds.has(Item.SCANNER) and loose_kinds.has(Item.MULTITOOL), "the scanner and multitool should be out on the deck")
+	print("[autotest] belt ok: swap, let go (%.2f m away), catch, holster. On the deck: %s" % [drifted, loose_kinds])
 	# force a few day events of every kind
 	for kind in ["shadow", "bang", "flicker", "whisper", "watcher", "drift", "blackout", "shadow_close"]:
 		haunt._fire_day_event(9.0)
 		await get_tree().create_timer(0.3).timeout
 	await get_tree().create_timer(3.5).timeout
-	# complete tasks by "holding" the terminals
+	# complete tasks the way a player must: fetch the tool each terminal names, then hold trigger on it
 	for t in Game.tasks:
 		var it: Interactable = station.interactables[t["id"]]
+		assert(it.tool != "", "%s should need a tool" % t["id"])
+		assert(not it.hold(0.5, Item.FLASHLIGHT) and it.progress == 0.0, "the wrong tool should do nothing")
+		assert(player.debug_equip(it.tool), "could not get hold of the %s" % it.tool)
 		player.teleport_head_to(it.global_position + it.global_transform.basis.z * 1.5)
 		var guard := 0
 		while not it.done and guard < 600:
-			it.hold(0.05)
+			it.hold(0.05, player.held_kind())
 			guard += 1
-		print("[autotest] completed %s (done=%s)" % [t["id"], it.done])
+		print("[autotest] completed %s with the %s (done=%s)" % [t["id"], it.tool, it.done])
 	assert(Game.phase == Game.Phase.SLEEP, "all tasks done -> SLEEP")
 	await get_tree().create_timer(7.0).timeout
 	assert(Game.phase == Game.Phase.NIGHT, "should be NIGHT")
@@ -197,7 +242,7 @@ func _make_ui() -> void:
 	desk_btn.pressed.connect(_start_desktop)
 	box.add_child(desk_btn)
 	var help := Label.new()
-	help.text = "VR: GRIP near any rail or wall to grab it, pull and let go to fly - sticks = thrusters (little fuel) - A/X flashlight - trigger = use terminal\nDesktop: RIGHT MOUSE on a nearby surface grabs it, drag to pull - WASD/Space/C thrusters - Shift hold on - F flashlight - E or click = use"
+	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool on a terminal - sticks = thrusters - A/X flashlight\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - 1-4 swap hand with belt - Q let go - E/click pick up or use tool - F flashlight"
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.modulate = Color(0.5, 0.55, 0.6)
 	help.add_theme_font_size_override("font_size", 13)

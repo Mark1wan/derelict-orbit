@@ -14,17 +14,17 @@ const ROOM_LABEL := {
 	"laboratory": "LABORATORY", "observation": "OBSERVATION DECK", "exercise": "GYM",
 	"server": "SERVER ROOM", "eva": "EVA AIRLOCK",
 }
-## Per room type: [id, title, x on the door wall]. Bays at x = +-2.65 / +-4.2 are clear of
+## Per room type: [id, title, x on the door wall, repair tool it needs (an Item kind)]. Bays at x = +-2.65 / +-4.2 are clear of
 ## furniture (checked against the kit's build ops); rooms with less wall space get fewer tasks.
 const ROOM_TASKS := {
-	"control": [["ctl_nav", "Sync nav computer", -2.65], ["ctl_alarm", "Acknowledge alarm log", 2.65]],
-	"power": [["pwr_pump", "Reset coolant pump", -2.65]],
-	"plant": [["ls_filter", "Swap O2 scrubber filter", -2.65], ["ls_vent", "Purge CO2 vent", 2.65]],
-	"laboratory": [["lab_cultures", "Log sample cultures", -2.65], ["lab_glovebox", "Reseal the glovebox", 2.65]],
-	"observation": [["obs_tracker", "Recalibrate star tracker", -2.65], ["obs_shutter", "Test blast shutters", 2.65]],
-	"exercise": [["gym_harness", "Inspect treadmill harness", -2.65], ["gym_bike", "Reset bike telemetry", 2.65]],
-	"server": [["srv_log", "Upload signal log", -4.2], ["srv_cooling", "Reseat rack cooling", 4.2]],
-	"eva": [["eva_suits", "Charge suit batteries", 2.65]],
+	"control": [["ctl_nav", "Sync nav computer", -2.65, "scanner"], ["ctl_alarm", "Acknowledge alarm log", 2.65, "scanner"]],
+	"power": [["pwr_pump", "Reset coolant pump", -2.65, "wrench"]],
+	"plant": [["ls_filter", "Swap O2 scrubber filter", -2.65, "wrench"], ["ls_vent", "Purge CO2 vent", 2.65, "wrench"]],
+	"laboratory": [["lab_cultures", "Log sample cultures", -2.65, "scanner"], ["lab_glovebox", "Reseal the glovebox", 2.65, "multitool"]],
+	"observation": [["obs_tracker", "Recalibrate star tracker", -2.65, "scanner"], ["obs_shutter", "Test blast shutters", 2.65, "multitool"]],
+	"exercise": [["gym_harness", "Inspect treadmill harness", -2.65, "wrench"], ["gym_bike", "Reset bike telemetry", 2.65, "multitool"]],
+	"server": [["srv_log", "Upload signal log", -4.2, "scanner"], ["srv_cooling", "Reseat rack cooling", 4.2, "multitool"]],
+	"eva": [["eva_suits", "Charge suit batteries", 2.65, "multitool"]],
 }
 const POWER_PANEL_X := 2.65
 const PANEL_Y := 1.5
@@ -119,6 +119,7 @@ func regenerate(seed_: int) -> void:
 	_place_props()
 	_build_outside()
 	_pick_special_rooms()
+	_place_tools()
 	Game.task_pool = task_pool()
 
 func _place_lights() -> void:
@@ -144,7 +145,7 @@ func _place_rooms() -> void:
 		var facing := xf.basis * Vector3(0, 0, 1)
 		for task: Array in ROOM_TASKS[t]:
 			var pos := xf * Vector3(task[2], PANEL_Y, PANEL_Z)
-			_panel(task[0], task[1], ROOM_LABEL[t], pos, facing)
+			_panel(task[0], task[1], ROOM_LABEL[t], pos, facing, false, task[3])
 		if t == "power":
 			var pos := xf * Vector3(POWER_PANEL_X, PANEL_Y, PANEL_Z)
 			_panel("power", "MAIN POWER", ROOM_LABEL[t], pos, facing, true)
@@ -569,10 +570,10 @@ func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tan
 	body.add_child(cs)
 	mi.add_child(body)
 
-func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false) -> void:
+func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false, tool := "") -> void:
 	var it := Interactable.new()
 	root.add_child(it)
-	it.setup(id, title, room, power)
+	it.setup(id, title, room, power, tool)
 	it.global_position = pos
 	it.look_at(pos - facing, Vector3.UP)
 	it.completed.connect(_on_task_completed)
@@ -717,12 +718,51 @@ func nearest_light(p: Vector3) -> Light3D:
 func random_light() -> Light3D:
 	return lights.pick_random()
 
+# ---------------------------------------------------------------- repair tools
+## The tools the player does not start with (Item.STARTING) are waiting on the deck: each just inside
+## the door of a different room, never the room you wake in, so part of the first shift is finding
+## your kit. Seeded, so a deck number always hides them in the same places.
+func _place_tools() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = layout.seed_ + 505
+	var candidates: Array[int] = []
+	for r: Dictionary in layout.rooms:
+		if r["index"] != wake_room:
+			candidates.append(r["index"])
+	if candidates.is_empty():
+		candidates.append(wake_room)
+	var k := 0
+	for kind: String in Item.TOOLS:
+		if Item.STARTING.has(kind):
+			continue
+		var pick: int = candidates[0]
+		if candidates.size() > 1:
+			pick = candidates.pop_at(rng.randi() % candidates.size())
+		var r: Dictionary = layout.rooms[pick]
+		var dir: Vector2i = r["dir"]
+		var across := Vector3(-dir.y, 0, dir.x)
+		var p := room_entry(pick, 1.3) + across * (0.7 if k % 2 == 0 else -0.7) + Vector3(0, rng.randf_range(-0.15, 0.25), 0)
+		var it := Item.make(kind)
+		it.release_into(root, Vector3.ZERO)
+		it.global_position = p
+		it.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+		it.spin = Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(-0.3, 0.3), rng.randf_range(-0.3, 0.3))
+		k += 1
+
+## What the player would call the place a point is in: a room's name, or "CORRIDOR".
+func place_name(p: Vector3) -> String:
+	var c := StationLayout.cell_at(p)
+	if layout.occupied.has(c):
+		var r: Dictionary = layout.rooms[layout.occupied[c]]
+		return ROOM_LABEL[r["type"]]
+	return "CORRIDOR"
+
 # ---------------------------------------------------------------- game-facing API
 func task_pool() -> Array:
 	var out := []
 	for r: Dictionary in layout.rooms:
 		for task: Array in ROOM_TASKS[r["type"]]:
-			out.append({"id": task[0], "title": task[1], "room": ROOM_LABEL[r["type"]]})
+			out.append({"id": task[0], "title": task[1], "room": ROOM_LABEL[r["type"]], "tool": task[3]})
 	return out
 
 func layout_label() -> String:

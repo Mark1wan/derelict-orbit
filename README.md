@@ -35,17 +35,39 @@ The haunting escalates with the day counter (and with every shift you leave unfi
 
 | Input | Action |
 |---|---|
-| Grip (hold), hand touching something | grab it: move the controller to pull yourself, release to let go with momentum |
+| Grip (hold), empty hand touching something | grab it: move the controller to pull yourself, release to let go with momentum |
+| Grip on an item (loose, or holstered at your waist) | hold it while you grip; let go over an empty holster to belt it, anywhere else and it floats off |
 | Left stick | thruster burn relative to where you look (forward / strafe) - tiny tank, refills slowly |
 | Right stick up / down | thruster up / down |
 | Right stick left / right | snap turn 30 deg |
-| A / X | flashlight on / off |
-| Trigger (right) | hold while pointing at a terminal |
+| A / X | flashlight on / off, wherever it is (hand, belt or drifting) |
+| Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names |
 | Left wrist | task list, clock, night instructions |
 
 **Desktop fallback (any browser / the Godot editor)**: **right mouse** on a surface within arm's reach grabs it, drag
-to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, F flashlight,
-E or left click to use a terminal, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
+to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you. **1-4** swap
+your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach or uses the
+held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
+
+## Tools and the belt
+
+A hand that holds something cannot grab a rail, so what you are not using goes on the **tool belt**: four holsters
+around your waist (1 left hip, 2 front left, 3 front right, 4 right hip) that turn with the way your body faces.
+Tools hang pointing at the deck; the flashlight clips on pointing forward, so on the belt it still lights your way
+(and still freezes the stalker). Let go of an item anywhere else and it drifts off in zero-G with your hand's
+motion - it bounces off walls and glows amber until you catch it.
+
+Every task terminal names the repair tool it needs, and only that tool, pointed at it with trigger held, works:
+
+| Tool | Tasks |
+|---|---|
+| Wrench | coolant pump, O2 scrubber filter, CO2 vent, treadmill harness |
+| Multitool | glovebox seal, blast shutters, bike telemetry, rack cooling, suit batteries |
+| Scanner | nav computer, alarm log, sample cultures, star tracker, signal log |
+
+You start with the flashlight and the wrench. The multitool and the scanner are floating just inside the door of
+two other rooms (seeded per deck). The wrist lists what is in your hands, on the belt, and where the rest was
+last seen. The MAIN POWER panel at night needs no tool.
 
 ## Project layout
 
@@ -57,6 +79,8 @@ scripts/game.gd        autoload: phases, day counter, tasks, intensity
 scripts/sfx.gd         autoload: sound bank
 scripts/main.gd        WebXR session, title UI, environment, autotest
 scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruster tank, flashlight, laser, wrist HUD
+scripts/item.gd        the flashlight and the repair tools (built in code): hand / belt / loose, zero-G drift
+scripts/tool_belt.gd   four holsters at the waist that follow the body's heading
 scripts/layout.gd      the deck plan: seeded corridor growth on the 4 m grid, rooms through their doorway, piece
                        + rotation per cell, BFS path / distances on the cell graph
 scripts/kit.gd         loads kit/*.glb once, merges placed pieces per chunk and material, trimesh colliders
