@@ -105,6 +105,25 @@ jobs:
           path: build/web
           retention-days: 30
 
+      # The flat Windows build, for playtesting at a desk. The web export cannot be opened from
+      # disk - its loader fetch()es the wasm and pck, and fetch() is refused on file:// - so
+      # testing it always costs a local HTTP server. This one is a single self-contained exe that
+      # runs on a double-click. No VR in it: the headset path is WebXR and only exists in a browser.
+      - name: Export the flat Windows build
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows
+          godot --headless --path . --export-release "Windows Desktop (flat)" build/windows/DerelictOrbit.exe
+          test -s build/windows/DerelictOrbit.exe || { echo "::error::no exe - the Windows export did not run"; exit 1; }
+          cp docs/WINDOWS_README.txt build/windows/README.txt
+          ls -lh build/windows
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: derelict-orbit-windows-${{ github.sha }}
+          path: build/windows
+          retention-days: 30
+
       - uses: actions/configure-pages@v5
         if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       - uses: actions/upload-pages-artifact@v3
