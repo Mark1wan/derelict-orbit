@@ -68,7 +68,8 @@ var held := {}                    # hand node -> Item
 var rays := {}                    # hand node -> RayCast3D (terminals, layer 2)
 var lasers := {}                  # hand node -> MeshInstance3D
 var desk_hand: Node3D             # desktop: the one virtual hand, bottom right of the view
-var wrist: Label3D
+var wrist: HoloPanel              # the crew terminal hologram: tasks, clock, fuel, kit
+var _menu_prev := false
 var hud_label: Label3D
 var fade_mat: StandardMaterial3D
 var fade_target := 1.0
@@ -126,6 +127,8 @@ func _ready() -> void:
 	_give_starting_kit()
 	Game.notice.connect(_on_notice)
 	Game.tasks_changed.connect(_refresh_wrist)
+	Game.tasks_changed.connect(wrist.notify)
+	Game.day_started.connect(func(_d: int) -> void: wrist.notify())
 	Game.phase_changed.connect(_on_phase)
 	Game.game_reset.connect(_on_reset)
 	_refresh_wrist()
@@ -161,17 +164,8 @@ func _build_attachments() -> void:
 		c.add_child(lz)
 		lasers[c] = lz
 
-	wrist = Label3D.new()
-	wrist.font_size = 40
-	wrist.pixel_size = 0.0006
-	wrist.outline_size = 10
-	wrist.position = Vector3(0, 0.07, 0.0)
-	wrist.rotation_degrees = Vector3(-35, 0, 0)
-	wrist.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	wrist.modulate = Color(0.7, 1.0, 0.8)
-	wrist.no_depth_test = true
-	wrist.render_priority = 50
-	left.add_child(wrist)
+	wrist = HoloPanel.new()
+	wrist.attach_wrist(left, camera)
 
 	hud_label = Label3D.new()
 	hud_label.font_size = 44
@@ -264,10 +258,7 @@ func begin(xr: bool) -> void:
 		camera.add_child(r)
 		rays = {desk_hand: r}
 		lasers = {}
-		wrist.reparent(camera, false)
-		wrist.position = Vector3(-1.15, -0.3, -1.5)
-		wrist.rotation = Vector3.ZERO
-		wrist.pixel_size = 0.0011
+		wrist.attach_view(camera)
 		left.visible = false
 		right.visible = false
 		belt.show_numbers(true)
@@ -564,6 +555,10 @@ func _physics_process(delta: float) -> void:
 			var vert := rs.y if absf(rs.y) > DEAD_ZONE else 0.0
 			if not frozen:
 				wish = -b.z * ls.y + b.x * ls.x + origin.global_basis.y * vert
+		var menu := _pressed(left, ["by_button"])
+		if menu and not _menu_prev:
+			toggle_panel()
+		_menu_prev = menu
 		var tog := _pressed(right, ["ax_button"]) or _pressed(left, ["ax_button"])
 		if tog and not _toggle_prev:
 			_toggle_flashlight()
@@ -613,6 +608,8 @@ func _physics_process(delta: float) -> void:
 			wish = -b.z * move_in.y + b.x * move_in.x + origin.global_basis.y * vert
 		if Input.is_action_just_pressed("d_flash"):
 			_toggle_flashlight()
+		if Input.is_action_just_pressed("d_menu"):
+			toggle_panel()
 		if Input.is_action_just_pressed("d_drop") and not frozen:
 			_let_go(desk_hand, -b.z * 0.5 + velocity)
 		var rmb := (Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and mouse_captured and not frozen) or _debug_hold
@@ -873,6 +870,22 @@ func debug_equip(kind: String) -> bool:
 		return pick_up_nearest() and held_kind(desk_hand) == kind
 	return false
 
+## Show or hide the crew terminal (Y on the left hand, TAB on the desktop).
+func toggle_panel() -> void:
+	wrist.toggle()
+
+## Review hook (photo mode): pose the left hand in front of the desktop camera and project the
+## terminal from it the way it looks in VR, or put it back.
+func debug_preview_wrist(on: bool) -> void:
+	if on:
+		left.visible = true
+		left.position = Vector3(-0.14, 1.26, -0.4)
+		left.rotation_degrees = Vector3(25.0, 30.0, 0.0)
+		wrist.attach_wrist(left, camera)
+	else:
+		left.visible = false
+		wrist.attach_view(camera)
+
 func _fuel_bar() -> String:
 	var n := int(round(fuel * 6.0))
 	return "THRUST [" + "#".repeat(n) + "-".repeat(6 - n) + "]"
@@ -909,9 +922,9 @@ func _refresh_wrist() -> void:
 			s += _kit_line()
 			if Game.day == 1 and Game.day_time < 45.0:
 				if xr_active:
-					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)"
+					s += "\ngrip empty hand = grab rail   grip item = hold it\nlet go over a holster = belt it   trigger = use tool\nhold B + sticks = rotate (spin keeps going)\nY (left hand) = hide this terminal"
 				else:
-					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool   R + mouse = roll / pitch"
+					s += "\nright mouse = grab   1-4 = belt   Q = let go\nE / click = pick up or use tool   R + mouse = roll / pitch\nTAB = hide this terminal"
 		Game.Phase.SLEEP:
 			s = "Shift over.\nGo to sleep."
 		Game.Phase.NIGHT:
@@ -921,4 +934,4 @@ func _refresh_wrist() -> void:
 			s = "SIGNAL LOST"
 		Game.Phase.WON:
 			s = "RESCUED"
-	wrist.text = s
+	wrist.set_text(s)

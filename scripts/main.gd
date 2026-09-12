@@ -44,6 +44,11 @@ func _photo_mode(dir: String) -> void:
 	player.wrist.visible = false
 	# DERELICT_SHOTS_ONLY=sky renders just the sky and window-light shots
 	var only_sky := OS.get_environment("DERELICT_SHOTS_ONLY") == "sky"
+	if OS.get_environment("DERELICT_SHOTS_ONLY") == "hud" and station.has_method("place_name"):
+		await _item_shots(dir)
+		print("[shots] done -> ", dir)
+		get_tree().quit()
+		return
 	if only_sky and station.has_method("place_name"):
 		await _sky_shots(dir)
 		print("[shots] done -> ", dir)
@@ -70,6 +75,16 @@ func _photo_mode(dir: String) -> void:
 ## The kit: the belt seen from above, a tool floating on the deck, the wrench up at its terminal.
 func _item_shots(dir: String) -> void:
 	var eye := station.wake_point()
+	# the crew terminal hologram: on the desktop, then projected from a posed left wrist as in VR
+	player.wrist.visible = true
+	player.wrist.set_open(true)
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "hud_terminal", eye, eye + Vector3(0, 0, -3))
+	player.debug_preview_wrist(true)
+	await get_tree().create_timer(0.2).timeout
+	await _shot(dir, "hud_terminal_wrist", eye, eye + Vector3(0, -0.35, -1))
+	player.debug_preview_wrist(false)
+	player.wrist.visible = false
 	player.desk_slot(1)                     # flashlight onto the belt too, so the belt is full
 	await _shot(dir, "kit_belt", eye, eye + Vector3(0, -1.0, -0.35))
 	player.desk_slot(1)
@@ -210,6 +225,16 @@ func _autotest() -> void:
 		loose_kinds.append((n as Item).kind)
 	assert(loose_kinds.has(Item.SCANNER) and loose_kinds.has(Item.MULTITOOL), "the scanner and multitool should be out on the deck")
 	print("[autotest] belt ok: swap, let go (%.2f m away), catch, holster. On the deck: %s" % [drifted, loose_kinds])
+	# the crew terminal: TAB toggles the hologram
+	var was_open := player.wrist.is_open
+	Input.action_press("d_menu")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("d_menu")
+	assert(player.wrist.is_open != was_open, "TAB should toggle the crew terminal")
+	player.toggle_panel()
+	assert(player.wrist.is_open == was_open, "and toggle it back")
+	print("[autotest] crew terminal ok: TAB toggles the hologram")
 	# rotation: spin from the thrusters keeps going after the input stops, a hand on the station stops it
 	Game.comfort_snap = false
 	var fwd0 := -player.camera.global_transform.basis.z
@@ -357,7 +382,7 @@ func _make_ui() -> void:
 	comfort.toggled.connect(func(on: bool) -> void: Game.comfort_snap = on)
 	box.add_child(comfort)
 	var help := Label.new()
-	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool - sticks = thrusters - hold B + sticks = rotate - A/X flashlight\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - R + mouse = roll/pitch - 1-4 swap hand with belt - Q let go - E/click pick up or use - F flashlight"
+	help.text = "VR: GRIP an empty hand on anything to pull yourself - GRIP an item to hold it, let go over a belt holster to stow it - trigger = use the held tool - sticks = thrusters - hold B + sticks = rotate - A/X flashlight - Y = crew terminal\nDesktop: RIGHT MOUSE grab + drag - WASD/Space/C thrusters - R + mouse = roll/pitch - TAB = crew terminal - 1-4 swap hand with belt - Q let go - E/click pick up or use - F flashlight"
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.modulate = Color(0.5, 0.55, 0.6)
 	help.add_theme_font_size_override("font_size", 13)

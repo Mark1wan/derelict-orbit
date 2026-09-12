@@ -82,9 +82,9 @@ func _begin_day() -> void:
 	tasks_changed.emit()
 	day_started.emit(day)
 	if day == 1:
-		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nCheck your wrist for the tool each one needs.\nGrab rails to move, belt what you are not holding." % [day, layout_seed, TASKS_PER_DAY], 8.0)
+		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nTAB, or Y on the left hand: tasks and the tool each needs.\nGrab rails to move, belt what you are not holding." % [day, layout_seed, TASKS_PER_DAY], 8.0)
 	else:
-		notice.emit("DAY %d\nShift begins. %d maintenance tasks.\nCheck your wrist terminal." % [day, TASKS_PER_DAY], 7.0)
+		notice.emit("DAY %d\nShift begins. %d maintenance tasks.\nTAB / Y: your crew terminal." % [day, TASKS_PER_DAY], 7.0)
 
 func _process(delta: float) -> void:
 	if phase == Phase.DAY:
@@ -170,6 +170,7 @@ func _setup_input() -> void:
 	_add_key("d_flash", KEY_F)
 	_add_key("d_interact", KEY_E)
 	_add_key("d_drop", KEY_Q)
+	_add_key("d_menu", KEY_TAB)
 	_add_mouse("d_interact", MOUSE_BUTTON_LEFT)
 
 func _add_key(action: String, key: Key) -> void:

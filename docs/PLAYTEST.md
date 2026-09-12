@@ -56,6 +56,7 @@ Open the https URL the tunnel prints in the Quest browser.
 | A / X | flashlight on / off (in a hand, on the belt, or drifting) |
 | Hold B + left stick | rotation thrusters: pitch (forward / back) and roll (left / right) |
 | Hold B + right stick left / right | rotation thruster: yaw |
+| Y (left hand) | crew terminal hologram on / off |
 | Trigger | hold while pointing the hand's tool at a wall terminal - each names the tool it needs |
 | Left wrist | task list, clock, night instructions |
 
@@ -108,3 +109,5 @@ DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000    # the whole l
 - Sunlit windows: a warm patch on the far wall and a faint shaft. Does a window go dark when another module is
   between it and the sun? Frame rate in a room with several lit windows?
 - Night: no sunlight anywhere, city lights on the Earth's dark side.
+- Press Y: does the crew terminal hologram read comfortably above the wrist at any wrist angle? Too big, too faint,
+  in the way of the left hand grabbing? Closed, is the pulsing wrist emitter noticeable when tasks change?

@@ -44,10 +44,10 @@ The haunting escalates with the day counter (and with every shift you leave unfi
 | Hold B + right stick left / right | rotation thruster: yaw |
 | A / X | flashlight on / off, wherever it is (hand, belt or drifting) |
 | Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names |
-| Left wrist | task list, clock, night instructions |
+| Y (left hand) | crew terminal hologram on / off: tasks with the tool each needs, clock, thruster fuel, belt, where the tools are |
 
 **Desktop fallback (any browser / the Godot editor)**: **right mouse** on a surface within arm's reach grabs it, drag
-to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, **R + mouse** rolls and pitches the whole body. **1-4** swap
+to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, **R + mouse** rolls and pitches the whole body, **Tab** shows or hides the crew terminal. **1-4** swap
 your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach or uses the
 held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
 
@@ -112,6 +112,7 @@ scripts/main.gd        WebXR session, title UI, environment, autotest
 scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruster tank, flashlight, laser, wrist HUD
 scripts/item.gd        the flashlight and the repair tools (built in code): hand / belt / loose, zero-G drift
 scripts/tool_belt.gd   four holsters at the waist that follow the body's heading
+scripts/holo_panel.gd  the crew terminal: tasks and stats as a hologram from the left wrist (Y / TAB)
 scripts/orbit.gd       where the sun is: orbit clock tied to day and night, eclipse, sky shader uniforms, exterior sunlight
 scripts/window_sun.gd  sunlight through outside windows: per-window light patch and shaft, shaded by other modules
 sky/                   orbit_sky.gdshader and the baked textures: Earth day, night population, stars, tiling detail
