@@ -310,6 +310,26 @@ func _autotest() -> void:
 	for kind in ["shadow", "bang", "flicker", "whisper", "watcher", "drift", "blackout", "shadow_close"]:
 		haunt._fire_day_event(9.0)
 		await get_tree().create_timer(0.3).timeout
+	# the chupacabra is built on its own rig, which has none of the stalker's poses: force a few,
+	# lurking, withdrawing and bolting, and check it only ever asks for poses its rig has
+	var corners: Array = station.corner_spots()
+	for i in 4:
+		var spot: Array = corners[(i * 7) % corners.size()]
+		var beast := Chupacabra.new()
+		haunt.add_child(beast)
+		beast.lurk_at(spot[0], spot[1])
+		var poses: Dictionary = beast.body._rig["poses"]
+		assert(poses.has(beast.body.idle_pose) and poses.has(beast.body.twitch_pose), "the chupacabra's idle poses should be in its own rig")
+		await get_tree().create_timer(0.2).timeout
+		if i % 2 == 0:
+			beast._withdraw()
+		else:
+			beast._state = Chupacabra.State.COIL
+			beast._t = 0.0
+			beast.body.set_pose("coil", true)
+		await get_tree().create_timer(1.2).timeout
+		assert(not is_instance_valid(beast), "the chupacabra should be gone after it leaves")
+	print("[autotest] chupacabra ok: 4 forced (withdraw, bolt)")
 	await get_tree().create_timer(3.5).timeout
 	# complete tasks the way a player must: fetch the tool each terminal names, then hold trigger on it
 	for t in Game.tasks:
