@@ -881,10 +881,13 @@ func _begin(xr: bool) -> void:
 func _warm_up() -> void:
 	player.fade_target = 1.0
 	player.fade_mat.albedo_color.a = 1.0
-	Game.notice.emit("KESTREL-9\nInitialising deck systems...", 6.0)
+	Game.notice.emit("KESTREL-9\nInitialising deck systems...", 8.0)
 	var start := station.start_point()
 	var lay: StationLayout = station.layout
+	var deadline := Time.get_ticks_msec() + 5000   # a slow machine gets the rooms, then we go anyway
 	for r: Dictionary in lay.rooms:
+		if Time.get_ticks_msec() > deadline:
+			break
 		var dir: Vector2i = r["dir"]
 		_look_from(station.room_entry(r["index"]), StationLayout.world(r["center"], 1.4))
 		for i in 2:
@@ -894,7 +897,7 @@ func _warm_up() -> void:
 	var n := 0
 	for c: Vector2i in lay.corridor:
 		n += 1
-		if n % 3 != 0:
+		if n % 3 != 0 or Time.get_ticks_msec() > deadline:
 			continue
 		var cell: Dictionary = lay.corridor[c]
 		var d: Vector2i = cell["open"][0]
@@ -902,11 +905,13 @@ func _warm_up() -> void:
 		await get_tree().process_frame
 	player.teleport_head_to(start)
 	for k in 8:
+		if Time.get_ticks_msec() > deadline + 1500:
+			break
 		player.origin.rotation.y = k * TAU / 8.0
 		await get_tree().process_frame
 	player.origin.rotation.y = 0.0
 	player.yaw = 0.0
-	await get_tree().create_timer(0.8).timeout
+	await get_tree().create_timer(0.6).timeout
 	player.hud_label.text = ""
 	player.fade_target = 0.0
 
