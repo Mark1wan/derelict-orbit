@@ -114,7 +114,7 @@ func regenerate(seed_: int) -> void:
 	var keymap := func(n: String) -> String: return Palette.KIT_MAP.get(n, "metal")
 	for c: Vector2i in layout.corridor:
 		var cell: Dictionary = layout.corridor[c]
-		var key := "c%d_%d" % [floori(c.x / 3.0), floori(c.y / 3.0)]
+		var key := "c%d_%d" % [floori(c.x / 5.0), floori(c.y / 5.0)]   # 20 m chunks: fewer draw calls, still culls
 		if not mergers.has(key):
 			mergers[key] = Kit.Merger.new()
 			outers[key] = Kit.Merger.new()
@@ -152,17 +152,16 @@ func _place_lights() -> void:
 	for c: Vector2i in layout.corridor:
 		var cell: Dictionary = layout.corridor[c]
 		var junction: bool = cell["open"].size() != 2
-		if junction or (c.x + c.y) % 2 == 0:
-			_light(StationLayout.world(c, 1.5), 0.75, 6.5, Color(0.8, 0.88, 1.0))
+		# one light per two cells: the Compatibility renderer pays per light per pixel
+		if posmod(c.x + c.y, 2) == 0:
+			_light(StationLayout.world(c, 1.5), 0.9, 6.0, Color(0.8, 0.88, 1.0))
 		if junction:
 			_emergency_light(StationLayout.world(c, 1.5), 0.18, 5.0)
-		if cell["open"].size() == 2 and (c.x * 7 + c.y * 3) % 4 == 0:
-			_dust(StationLayout.world(c, 1.5), Vector3(1.3, 1.2, 1.3), 14)
 	for r: Dictionary in layout.rooms:
 		var t: String = r["type"]
 		_light(StationLayout.world(r["center"], 1.8), 1.0, 11.0, ROOM_TINT.get(t, Color(0.85, 0.9, 1.0)))
 		_emergency_light(StationLayout.world(r["door_cell"], 1.5), 0.25, 5.0)
-		_dust(StationLayout.world(r["center"], 1.8), Vector3(5.0, 1.6, 5.0), 40)
+		_dust(StationLayout.world(r["center"], 1.8), Vector3(5.0, 1.6, 5.0), 28)
 
 func _place_rooms() -> void:
 	for r: Dictionary in layout.rooms:
@@ -189,7 +188,8 @@ func _place_rooms() -> void:
 		var across := Vector3(absf(toward_room.z), 0, absf(toward_room.x))
 		g.box(plate, across * 1.1 + Vector3(0, 0.26, 0) + toward_room.abs() * 0.05)
 		g.box(plate + Vector3(0, 0.38, 0), Vector3(0.04, 0.5, 0.04))
-		g.commit(pal.get_mat("frame"), root, null, "plate")
+		var plate_mi := g.commit(pal.get_mat("frame"), root, null, "plate")
+		plate_mi.visibility_range_end = 20.0
 		_sign(ROOM_LABEL[t], plate + toward_room * 0.035, toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 		_sign(ROOM_LABEL[t], plate - toward_room * 0.035, -toward_room, 40, Color(0.95, 0.97, 1.0), 0.0038)
 
@@ -523,6 +523,7 @@ func _light(pos: Vector3, energy: float, range_: float, col := Color(0.8, 0.9, 1
 	l.light_energy = energy
 	l.omni_range = range_
 	l.light_color = col
+	l.light_specular = 0.25
 	l.shadow_enabled = false
 	root.add_child(l)
 	lights.append(l)
@@ -547,6 +548,7 @@ func _sign(text: String, pos: Vector3, facing: Vector3, size := 48, col := Color
 	l.shaded = true
 	l.modulate = col
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.visibility_range_end = 18.0
 	root.add_child(l)
 	l.position = pos
 	l.look_at(pos - facing, Vector3.UP)

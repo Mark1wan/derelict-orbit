@@ -377,39 +377,75 @@ static func find_clear_spot(piece: String, axis: int, coord: float, face: float,
 			taken[Vector2i(u, v)] = true
 	return Vector2((pick.x + 0.5) * PROFILE_RES, (pick.y + 0.5) * PROFILE_RES)
 
-## Accumulates surfaces from many placed pieces, grouped by a material key.
+## Accumulates surfaces from many placed pieces. Surfaces are appended per source material,
+## then collapsed per GROUP (see Palette.KIT_GROUPS) into one de-indexed surface whose vertex
+## colour carries each material's tint - so a chunk costs one draw call per group, not per material.
 class Merger:
-	var tools := {}
-	var counts := {}
-	func add(piece: String, xf: Transform3D, keymap: Callable) -> void:
+	var tools := {}       # material name -> SurfaceTool
+	var group_of := {}    # material name -> group key
+	var tint_of := {}     # material name -> Color
+	func add(piece: String, xf: Transform3D, _keymap: Callable = Callable()) -> void:
 		var m := Kit.mesh(piece)
 		var names := Kit.material_names(piece)
 		var skip: Dictionary = Kit.SKIP.get(piece, {})
 		for s in m.get_surface_count():
-			if skip.has(names[s]):
+			var n := names[s]
+			if skip.has(n):
 				continue
-			var key: String = keymap.call(names[s])
-			if not tools.has(key):
+			if not tools.has(n):
 				var st := SurfaceTool.new()
 				st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				tools[key] = st
-				counts[key] = 0
-			tools[key].append_from(m, s, xf)
-			counts[key] += 1
-	## materials.call(key) -> Material. Every opaque key gets a trimesh collider on `body`.
+				tools[n] = st
+				var g: Array = Palette.KIT_GROUPS.get(n, Palette.DEFAULT_GROUP)
+				group_of[n] = g[0]
+				tint_of[n] = g[1]
+			tools[n].append_from(m, s, xf)
+	## materials.call(group) -> Material. Opaque groups get a trimesh collider on `body`.
 	func commit(parent: Node, body: StaticBody3D, materials: Callable, no_collide: Dictionary, prefix: String) -> Array[MeshInstance3D]:
 		var out: Array[MeshInstance3D] = []
-		for key: String in tools:
-			var st: SurfaceTool = tools[key]
-			var mesh := st.commit()
-			if mesh.get_surface_count() == 0:
+		var acc := {}   # group -> {pos, nrm, tan, uv, col}
+		for n: String in tools:
+			var st: SurfaceTool = tools[n]
+			var g: String = group_of[n]
+			st.deindex()
+			if Palette.TEXTURED_GROUPS.has(g):
+				st.generate_tangents()
+			var arr: Array = st.commit_to_arrays()
+			var pos: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			if pos.is_empty():
 				continue
+			if not acc.has(g):
+				acc[g] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "col": PackedColorArray()}
+			var a: Dictionary = acc[g]
+			a["pos"].append_array(pos)
+			a["nrm"].append_array(arr[Mesh.ARRAY_NORMAL])
+			if arr[Mesh.ARRAY_TANGENT] != null:
+				a["tan"].append_array(arr[Mesh.ARRAY_TANGENT])
+			if arr[Mesh.ARRAY_TEX_UV] != null:
+				a["uv"].append_array(arr[Mesh.ARRAY_TEX_UV])
+			var cols := PackedColorArray()
+			cols.resize(pos.size())
+			cols.fill(tint_of[n])
+			a["col"].append_array(cols)
+		for g: String in acc:
+			var a: Dictionary = acc[g]
+			var arrays := []
+			arrays.resize(Mesh.ARRAY_MAX)
+			arrays[Mesh.ARRAY_VERTEX] = a["pos"]
+			arrays[Mesh.ARRAY_NORMAL] = a["nrm"]
+			arrays[Mesh.ARRAY_COLOR] = a["col"]
+			if a["uv"].size() == a["pos"].size():
+				arrays[Mesh.ARRAY_TEX_UV] = a["uv"]
+			if a["tan"].size() == a["pos"].size() * 4:
+				arrays[Mesh.ARRAY_TANGENT] = a["tan"]
+			var mesh := ArrayMesh.new()
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			var mi := MeshInstance3D.new()
 			mi.mesh = mesh
-			mi.material_override = materials.call(key)
-			mi.name = "%s_%s" % [prefix, key]
+			mi.material_override = materials.call(g)
+			mi.name = "%s_%s" % [prefix, g]
 			parent.add_child(mi)
-			if body and not no_collide.has(key):
+			if body and not no_collide.has(g):
 				var cs := CollisionShape3D.new()
 				cs.shape = mesh.create_trimesh_shape()
 				body.add_child(cs)

@@ -292,9 +292,15 @@ func _make_laser() -> MeshInstance3D:
 	return laser
 
 ## The flashlight and the wrench, both on the belt. Everything else is somewhere on the deck.
+## The beam's shadow map re-renders everything in the cone every frame - the single most expensive
+## thing on a Quest, so it is desktop-only and off on low graphics.
+func _shadow_allowed() -> bool:
+	return started and not xr_active and not Game.low_quality
+
 func _give_starting_kit() -> void:
 	flash_item = Item.make(Item.FLASHLIGHT)
 	flashlight = flash_item.light
+	flashlight.shadow_enabled = _shadow_allowed()
 	belt.stow(flash_item, 1, true)
 	belt.stow(Item.make(Item.WRENCH), 2, true)
 	flashlight_on = true
@@ -305,6 +311,8 @@ func begin(xr: bool) -> void:
 	xr_active = xr
 	started = true
 	belt.snap()
+	if flashlight:
+		flashlight.shadow_enabled = _shadow_allowed()
 	if not xr:
 		camera.position = Vector3(0, 1.6, 0)
 		for c: XRController3D in [left, right]:

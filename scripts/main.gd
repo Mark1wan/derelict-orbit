@@ -223,10 +223,13 @@ func _autotest() -> void:
 	assert(Game.phase == Game.Phase.DAY, "should be DAY")
 	print("[autotest] day %d tasks: %s" % [Game.day, str(Game.tasks)])
 	var meshes := 0
+	var hull := 0
 	for n in station.root.get_children():
 		if n is MeshInstance3D:
 			meshes += 1
-	print("[autotest] deck %s: %d corridor cells, %d rooms, %d merged meshes" % [station.layout_label(), station.layout.corridor.size(), station.layout.rooms.size(), meshes])
+			if n.name.begins_with("c") or n.name.begins_with("room"):
+				hull += 1
+	print("[autotest] deck %s: %d corridor cells, %d rooms, %d hull meshes + %d other meshes" % [station.layout_label(), station.layout.corridor.size(), station.layout.rooms.size(), hull, meshes - hull])
 	# locomotion: thrusters burn fuel and move you; a grab pulls the body toward the anchor
 	Input.action_press("d_forward")
 	await get_tree().create_timer(1.0).timeout
@@ -812,6 +815,7 @@ func _enter_vr() -> void:
 	webxr.requested_reference_space_types = "local-floor, local"
 	webxr.required_features = "local"
 	webxr.optional_features = "local-floor"
+	webxr.render_target_size_multiplier = 0.85   # Quest 3: ~28% fewer pixels per eye, barely visible
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
@@ -864,8 +868,57 @@ func _begin(xr: bool) -> void:
 	player.begin(xr)
 	player.teleport_head_to(station.start_point())
 	Sfx.set_ambient("hum")
-	await get_tree().create_timer(1.2).timeout
+	if OS.has_environment("DERELICT_AUTOTEST") or OS.has_environment("DERELICT_SHOTS"):
+		await get_tree().create_timer(1.2).timeout
+	else:
+		await _warm_up()
 	Game.start_game()
+
+## The loading stage. Shaders compile the first time a material is drawn, so without this the first
+## look into every room and every lamp, screen and pane of glass costs a hitch during play. Behind
+## the black fade the camera visits each room and a spread of corridor cells for a frame or two,
+## then spins at the start point, so everything on the deck has been drawn once before the fade lifts.
+func _warm_up() -> void:
+	player.fade_target = 1.0
+	player.fade_mat.albedo_color.a = 1.0
+	Game.notice.emit("KESTREL-9\nInitialising deck systems...", 6.0)
+	var start := station.start_point()
+	var lay: StationLayout = station.layout
+	for r: Dictionary in lay.rooms:
+		var dir: Vector2i = r["dir"]
+		_look_from(station.room_entry(r["index"]), StationLayout.world(r["center"], 1.4))
+		for i in 2:
+			await get_tree().process_frame
+		_look_from(StationLayout.world(r["center"], 1.4), StationLayout.world(r["center"], 1.4) + Vector3(dir.x, 0, dir.y) * 5.0)
+		await get_tree().process_frame
+	var n := 0
+	for c: Vector2i in lay.corridor:
+		n += 1
+		if n % 3 != 0:
+			continue
+		var cell: Dictionary = lay.corridor[c]
+		var d: Vector2i = cell["open"][0]
+		_look_from(StationLayout.world(c, 1.5), StationLayout.world(c, 1.5) + Vector3(d.x, 0, d.y) * 6.0)
+		await get_tree().process_frame
+	player.teleport_head_to(start)
+	for k in 8:
+		player.origin.rotation.y = k * TAU / 8.0
+		await get_tree().process_frame
+	player.origin.rotation.y = 0.0
+	player.yaw = 0.0
+	await get_tree().create_timer(0.8).timeout
+	player.hud_label.text = ""
+	player.fade_target = 0.0
+
+func _look_from(eye: Vector3, target: Vector3) -> void:
+	player.teleport_head_to(eye)
+	if player.xr_active:
+		return
+	var v := target - eye
+	player.yaw = atan2(-v.x, -v.z)
+	player.pitch = atan2(v.y, Vector2(v.x, v.z).length())
+	player.origin.rotation.y = player.yaw
+	player.camera.rotation.x = player.pitch
 
 ## Dev shortcut (desktop keyboard): Ctrl+Shift+N ends the current shift immediately.
 func _unhandled_key_input(e: InputEvent) -> void:

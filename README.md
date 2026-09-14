@@ -248,10 +248,13 @@ DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000
 
 ## Quest 3 performance notes
 
-- Compatibility renderer, no glow/SSAO, light depth fog, MSAA 2x, 9 unshadowed omni lights + one shadowed spot
-  (the flashlight). Hull geometry is batched per area and material (about 10 meshes per room) so draw calls stay
-  in the low hundreds even with all the greebles. If you see frame drops, set `flashlight.shadow_enabled = false`
-  in `player.gd` first, then drop `normal_enabled` on the hull materials in `station.gd`.
+- Compatibility renderer, no glow/SSAO, light depth fog, MSAA 2x. The hull is merged per 20 m chunk into one mesh
+  per material *group* (plating, grating, flat metals via vertex colours, self-lit screens, hazard, glass), so a
+  deck is roughly 80-100 hull draw calls; terminals and name plates cull beyond 16-20 m.
+- In a headset: no flashlight shadow map (the single biggest cost), eye buffers at 85 % scale, at most 3 sunlit
+  windows, one corridor light per two cells. Low graphics (phones) also drops the shadow and goes to 2 windows.
+- The loading stage after "ENTER VR" / "Play" walks the camera through every room behind the black fade so all
+  shaders compile before you can see anything.
 - Shadow atlas is 1024 on mobile (`project.godot`).
 - Physics runs at 72 Hz to match the headset's default refresh.
 

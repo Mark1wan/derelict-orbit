@@ -12,6 +12,7 @@ extends Node3D
 
 const MAX_LIT := 6
 const MAX_LIT_LOW := 2        # low graphics (phones)
+const MAX_LIT_XR := 3         # a headset renders every light twice; three sunlit windows is plenty
 const NEAR := 24.0            # metres from the player within which a window's light switches on
 const OUTSIDE := 8.0          # how far outside the glass each window's light sits: far enough that
                               # its rays are near parallel and the patch keeps the window's shape
@@ -104,7 +105,12 @@ func _update() -> void:
 			candidates.append(p)
 	candidates.sort_custom(func(a: Pane, b: Pane) -> bool: return a.center.distance_squared_to(eye) < b.center.distance_squared_to(eye))
 	var on := {}
-	for i in mini(MAX_LIT_LOW if Game.low_quality else MAX_LIT, candidates.size()):
+	var budget := MAX_LIT
+	if Game.low_quality:
+		budget = MAX_LIT_LOW
+	elif Game.player and Game.player.xr_active:
+		budget = MAX_LIT_XR
+	for i in mini(budget, candidates.size()):
 		on[candidates[i]] = true
 	for p: Pane in windows:
 		var show := on.has(p)
