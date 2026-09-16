@@ -293,9 +293,10 @@ func _make_laser() -> MeshInstance3D:
 
 ## The flashlight and the wrench, both on the belt. Everything else is somewhere on the deck.
 ## The beam's shadow map re-renders everything in the cone every frame - the single most expensive
-## thing on a Quest, so it is desktop-only and off on low graphics.
+## thing on a Quest, so it is desktop-only, and off on low graphics and in PS1 mode (which never
+## had shadow maps either).
 func _shadow_allowed() -> bool:
-	return started and not xr_active and not Game.low_quality
+	return started and not xr_active and not Game.low_quality and not Game.retro
 
 func _give_starting_kit() -> void:
 	flash_item = Item.make(Item.FLASHLIGHT)
@@ -949,7 +950,9 @@ func _process(delta: float) -> void:
 	_wrist_tick += delta
 	if _wrist_tick > 0.25:
 		_wrist_tick = 0.0
-		_refresh_wrist()
+		# rebuilding the terminal's text re-rasterises the label; no point while it is put away
+		if wrist.is_open:
+			_refresh_wrist()
 
 func _on_notice(text: String, seconds: float) -> void:
 	hud_label.text = text
@@ -1093,6 +1096,8 @@ func debug_reel(on: bool) -> void:
 ## Show or hide the crew terminal (Y on the left hand, TAB on the desktop).
 func toggle_panel() -> void:
 	wrist.toggle()
+	if wrist.is_open:
+		_refresh_wrist()      # it went stale while it was away
 
 ## Review hook (photo mode): pose the left hand in front of the desktop camera and project the
 ## terminal from it the way it looks in VR, or put it back.

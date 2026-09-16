@@ -92,6 +92,8 @@ func _build_materials() -> void:
 			mat.emission = Color(e[0], e[1], e[2]).clamp()
 			mat.emission_energy_multiplier = 1.0
 		_mats[key] = mat
+		if Game.retro:
+			Ps1.cheapen(mat)          # lit per vertex like the rest of PS1 mode
 	_mat_cache[rig_path] = _mats
 	_eye_mat = _mats.get("eye")
 

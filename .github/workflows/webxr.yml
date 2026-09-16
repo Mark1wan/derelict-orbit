@@ -99,6 +99,13 @@ jobs:
       - name: Smoke test the game loop headless
         run: DERELICT_AUTOTEST=1 timeout 180 godot --headless --path . --quit-after 3000 || true
 
+      # What the headset would have to draw, on a fixed deck so runs compare. No GPU needed: the
+      # frustum counts and the census are geometry, not pixels (docs/PERFORMANCE.md).
+      - name: Frame budget (PS1 mode, deck 4242)
+        run: |
+          DERELICT_SEED=4242 DERELICT_PS1=1 DERELICT_PERF=1 timeout 240 \
+            godot --headless --path . --quit-after 4000 2>&1 | grep -E "^\[perf\]" || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: derelict-orbit-webxr-${{ github.sha }}

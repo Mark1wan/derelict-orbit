@@ -60,14 +60,41 @@ var orbit: Node3D = null
 var comfort_snap := false      # VR: rotate in 30 degree snaps instead of a smooth spin (title screen)
 var touch := false             # playing with on-screen touch controls (a phone or tablet)
 var low_quality := false       # lower render resolution, fewer lights - on by default on phones
+var xr := false                # in a headset: everything is drawn twice, at high resolution
+## PS1 mode (scripts/ps1.gd): vertex lighting, snapped vertices, affine textures, point-sampled
+## low-resolution art. It is the look *and* the frame budget - on by default wherever the frame is
+## tight (a headset, a phone), off on a desktop where the pretty version runs fine. The title
+## screen has the switch; ?ps1=0 / ?ps1=1 in the URL and DERELICT_PS1=0/1 force it for testing.
+var retro := false
 var mission := ""              # today's mission ("" on an ordinary shift)
 var start_day := 1             # playtest shortcut: ?eva in the page URL or DERELICT_EVA=1 starts on day 3
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
-	layout_seed = randi() % 10000
+	# DERELICT_SEED=1234 pins the deck plan: the same station twice, for comparing a change against
+	# the one before it (tools, the perf probe) rather than against a different deck
+	layout_seed = int(OS.get_environment("DERELICT_SEED")) if OS.has_environment("DERELICT_SEED") else randi() % 10000
 	_setup_input()
+	retro = default_retro(false, is_touch_device())
+
+## PS1 mode as it starts out, before the title screen switch: on in a headset or on a phone, off on
+## a desktop, and whatever DERELICT_PS1 / ?ps1= says over the top of that.
+func default_retro(headset: bool, touch_device: bool) -> bool:
+	var forced := forced_retro()
+	if forced >= 0:
+		return forced == 1
+	return headset or touch_device
+
+## 1 = forced on, 0 = forced off, -1 = not forced.
+func forced_retro() -> int:
+	if OS.has_environment("DERELICT_PS1"):
+		return 1 if OS.get_environment("DERELICT_PS1") != "0" else 0
+	if OS.has_feature("web"):
+		var v: Variant = JavaScriptBridge.eval("/[?&]ps1=0\\b/.test(location.search) ? 0 : (/[?&]ps1(=1)?\\b/.test(location.search) ? 1 : -1)", true)
+		if v != null:
+			return int(v)
+	return -1
 
 ## A phone or tablet: a touch screen whose main pointer is a finger. Headset browsers report touch
 ## too, so they are left out. DERELICT_TOUCH=1 forces it (tests, review shots).

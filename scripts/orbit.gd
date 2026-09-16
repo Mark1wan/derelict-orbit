@@ -51,6 +51,12 @@ func _ready() -> void:
 	add_child(sun)
 	set_angle(angle)
 
+## PS1 mode drops the expensive half of the sky shader (see lofi in sky/orbit_sky.gdshader). Called
+## once the mode is settled, which is after the sky itself is built.
+func apply_quality() -> void:
+	if sky_mat != null:
+		sky_mat.set_shader_parameter("lofi", Game.retro)
+
 ## Point `env` at the orbital sky.
 func attach(env: Environment) -> void:
 	sky_mat = ShaderMaterial.new()

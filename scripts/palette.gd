@@ -5,6 +5,7 @@ extends RefCounted
 ## ones are toggled by main power: `emissive` go dark at night, `emergency` light up.
 
 var mats := {}
+var retro := false
 var emissive: Array[StandardMaterial3D] = []
 var emergency: Array[StandardMaterial3D] = []
 var mat_warn: StandardMaterial3D        # floor marker lights: amber by day, red in the dark
@@ -31,6 +32,15 @@ const KIT_GROUPS := {
 	"Glass_Window": ["glass", Color(1, 1, 1)], "Glass_Port": ["glass", Color(1, 1, 1)],
 }
 const TEXTURED_GROUPS := {"panel": true, "floor": true, "hazard": true}   # need tangents for normal maps / UVs
+## PS1 mode draws the whole static hull from one texture page (StationTex.atlas): which quarter a
+## group lives in, and how many times its texture repeats per metre of wall. Merged geometry carries
+## the quarter in UV2 and the repeat baked into UV, so four groups become one draw call per chunk.
+const ATLAS_PAGE := {
+	"panel": Vector2(0.0, 0.0), "floor": Vector2(0.5, 0.0),
+	"hazard": Vector2(0.0, 0.5), "vc": Vector2(0.5, 0.5),
+}
+const ATLAS_UV := {"panel": 0.5, "floor": 1.0, "hazard": 2.0, "vc": 1.0}
+const ATLAS_GROUP := "atlas"
 const DEFAULT_GROUP := ["vc", Color(0.24, 0.26, 0.3)]
 
 ## glTF material name -> palette key (single-material lookups, e.g. props)
@@ -48,9 +58,13 @@ const KIT_MAP := {
 const NO_COLLIDE := {"lit": true, "warn": true, "hazard": true, "strip": true, "screen": true, "data": true, "green": true, "red_paint": true, "leaf": true}
 
 func _init() -> void:
-	var panel := StationTex.panel(256, Color(0.62, 0.65, 0.70))
-	var panel_dark := StationTex.panel(256, Color(0.40, 0.42, 0.46))
-	var grate := StationTex.grate(128)
+	# PS1 mode: half-size art, no normal maps (nothing reads one), and at the end of this every
+	# surface that never changes is swapped for the Ps1 shader - see _retro_convert
+	retro = Game.retro
+	var size := 128 if retro else 256
+	var panel := StationTex.panel(size, Color(0.62, 0.65, 0.70), not retro)
+	var panel_dark := StationTex.panel(size, Color(0.40, 0.42, 0.46), not retro)
+	var grate := StationTex.grate(64 if retro else 128, not retro)
 	# merged groups (see KIT_GROUPS)
 	var pm := textured(panel, Color(1, 1, 1), 0.5, 0.62, 0.35, 1.0)
 	pm.vertex_color_use_as_albedo = true
@@ -122,6 +136,46 @@ func _init() -> void:
 	mat_warn = emissive_mat(Color(1.0, 0.75, 0.2), 0.8)
 	emissive.erase(mat_warn)          # handled by set_power: amber by day, red guide light at night
 	mats["warn"] = mat_warn
+	if retro:
+		_retro_convert()
+		# one material for every static surface of the hull: plating, grating, stripes, painted
+		# metal. Kit.Merger routes those groups into ATLAS_GROUP and tags each vertex with its
+		# quarter of the page.
+		mats[ATLAS_GROUP] = Ps1.mat(Color(1, 1, 1), StationTex.atlas(128), 1.0, true,
+			Color(0, 0, 0), 0.0, false, true, 1.2)
+
+## PS1 mode. Every surface that never changes becomes one Ps1 shader material - vertex lighting,
+## snapped vertices, affine textures - and the handful that do change (the emissive screens the
+## power cuts, the amber floor markers, the glass) stay StandardMaterial3D so set_power below goes
+## on driving them, just shaded per vertex instead of per pixel.
+##
+## Triplanar materials lose their texture rather than their mapping: they are triplanar because
+## that geometry has no useful UVs, and three texture reads a pixel is exactly what this mode is
+## for getting rid of. Flat painted metal is the period-correct answer anyway.
+func _retro_convert() -> void:
+	var live := {}                    # materials set_power drives: they stay standard
+	for m in emissive:
+		live[m] = true
+	for m in emergency:
+		live[m] = true
+	live[mat_warn] = true
+	live[mats["lit"]] = true          # set_power writes its albedo
+	live[mats["glass"]] = true        # transparent: its own sorting and blending
+	for key: String in mats:
+		var m: Variant = mats[key]
+		if m is StandardMaterial3D and not live.has(m):
+			mats[key] = _to_retro(m)
+		elif m is StandardMaterial3D:
+			Ps1.cheapen(m)
+
+func _to_retro(m: StandardMaterial3D) -> ShaderMaterial:
+	var tex: Texture2D = null if m.uv1_triplanar else m.albedo_texture
+	var energy := m.emission_energy_multiplier if m.emission_enabled else 0.0
+	# a PS1 surface is flat diffuse and nothing else, so a metal loses the specular highlight that
+	# was half of how bright it read. Hand it back as albedo, in proportion to how metallic it was.
+	var gain := 1.0 + m.metallic * 0.5
+	return Ps1.mat(m.albedo_color, tex, m.uv1_scale.x, m.vertex_color_use_as_albedo,
+		m.emission, energy, m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED, false, gain)
 
 func get_mat(key: String) -> Material:
 	return mats.get(key, mats["metal"])

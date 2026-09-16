@@ -15,6 +15,7 @@ var desk_btn: Button
 var touch_btn: Button
 var touch_ui: TouchControls
 var touch_device := false
+var _ps1_by_hand := false        # the PS1 switch was set on the title screen: do not override it
 
 func _ready() -> void:
 	# playtest shortcut straight to the spacewalk day: ?eva in the URL, or DERELICT_EVA=1
@@ -57,6 +58,8 @@ func _ready() -> void:
 		_autotest()
 	if OS.has_environment("DERELICT_SHOTS"):
 		_photo_mode(OS.get_environment("DERELICT_SHOTS"))
+	if OS.has_environment("DERELICT_PERF"):
+		_perf_probe()
 
 ## Review tool: DERELICT_SHOTS=/some/dir godot --path .   (windowed, not headless)
 ## Starts desktop mode, jumps the camera through a list of viewpoints and saves a PNG of each,
@@ -204,6 +207,177 @@ func _sky_shots(dir: String) -> void:
 	orbit.release()
 	player.belt.visible = true
 
+## What the headset has to chew through, per viewpoint. Draw calls and vertices per frame are the
+## numbers that decide whether a Quest 3 holds 72 Hz, and neither depends on the GPU doing the
+## measuring - so this runs anywhere, including on a software renderer in CI:
+##
+##     DERELICT_PERF=1 xvfb-run -a godot --path . --quit-after 1200
+##
+## One row per viewpoint (every room, the corridors, the windows), by day and then at night with
+## the flashlight on, and the worst frame at the end. The budget those are held against is in
+## docs/PERFORMANCE.md.
+func _perf_probe() -> void:
+	_start_desktop()
+	await get_tree().create_timer(2.5).timeout
+	player.hud_label.visible = false
+	player.wrist.visible = false
+	var vp := get_viewport()
+	print("[perf] %s   window %dx%d   render scale %.2f   msaa %d   %s" % [
+		OS.get_video_adapter_driver_info()[0] if OS.get_video_adapter_driver_info().size() > 0 else "gl",
+		vp.size.x, vp.size.y, vp.scaling_3d_scale, vp.msaa_3d,
+		"low graphics" if Game.low_quality else "full graphics"])
+	print("[perf] %-22s %7s %9s %8s %8s   %s" % ["viewpoint", "draws", "vertices", "objects", "cpu ms", "in frustum"])
+	var worst := {"name": "-", "draws": 0, "prims": 0}
+	var rows := 0
+	var sum_draws := 0
+	for pass_night in [false, true]:
+		if pass_night:
+			station.set_power(false)
+			_on_power(false)
+			player.flashlight_on = true
+			player.flashlight.visible = true
+		for sh: Array in station.viewpoints():
+			player.teleport_head_to(sh[1])
+			player.look_at_point(sh[2])
+			player.velocity = Vector3.ZERO
+			for i in 6:
+				await get_tree().process_frame
+			var draws := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+			var prims := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+			var objs := int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME))
+			var cpu := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+			var label := ("night " if pass_night else "") + str(sh[0])
+			var seen := _perf_in_view()
+			print("[perf] %-22s %7d %9d %8d %8.2f   %s" % [label, draws, prims, objs, cpu, seen])
+			rows += 1
+			sum_draws += draws
+			if draws > worst["draws"]:
+				worst = {"name": label, "draws": draws, "prims": prims}
+	var tex := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0
+	var buf := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_BUFFER_MEM_USED) / 1048576.0
+	print("[perf] worst: %s  %d draws  %d vertices" % [worst["name"], worst["draws"], worst["prims"]])
+	print("[perf] mean draws %.0f over %d viewpoints   texture %.1f MB   buffers %.1f MB" % [
+		float(sum_draws) / maxf(rows, 1), rows, tex, buf])
+	print("[perf] lights in the deck: %d (%d emergency), props %d, dust emitters %d" % [
+		station.lights.size(), station.emergency_lights.size(), station.props.size(), station.dust_emitters.size()])
+	_perf_census()
+	# script cost on its own: the headset runs this in one wasm thread, so a millisecond here is a
+	# millisecond of the 13.8 ms frame gone before anything is drawn
+	var frames := 90
+	var t0 := Time.get_ticks_usec()
+	var worst_ms := 0.0
+	for i in frames:
+		await get_tree().process_frame
+		worst_ms = maxf(worst_ms, Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+	print("[perf] frame %.2f ms wall clock, of which script %.2f ms at worst, physics %.2f ms" % [
+		float(Time.get_ticks_usec() - t0) / 1000.0 / frames, worst_ms,
+		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
+	await _perf_who()
+	get_tree().quit()
+
+## Who is eating the frame. Turns each subsystem off in turn and measures what the frame costs
+## without it - the headset runs all of this in one wasm thread, so this is the list that decides
+## whether there is any budget left to draw with. Perturbs the game state, so it runs last.
+func _perf_who() -> void:
+	var subjects := {"haunt manager": $Haunt, "station (props, flicker)": station, "player": player}
+	if station.window_sun != null:
+		subjects["window sunlight"] = station.window_sun
+	if station.exterior != null:
+		subjects["exterior / EVA"] = station.exterior
+	var base := await _perf_frame_ms()
+	print("[perf] whole frame %.2f ms; without each part:" % base)
+	for label: String in subjects:
+		var n: Node = subjects[label]
+		if n == null:
+			continue
+		var p := n.is_processing()
+		var pp := n.is_physics_processing()
+		n.set_process(false)
+		n.set_physics_process(false)
+		var without := await _perf_frame_ms()
+		n.set_process(p)
+		n.set_physics_process(pp)
+		print("[perf]   %-26s %6.2f ms  (%+.2f)" % [label, without, without - base])
+
+func _perf_frame_ms() -> float:
+	for i in 10:
+		await get_tree().process_frame
+	var t0 := Time.get_ticks_usec()
+	for i in 60:
+		await get_tree().process_frame
+	return float(Time.get_ticks_usec() - t0) / 1000.0 / 60.0
+
+## What is actually in front of the camera right now, by kind - the draw calls the renderer is
+## being handed. Frustum test only (the same AABB test the engine culls with), so it is an upper
+## bound: it does not know what a wall hides.
+func _perf_in_view() -> String:
+	var planes := player.camera.get_frustum()
+	var hull := 0
+	var loose := 0
+	var text := 0
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if not (n is MeshInstance3D or n is CPUParticles3D or n is Label3D):
+			continue                       # lights and areas cost, but not a draw call each
+		var g := n as VisualInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var outside := false
+		if n is Label3D:
+			# Label3D does not report an AABB: near enough to test the point it hangs at
+			var at := (n as Label3D).global_position
+			for pl: Plane in planes:
+				if pl.distance_to(at) > 0.0:
+					outside = true
+					break
+			if not outside:
+				text += 1
+			continue
+		var box: AABB = g.global_transform * g.get_aabb()
+		for pl: Plane in planes:
+			if pl.distance_to(box.get_support(-pl.normal)) > 0.0:
+				outside = true
+				break
+		if outside:
+			continue
+		if g.is_in_group("hull"):
+			hull += 1
+		else:
+			loose += 1
+	return "hull %3d  loose %3d  labels %2d" % [hull, loose, text]
+
+## Everything on the deck that costs a draw call, by what made it. One line per kind, worst first:
+## this is the list to shorten when the headset is behind.
+func _perf_census() -> void:
+	var by_kind := {}
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var kind := ""
+		if n is Label3D:
+			kind = "Label3D (text, transparent)"
+		elif n is CPUParticles3D:
+			kind = "CPUParticles3D (dust)"
+		elif n is MeshInstance3D:
+			var m := n as MeshInstance3D
+			var where: String = m.get_parent().name if m.get_parent() != null else "?"
+			kind = "hull (merged chunk)" if m.is_in_group("hull") else "loose mesh under %s" % where
+		elif n is Light3D:
+			kind = "Light3D"
+		if kind != "":
+			by_kind[kind] = int(by_kind.get(kind, 0)) + 1
+	var rows := []
+	for k: String in by_kind:
+		rows.append([int(by_kind[k]), k])
+	rows.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
+	for r: Array in rows:
+		print("[perf] census %5d  %s" % [r[0], r[1]])
+
 func _shot(dir: String, name_: String, pos: Vector3, target: Vector3) -> void:
 	player.teleport_head_to(pos)
 	player.look_at_point(target)
@@ -227,9 +401,12 @@ func _autotest() -> void:
 	for n in station.root.get_children():
 		if n is MeshInstance3D:
 			meshes += 1
-			if n.name.begins_with("c") or n.name.begins_with("room"):
+			if (n as MeshInstance3D).is_in_group("hull"):
 				hull += 1
 	print("[autotest] deck %s: %d corridor cells, %d rooms, %d hull meshes + %d other meshes" % [station.layout_label(), station.layout.corridor.size(), station.layout.rooms.size(), hull, meshes - hull])
+	# everything bolted down is merged into the chunk mesh of the wall it is on; what is left with a
+	# draw call of its own is what moves. If this climbs, a deck is paying for clutter again.
+	assert(meshes - hull <= 24, "loose meshes on the deck should stay merged into the hull (got %d)" % [meshes - hull])
 	# locomotion: thrusters burn fuel and move you; a grab pulls the body toward the anchor
 	Input.action_press("d_forward")
 	await get_tree().create_timer(1.0).timeout
@@ -785,6 +962,19 @@ func _make_ui() -> void:
 	gfx.toggled.connect(func(on: bool) -> void: Game.low_quality = on)
 	gfx.visible = touch_device
 	box.add_child(gfx)
+	# PS1 mode: the frame budget and the look are the same switch (scripts/ps1.gd). Off on a
+	# desktop, on for a phone, and ENTER VR turns it on unless this has been unticked by hand.
+	Game.retro = Game.default_retro(false, touch_device)
+	var ps1 := CheckButton.new()
+	ps1.text = "PS1 mode: vertex lighting, chunky pixels (always on in VR - it is what holds 72 Hz)"
+	ps1.button_pressed = Game.retro
+	ps1.toggled.connect(func(on: bool) -> void:
+		Game.retro = on
+		_ps1_by_hand = true
+		if player.started:
+			_apply_quality())
+	ps1.visible = Game.forced_retro() < 0
+	box.add_child(ps1)
 	var help := Label.new()
 	if touch_device:
 		help.text = "Hold the phone sideways. Left thumb: thrusters. Right side: drag to look.\nPress and hold a wall to grab it, then drag to pull yourself. Two fingers twist to roll.\nUSE works a terminal with the right tool. The belt buttons swap what is in your hand."
@@ -827,16 +1017,27 @@ func _on_session_supported(session_mode: String, supported: bool) -> void:
 		status.text = "No immersive VR available in this browser."
 
 func _enter_vr() -> void:
+	# a headset draws everything twice at high resolution: PS1 mode is the default there unless
+	# somebody deliberately turned it off on the title screen
+	if not _ps1_by_hand and Game.forced_retro() < 0:
+		Game.retro = true
 	webxr.session_mode = "immersive-vr"
 	webxr.requested_reference_space_types = "local-floor, local"
 	webxr.required_features = "local"
 	webxr.optional_features = "local-floor"
-	webxr.render_target_size_multiplier = 0.85   # Quest 3: ~28% fewer pixels per eye, barely visible
+	# Pixels are what a Quest 3 runs out of first: two eye buffers, 72 times a second, through a
+	# browser. PS1 mode renders 0.6 of each eye's native width - 36% of the pixels - and the
+	# headset's own compositor scales it back up, which is the chunky upscale the look wants anyway.
+	webxr.render_target_size_multiplier = 0.6 if Game.retro else 0.85
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
 func _on_session_started() -> void:
 	get_viewport().use_xr = true
+	# no multisampling in the headset: at 0.6 scale the edges are meant to be hard, and the
+	# resolve is pure cost on a tiler drawing everything twice
+	if Game.retro:
+		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 	ui.visible = false
 	_begin(true)
 
@@ -868,9 +1069,12 @@ func _start_touch() -> void:
 ## 2500), no MSAA, a smaller shadow map for the flashlight, and fewer windows lit by the sun.
 func _apply_quality() -> void:
 	var vp := get_viewport()
-	if Game.low_quality:
+	if Game.low_quality or Game.retro:
 		var wide := float(get_window().size.x)
-		vp.scaling_3d_scale = clampf(1100.0 / wide, 0.35, 1.0) if wide > 1.0 else 0.6
+		# PS1 mode renders even smaller than low graphics and lets the upscale do the rest: a
+		# 960-pixel-wide buffer is about what the console drew, and it is a quarter of the pixels
+		var across := 960.0 if Game.retro else 1100.0
+		vp.scaling_3d_scale = clampf(across / wide, 0.3, 1.0) if wide > 1.0 else 0.6
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.positional_shadow_atlas_size = 1024
 	else:
@@ -879,8 +1083,16 @@ func _apply_quality() -> void:
 		vp.positional_shadow_atlas_size = 2048
 
 func _begin(xr: bool) -> void:
+	Game.xr = xr
 	if not xr:
 		_apply_quality()
+	# the deck was built at load, before this was known: PS1 mode changes every material on it
+	if station.pal == null or station.pal.retro != Game.retro:
+		station.regenerate(Game.layout_seed)
+	if Game.orbit != null:
+		Game.orbit.apply_quality()
+	# the terminals, the tools, the airlock, the suit: built outside Palette, cheapened here
+	Ps1.cheapen_tree(self)
 	player.begin(xr)
 	player.teleport_head_to(station.start_point())
 	Sfx.set_ambient("hum")

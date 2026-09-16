@@ -381,10 +381,16 @@ static func find_clear_spot(piece: String, axis: int, coord: float, face: float,
 ## then collapsed per GROUP (see Palette.KIT_GROUPS) into one de-indexed surface whose vertex
 ## colour carries each material's tint - so a chunk costs one draw call per group, not per material.
 class Merger:
-	var tools := {}       # material name -> SurfaceTool
-	var group_of := {}    # material name -> group key
-	var tint_of := {}     # material name -> Color
-	func add(piece: String, xf: Transform3D, _keymap: Callable = Callable()) -> void:
+	var tools := {}       # bucket key -> SurfaceTool
+	var group_of := {}    # bucket key -> group key
+	var tint_of := {}     # bucket key -> Color
+	var solid_of := {}    # bucket key -> does this geometry go into the chunk's collider
+
+	## Add a kit piece's surfaces to this chunk. `collide` off puts the geometry in the drawn mesh
+	## but not in the chunk's collider - that is how the bolted wall fittings ride along for free:
+	## they draw with the wall they are bolted to, and keep their own forgiving grab box instead
+	## (Station._mount).
+	func add(piece: String, xf: Transform3D, _keymap: Callable = Callable(), collide := true) -> void:
 		var m := Kit.mesh(piece)
 		var names := Kit.material_names(piece)
 		var skip: Dictionary = Kit.SKIP.get(piece, {})
@@ -392,14 +398,16 @@ class Merger:
 			var n := names[s]
 			if skip.has(n):
 				continue
-			if not tools.has(n):
+			var key := n if collide else n + " (no collider)"
+			if not tools.has(key):
 				var st := SurfaceTool.new()
 				st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				tools[n] = st
+				tools[key] = st
 				var g: Array = Palette.KIT_GROUPS.get(n, Palette.DEFAULT_GROUP)
-				group_of[n] = g[0]
-				tint_of[n] = g[1]
-			tools[n].append_from(m, s, xf)
+				group_of[key] = g[0]
+				tint_of[key] = g[1]
+				solid_of[key] = collide
+			tools[key].append_from(m, s, xf)
 	## materials.call(group) -> Material. Opaque groups get a trimesh collider on `body`.
 	func commit(parent: Node, body: StaticBody3D, materials: Callable, no_collide: Dictionary, prefix: String) -> Array[MeshInstance3D]:
 		var out: Array[MeshInstance3D] = []
@@ -407,22 +415,49 @@ class Merger:
 		for n: String in tools:
 			var st: SurfaceTool = tools[n]
 			var g: String = group_of[n]
+			# PS1 mode: the static groups all draw from one texture page, so they merge into one
+			# surface and one draw call. The group's own texture repeat is baked into the UVs here
+			# (the material's uv_scale is 1 for the page) and its quarter goes in UV2.
+			var target := g
+			var page := Vector2.ZERO
+			var uv_repeat := 1.0
+			if Game.retro and Palette.ATLAS_PAGE.has(g):
+				target = Palette.ATLAS_GROUP
+				page = Palette.ATLAS_PAGE[g]
+				uv_repeat = Palette.ATLAS_UV[g]
 			st.deindex()
-			if Palette.TEXTURED_GROUPS.has(g):
+			# tangents are for normal maps, and PS1 mode reads none - so do not carry four more
+			# floats per vertex across the bus for every hull chunk
+			if Palette.TEXTURED_GROUPS.has(g) and not Game.retro:
 				st.generate_tangents()
 			var arr: Array = st.commit_to_arrays()
 			var pos: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			if pos.is_empty():
 				continue
-			if not acc.has(g):
-				acc[g] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "col": PackedColorArray()}
-			var a: Dictionary = acc[g]
+			if not acc.has(target):
+				acc[target] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "uv2": PackedVector2Array(), "col": PackedColorArray(), "solid": PackedVector3Array()}
+			var a: Dictionary = acc[target]
+			# a group that carries no collider of its own (stripes, light strips) must not drag the
+			# chunk's collider along when it merges into the page
+			if solid_of.get(n, true) and not no_collide.has(g):
+				a["solid"].append_array(pos)
 			a["pos"].append_array(pos)
 			a["nrm"].append_array(arr[Mesh.ARRAY_NORMAL])
 			if arr[Mesh.ARRAY_TANGENT] != null:
 				a["tan"].append_array(arr[Mesh.ARRAY_TANGENT])
+			var uvs := PackedVector2Array()
 			if arr[Mesh.ARRAY_TEX_UV] != null:
-				a["uv"].append_array(arr[Mesh.ARRAY_TEX_UV])
+				uvs = arr[Mesh.ARRAY_TEX_UV]
+			if uvs.size() != pos.size():
+				uvs.resize(pos.size())          # a group without UVs (flat metals) takes the page's corner
+			if uv_repeat != 1.0:
+				for i in uvs.size():
+					uvs[i] *= uv_repeat
+			a["uv"].append_array(uvs)
+			var pages := PackedVector2Array()
+			pages.resize(pos.size())
+			pages.fill(page)
+			a["uv2"].append_array(pages)
 			var cols := PackedColorArray()
 			cols.resize(pos.size())
 			cols.fill(tint_of[n])
@@ -436,6 +471,8 @@ class Merger:
 			arrays[Mesh.ARRAY_COLOR] = a["col"]
 			if a["uv"].size() == a["pos"].size():
 				arrays[Mesh.ARRAY_TEX_UV] = a["uv"]
+			if Game.retro and g == Palette.ATLAS_GROUP and a["uv2"].size() == a["pos"].size():
+				arrays[Mesh.ARRAY_TEX_UV2] = a["uv2"]
 			if a["tan"].size() == a["pos"].size() * 4:
 				arrays[Mesh.ARRAY_TANGENT] = a["tan"]
 			var mesh := ArrayMesh.new()
@@ -444,10 +481,13 @@ class Merger:
 			mi.mesh = mesh
 			mi.material_override = materials.call(g)
 			mi.name = "%s_%s" % [prefix, g]
+			mi.add_to_group("hull")
 			parent.add_child(mi)
-			if body and not no_collide.has(g):
+			if body and not no_collide.has(g) and not a["solid"].is_empty():
 				var cs := CollisionShape3D.new()
-				cs.shape = mesh.create_trimesh_shape()
+				var shape := ConcavePolygonShape3D.new()
+				shape.set_faces(a["solid"])
+				cs.shape = shape
 				body.add_child(cs)
 			out.append(mi)
 		return out

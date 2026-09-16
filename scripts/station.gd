@@ -51,6 +51,7 @@ var faulty_lights: Array[Light3D] = []
 var emergency_lights: Array[Light3D] = []
 var interactables := {}
 var props: Array[Node3D] = []
+var dust_emitters: Array[CPUParticles3D] = []
 var carried := {}                       # prop index -> an apparition has hold of it
 var prop_spin: Array[Vector3] = []
 var prop_vel: Array[Vector3] = []
@@ -75,7 +76,6 @@ var emissive_mats: Array[StandardMaterial3D]:
 		return pal.emissive
 
 func _ready() -> void:
-	pal = Palette.new()
 	Game.station = self
 	regenerate(Game.layout_seed)
 	Game.power_changed.connect(set_power)
@@ -84,7 +84,12 @@ func _ready() -> void:
 	Game.game_reset.connect(func(): regenerate(Game.layout_seed); set_power(true))
 
 # ---------------------------------------------------------------- build
+## The deck is built once at load, before the title screen knows whether this is a headset, a phone
+## or a desktop - so the materials it built may be the wrong ones. main._begin calls this again
+## when the mode is settled, and a palette built for the other mode is thrown away here.
 func regenerate(seed_: int) -> void:
+	if pal == null or pal.retro != Game.retro:
+		pal = Palette.new()
 	if root:
 		remove_child(root)
 		root.free()
@@ -120,7 +125,7 @@ func regenerate(seed_: int) -> void:
 	var keymap := func(n: String) -> String: return Palette.KIT_MAP.get(n, "metal")
 	for c: Vector2i in layout.corridor:
 		var cell: Dictionary = layout.corridor[c]
-		var key := "c%d_%d" % [floori(c.x / 5.0), floori(c.y / 5.0)]   # 20 m chunks: fewer draw calls, still culls
+		var key := chunk_key(c)
 		if not mergers.has(key):
 			mergers[key] = Kit.Merger.new()
 			outers[key] = Kit.Merger.new()
@@ -138,6 +143,7 @@ func regenerate(seed_: int) -> void:
 		mergers[key].add(Kit.part(piece, "in", hatch), xf, keymap)
 		outers[key].add(Kit.part(piece, "out", hatch), xf, keymap)
 		_room_boxes[r["index"]] = xf * Kit.mesh(piece).get_aabb()
+	_place_wall_fittings(mergers)
 	for key: String in mergers:
 		mergers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key)
 		for mi: MeshInstance3D in outers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key + "_out"):
@@ -300,7 +306,7 @@ const UPRIGHT := {"prop_ladder": true, "prop_cable_reel": true}
 ## strip, no window frame, no console - and the fitting goes there, or nowhere.
 func _mount_on_wall(piece: String, kit_piece: String, xf: Transform3D, axis: int, coord: float,
 		face: float, normal: Vector3, tangent: Vector3, lo: Vector2, hi: Vector2,
-		rng: RandomNumberGenerator, taken: Dictionary) -> bool:
+		rng: RandomNumberGenerator, taken: Dictionary, into: Kit.Merger) -> bool:
 	var size := Kit.mesh(piece).get_aabb().size
 	# _mount() lands the mesh with its Z along the tangent and its X across it, so turning a
 	# fitting upright is just handing it the wall's own up direction as the tangent
@@ -316,8 +322,56 @@ func _mount_on_wall(piece: String, kit_piece: String, xf: Transform3D, axis: int
 	local.y = spot.y
 	local[axis] = coord - signf(coord) * face          # sit on the finished wall, not behind it
 	local[2 if axis == 0 else 0] = spot.x
-	_mount(piece, xf, local, normal, tangent)
+	_mount(piece, xf, local, normal, tangent, into)
 	return true
+
+## The bolted fittings - extinguishers, handholds, lockers, rails. They go in before the hull is
+## committed so they merge into the chunk mesh of the wall they hang on and cost nothing to draw;
+## each still gets its own forgiving grab box in _mount, because every fitting is a handhold.
+func _place_wall_fittings(mergers: Dictionary) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = layout.seed_ + 78
+
+	# corridors: only where the piece still has both side walls. Two thirds of cells get something,
+	# and a third of those get a fitting on each side - a corridor you can cross hand over hand
+	# without letting go is the difference between a route and a gap
+	for c: Vector2i in layout.corridor:
+		var cell: Dictionary = layout.corridor[c]
+		if cell["open"].size() != 2 or not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.62:
+			continue
+		var into: Kit.Merger = mergers[chunk_key(c)]
+		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
+		var sides := [1.0 if rng.randf() < 0.5 else -1.0]
+		if rng.randf() < 0.33:
+			sides.append(-sides[0])
+		for side: float in sides:
+			_mount_on_wall(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]),
+				cell["piece"], xf, 0, side * CORRIDOR_HW, CORRIDOR_FACE,
+				Vector3(-side, 0, 0), Vector3(0, 0, 1),
+				Vector2(-1.5, 0.35), Vector2(1.5, 2.5), rng, {}, into)
+
+	# rooms: two or three fittings on each side wall, plus a couple on the back wall. Half of them
+	# are drawn from what this room is actually for.
+	for r: Dictionary in layout.rooms:
+		var t: String = r["type"]
+		var into: Kit.Merger = mergers["room%d" % r["index"]]
+		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
+		var trade: Array = WALL_BY_ROOM.get(t, WALL_ROOM)
+		var room_piece := "room_" + t
+		# one tally per wall: fittings on the same wall have to find their own patch
+		for side: float in [-1.0, 1.0]:
+			var taken := {}
+			for i in 2 + (1 if rng.randf() < 0.5 else 0):
+				var wall_pool: Array = trade if rng.randf() < 0.5 else WALL_ROOM
+				_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
+					0, side * ROOM_HW, ROOM_FACE, Vector3(-side, 0, 0), Vector3(0, 0, 1),
+					Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, taken, into)
+		var back := {}
+		for i in 2:
+			var wall_pool: Array = trade if rng.randf() < 0.6 else WALL_ROOM
+			_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
+				2, ROOM_HW, ROOM_FACE, Vector3(0, 0, -1), Vector3(1, 0, 0),
+				Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, back, into)
 
 func _place_props() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -336,23 +390,6 @@ func _place_props() -> void:
 		var p := StationLayout.world(c, 1.5) + Vector3(rng.randf_range(-0.8, 0.8), rng.randf_range(-0.6, 0.6), rng.randf_range(-0.8, 0.8))
 		_prop(String(FLOATING[rng.randi() % FLOATING.size()]), p, rng)
 
-	# wall: bolted to a corridor side wall (only where the piece still has both side walls). Two
-	# thirds of cells get something, and a third of those get a fitting on each side - a corridor
-	# you can cross hand over hand without letting go is the difference between a route and a gap
-	for c: Vector2i in straight:
-		var cell: Dictionary = layout.corridor[c]
-		if not PLAIN_CORRIDOR.has(cell["piece"]) or rng.randf() > 0.62:
-			continue
-		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
-		var sides := [1.0 if rng.randf() < 0.5 else -1.0]
-		if rng.randf() < 0.33:
-			sides.append(-sides[0])
-		for side: float in sides:
-			_mount_on_wall(String(WALL_CORRIDOR[rng.randi() % WALL_CORRIDOR.size()]),
-				cell["piece"], xf, 0, side * CORRIDOR_HW, CORRIDOR_FACE,
-				Vector3(-side, 0, 0), Vector3(0, 0, 1),
-				Vector2(-1.5, 0.35), Vector2(1.5, 2.5), rng, {})
-
 	for r: Dictionary in layout.rooms:
 		var t: String = r["type"]
 		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
@@ -366,24 +403,6 @@ func _place_props() -> void:
 			var p: Vector3 = anchor + Vector3(rng.randf_range(-1.1, 1.1), rng.randf_range(-0.45, 0.75), rng.randf_range(-1.1, 1.1))
 			_prop(String(pool[i]), xf * p, rng)
 
-		# wall: two or three fittings on each side wall, plus a couple on the back wall. Half of
-		# them are drawn from what this room is actually for.
-		var trade: Array = WALL_BY_ROOM.get(t, WALL_ROOM)
-		var room_piece := "room_" + t
-		# one tally per wall: fittings on the same wall have to find their own patch
-		for side: float in [-1.0, 1.0]:
-			var taken := {}
-			for i in 2 + (1 if rng.randf() < 0.5 else 0):
-				var wall_pool: Array = trade if rng.randf() < 0.5 else WALL_ROOM
-				_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
-					0, side * ROOM_HW, ROOM_FACE, Vector3(-side, 0, 0), Vector3(0, 0, 1),
-					Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, taken)
-		var back := {}
-		for i in 2:
-			var wall_pool: Array = trade if rng.randf() < 0.6 else WALL_ROOM
-			_mount_on_wall(String(wall_pool[rng.randi() % wall_pool.size()]), room_piece, xf,
-				2, ROOM_HW, ROOM_FACE, Vector3(0, 0, -1), Vector3(1, 0, 0),
-				Vector2(-4.6, 0.45), Vector2(4.6, 3.0), rng, back)
 
 ## Wake room = farthest room from the power plant (the night walk). Stalker starts in the
 ## room farthest from where you wake, never the one you wake in.
@@ -582,6 +601,10 @@ func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
 		var key: String = Palette.KIT_MAP.get(names[s], "metal")
 		mi.set_surface_override_material(s, pal.get_mat(key))
 	pivot.add_child(mi)
+	if Game.retro:
+		# a drifting crate 25 m down a corridor is a handful of pixels and a draw call each: a
+		# generated deck can otherwise put every prop it has in one doorway view
+		mi.visibility_range_end = 26.0
 
 	# one box collider, so a prop is something you can grab and pull off
 	var body := StaticBody3D.new()
@@ -602,21 +625,22 @@ func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
 ## into the room and `tangent` giving the direction its front faces. `xf` is the piece transform,
 ## `local` a point on the wall in that piece's own frame - so a rolled cell mounts it on what is
 ## now the ceiling, which is the whole point of a station with no floor.
-func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tangent: Vector3) -> void:
+## Which merged chunk a corridor cell belongs to: 5x5 cells, so 20 m of deck per draw call - big
+## enough to keep the call count down, small enough that a corridor still culls what is behind you.
+static func chunk_key(c: Vector2i) -> String:
+	return "c%d_%d" % [floori(c.x / 5.0), floori(c.y / 5.0)]
+
+func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tangent: Vector3, into: Kit.Merger) -> void:
 	assert(PROP_CLASS.get(piece, "") == "wall", "%s is not a wall attachment - use _prop()" % piece)
-	var mesh := Kit.mesh(piece)
-	var names := Kit.material_names(piece)
-	var aabb := mesh.get_aabb()
+	var aabb := Kit.mesh(piece).get_aabb()
 	var up := (xf.basis * normal).normalized()
 	var fwd := (xf.basis * tangent).normalized()
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.name = piece
-	for s in mesh.get_surface_count():
-		var key: String = Palette.KIT_MAP.get(names[s], "metal")
-		mi.set_surface_override_material(s, pal.get_mat(key))
-	root.add_child(mi)
-	mi.transform = Transform3D(Basis(up.cross(fwd), up, fwd), xf * local)
+	var form := Transform3D(Basis(up.cross(fwd), up, fwd), xf * local)
+	# A bolted fitting never moves, so it does not need a draw call of its own: it is merged into
+	# the same chunk mesh as the wall it is bolted to, with collide off so the chunk's trimesh does
+	# not swallow the forgiving grab box below. A deck's hundred-odd extinguishers, handholds and
+	# lockers were about two hundred draw calls between them.
+	into.add(piece, form, Callable(), false)
 
 	# Every wall fitting is grabbable, and deliberately forgiving about it: the collider is the
 	# piece's box plus a 6 cm margin, so a hand that comes near a rail or a strap catches it rather
@@ -632,7 +656,8 @@ func _mount(piece: String, xf: Transform3D, local: Vector3, normal: Vector3, tan
 	cs.shape = shape
 	cs.position = aabb.get_center()
 	body.add_child(cs)
-	mi.add_child(body)
+	root.add_child(body)
+	body.transform = form
 
 func _panel(id: String, title: String, room: String, pos: Vector3, facing: Vector3, power := false, tool := "") -> void:
 	var it := Interactable.new()
@@ -690,7 +715,12 @@ func comms_room() -> String:
 
 func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 	var p := CPUParticles3D.new()
-	p.amount = amount
+	# every mote is a blended quad, and blended pixels are what a tiler charges most for: PS1 mode
+	# keeps the drifting dust (it is half of what sells zero-G) at a third of the count, and only
+	# while you are in the room with it
+	p.amount = maxi(8, amount / 3) if Game.retro else amount
+	if Game.retro:
+		p.visibility_range_end = 12.0
 	p.lifetime = 16.0
 	p.preprocess = 16.0
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -713,6 +743,7 @@ func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 	p.mesh = q
 	p.position = center
 	root.add_child(p)
+	dust_emitters.append(p)
 
 # ---------------------------------------------------------------- runtime
 func _process(delta: float) -> void:

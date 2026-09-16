@@ -43,8 +43,10 @@ static func _disc(img: Image, cx: int, cy: int, r: int, c: Color) -> void:
 
 # ---------------------------------------------------------------- wall / hull panels
 ## Riveted hull plating: 2x2 plates per tile, grooves between, rivets in the corners, wear noise.
-static func panel(size := 256, tint := Color(0.62, 0.65, 0.70)) -> Dictionary:
-	var key := "panel_%d_%s" % [size, tint.to_html()]
+## `normals` off skips the normal map: PS1 mode never reads one, and not building it saves the
+## bump pass at load and its texture on the GPU.
+static func panel(size := 256, tint := Color(0.62, 0.65, 0.70), normals := true) -> Dictionary:
+	var key := "panel_%d_%s_%s" % [size, tint.to_html(), normals]
 	if _cache.has(key):
 		return _cache[key]
 	var grain := _noise(11, 0.06, size, size, 4)
@@ -94,14 +96,15 @@ static func panel(size := 256, tint := Color(0.62, 0.65, 0.70)) -> Dictionary:
 			if py < 0: py += size
 			var c := img.get_pixel(px, py)
 			img.set_pixel(px, py, c * 0.7)
-	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 3.0)}
+	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 3.0) if normals else null}
 	_cache[key] = out
 	return out
 
 ## Floor grating: a lattice of bars over a dark void.
-static func grate(size := 128) -> Dictionary:
-	if _cache.has("grate"):
-		return _cache["grate"]
+static func grate(size := 128, normals := true) -> Dictionary:
+	var key := "grate_%d_%s" % [size, normals]
+	if _cache.has(key):
+		return _cache[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
 	var hgt := Image.create(size, size, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.06, 0.065, 0.075))
@@ -124,8 +127,8 @@ static func grate(size := 128) -> Dictionary:
 			if c.r > 0.2:
 				var g := grain.get_pixel(x, y).r
 				img.set_pixel(x, y, c * (0.85 + g * 0.3))
-	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 5.0)}
-	_cache["grate"] = out
+	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 5.0) if normals else null}
+	_cache[key] = out
 	return out
 
 ## Yellow / black diagonal warning stripes.
@@ -141,6 +144,40 @@ static func hazard(size := 64) -> ImageTexture:
 	var t := _tex(img)
 	_cache["hazard"] = t
 	return t
+
+## PS1 mode's texture page: plating, grating, hazard stripes and flat white in the four quarters of
+## one image, so the whole static hull - walls, floors, stripes, painted metal - is a single
+## material and a single draw call per chunk. This is what a console with 2 MB of texture memory
+## did, for exactly the same reason.
+##
+## Each quarter holds a tileable texture and the shader wraps within it (see `atlas` in Ps1.CODE),
+## so a wall can still repeat its plating across ten metres. Tiles are padded by a texel of their
+## own wrapped content, which keeps the lower mip levels from bleeding one tile into the next.
+static func atlas(tile := 128) -> ImageTexture:
+	var key := "atlas_%d" % tile
+	if _cache.has(key):
+		return _cache[key]
+	var quarters := [
+		panel(tile, Color(0.62, 0.65, 0.70), false)["albedo"],   # 0,0  plating
+		grate(tile, false)["albedo"],                            # 1,0  floor grating
+		hazard(tile),                                            # 0,1  warning stripes
+		null,                                                    # 1,1  flat white (painted metal)
+	]
+	var img := Image.create(tile * 2, tile * 2, false, Image.FORMAT_RGB8)
+	img.fill(Color(1, 1, 1))
+	var at := [Vector2i(0, 0), Vector2i(tile, 0), Vector2i(0, tile), Vector2i(tile, tile)]
+	for i in quarters.size():
+		var t: ImageTexture = quarters[i]
+		if t == null:
+			continue
+		var src := t.get_image()
+		src.convert(Image.FORMAT_RGB8)
+		if src.get_width() != tile:
+			src.resize(tile, tile, Image.INTERPOLATE_BILINEAR)
+		img.blit_rect(src, Rect2i(0, 0, tile, tile), at[i])
+	var out := _tex(img)
+	_cache[key] = out
+	return out
 
 ## Dark slatted vent grille.
 static func vent(size := 64) -> ImageTexture:
