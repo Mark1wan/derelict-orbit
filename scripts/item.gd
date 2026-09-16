@@ -145,7 +145,7 @@ func _build_flashlight() -> void:
 	light.position = Vector3(0, 0, -0.16)
 	light.light_color = Color(1.0, 0.94, 0.82)
 	light.light_energy = 3.2
-	light.spot_range = 20.0
+	light.spot_range = 16.0
 	light.spot_angle = 23.0
 	light.spot_attenuation = 1.1
 	light.shadow_enabled = true

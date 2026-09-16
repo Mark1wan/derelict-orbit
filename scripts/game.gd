@@ -19,6 +19,21 @@ const DAY_LENGTH := 150.0      # seconds of real time per shift
 const MAX_DAYS := 7
 const TASKS_PER_DAY := 3
 
+## Mission days: one long job instead of three small ones. Its steps go on the crew terminal as the
+## day's tasks and have to be done in order.
+const MISSION_DAYS := {3: "eva_solar"}
+const MISSION_DAY_LENGTH := 420.0
+const EVA_STEPS := [
+	{"id": "eva_suit", "title": "Put on an EVA suit", "room": "EVA AIRLOCK"},
+	{"id": "eva_cycle_out", "title": "Depressurize the airlock", "room": "AIRLOCK CHAMBER"},
+	{"id": "eva_reach", "title": "Tether out to the solar array", "room": "OUTSIDE"},
+	{"id": "eva_unbolt", "title": "Unbolt the damaged panel", "room": "SOLAR ARRAY", "tool": "wrench"},
+	{"id": "eva_splice", "title": "Splice the power coupling", "room": "SOLAR ARRAY", "tool": "multitool"},
+	{"id": "eva_return", "title": "Get back in and repressurize", "room": "AIRLOCK CHAMBER"},
+]
+
+signal step_done(id: String)
+
 const TASK_POOL := [
 	{"id": "reactor_pump", "title": "Reset coolant pump", "room": "Reactor"},
 	{"id": "ls_filter", "title": "Swap O2 scrubber filter", "room": "Life Support"},
@@ -45,6 +60,8 @@ var orbit: Node3D = null
 var comfort_snap := false      # VR: rotate in 30 degree snaps instead of a smooth spin (title screen)
 var touch := false             # playing with on-screen touch controls (a phone or tablet)
 var low_quality := false       # lower render resolution, fewer lights - on by default on phones
+var mission := ""              # today's mission ("" on an ordinary shift)
+var start_day := 1             # playtest shortcut: ?eva in the page URL or DERELICT_EVA=1 starts on day 3
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -66,12 +83,31 @@ func is_touch_device() -> bool:
 func use_word() -> String:
 	return "USE" if touch else "TRIGGER"
 
+func day_length() -> float:
+	return MISSION_DAY_LENGTH if mission != "" else DAY_LENGTH
+
+## The first unfinished step of today's mission, or "".
+func next_step_id() -> String:
+	if mission == "" or phase != Phase.DAY:
+		return ""
+	for t in tasks:
+		if not t["done"]:
+			return t["id"]
+	return ""
+
+## Something went wrong out there: the shift ends now, unfinished.
+func abort_shift(text: String) -> void:
+	if phase != Phase.DAY:
+		return
+	_end_day(false)
+	notice.emit(text, 6.0)
+
 ## How bad things are. Day number, plus one per unfinished shift.
 func intensity() -> float:
 	return float(day) + float(night_penalty)
 
 func start_game() -> void:
-	day = 1
+	day = start_day
 	night_penalty = 0
 	nights_survived = 0
 	_begin_day()
@@ -87,17 +123,26 @@ func _begin_day() -> void:
 	day_time = 0.0
 	power_on = true
 	tasks.clear()
-	var pool := task_pool.duplicate()
-	pool.shuffle()
-	for i in TASKS_PER_DAY:
-		var t: Dictionary = pool[i].duplicate()
-		t["done"] = false
-		tasks.append(t)
+	mission = MISSION_DAYS.get(day, "")
+	if mission != "":
+		for s: Dictionary in EVA_STEPS:
+			var t := s.duplicate()
+			t["done"] = false
+			tasks.append(t)
+	else:
+		var pool := task_pool.duplicate()
+		pool.shuffle()
+		for i in TASKS_PER_DAY:
+			var t: Dictionary = pool[i].duplicate()
+			t["done"] = false
+			tasks.append(t)
 	power_changed.emit(true)
 	phase_changed.emit(phase)
 	tasks_changed.emit()
 	day_started.emit(day)
-	if day == 1 and touch:
+	if mission != "":
+		notice.emit("DAY %d  -  SPACEWALK\nThe solar array is failing. One job today:\nsuit up in the EVA AIRLOCK, go outside and fix it.\nBring the wrench and the multitool.\n%s: the steps." % [day, "TASKS" if touch else "TAB / Y"], 10.0)
+	elif day == 1 and touch:
 		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nTASKS: what to fix and the tool each needs.\nPress and hold a wall to grab it, drag to pull." % [day, layout_seed, TASKS_PER_DAY], 8.0)
 	elif day == 1:
 		notice.emit("DAY %d  -  KESTREL-9 DECK %04d\nShift begins. %d maintenance tasks.\nTAB, or Y on the left hand: tasks and the tool each needs.\nGrab rails to move, belt what you are not holding." % [day, layout_seed, TASKS_PER_DAY], 8.0)
@@ -107,7 +152,7 @@ func _begin_day() -> void:
 func _process(delta: float) -> void:
 	if phase == Phase.DAY:
 		day_time += delta
-		if day_time >= DAY_LENGTH:
+		if day_time >= day_length():
 			_end_day(false)
 
 func on_task_completed(id: String) -> void:
@@ -116,9 +161,16 @@ func on_task_completed(id: String) -> void:
 		return
 	if phase != Phase.DAY:
 		return
+	if mission != "" and id != next_step_id():
+		return
+	var found := false
 	for t in tasks:
-		if t["id"] == id:
+		if t["id"] == id and not t["done"]:
 			t["done"] = true
+			found = true
+	if not found:
+		return
+	step_done.emit(id)
 	tasks_changed.emit()
 	var remaining := 0
 	for t in tasks:
@@ -126,6 +178,8 @@ func on_task_completed(id: String) -> void:
 			remaining += 1
 	if remaining == 0:
 		_end_day(true)
+	elif mission != "":
+		notice.emit("Done. Next: %s" % String(tasks[tasks.size() - remaining]["title"]), 4.0)
 	else:
 		notice.emit("Task complete. %d remaining." % remaining, 3.0)
 
@@ -134,7 +188,9 @@ func _end_day(all_done: bool) -> void:
 		return
 	phase = Phase.SLEEP
 	phase_changed.emit(phase)
-	if all_done:
+	if all_done and mission != "":
+		notice.emit("The array is back online.\nShift complete. Returning to the sleep pod...", 5.0)
+	elif all_done:
 		notice.emit("Shift complete.\nReturning to the sleep pod...", 5.0)
 	else:
 		night_penalty += 1
@@ -172,7 +228,7 @@ func player_caught() -> void:
 	notice.emit("SIGNAL LOST\n\nYou survived %d night%s.\n\nHold %s to try again." % [nights_survived, "" if nights_survived == 1 else "s", use_word()], 999.0)
 
 func clock_string() -> String:
-	var frac := clampf(day_time / DAY_LENGTH, 0.0, 1.0)
+	var frac := clampf(day_time / day_length(), 0.0, 1.0)
 	var minutes := int(8 * 60 + frac * 12 * 60)
 	return "%02d:%02d" % [minutes / 60, minutes % 60]
 
@@ -189,6 +245,7 @@ func _setup_input() -> void:
 	_add_key("d_interact", KEY_E)
 	_add_key("d_drop", KEY_Q)
 	_add_key("d_menu", KEY_TAB)
+	_add_key("d_tether", KEY_T)
 	_add_mouse("d_interact", MOUSE_BUTTON_LEFT)
 
 func _add_key(action: String, key: Key) -> void:

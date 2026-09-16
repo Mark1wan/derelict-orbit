@@ -126,6 +126,30 @@ takes hold of the station. The tool belt follows your body, so it is still at yo
 closes in while you spin; players who get sick from smooth rotation can tick **VR comfort** on the title screen to
 rotate in 30 degree snaps instead. Waking up at night and restarting stand you upright again.
 
+## Spacewalk (day 3)
+
+Some days are one long job instead of three small ones (`Game.MISSION_DAYS`). On day 3 the solar array on the far
+wing is failing and the shift is 7 minutes long. The crew terminal lists the steps and marks the next one `>>>`:
+
+1. **Suit up** - hold trigger / USE on the SUIT UP panel beside the hatch in the EVA AIRLOCK. The view goes behind a
+   helmet visor, you can hear yourself breathing, and the terminal shows suit O2.
+2. **Depressurize** - float through the hatch into the decompression chamber (`scripts/airlock.gd`) and hold the
+   CYCLE AIRLOCK panel. The inner shutter comes down, the air hisses out under a red light, the outer hatch opens.
+   It will not cycle without a suit, or with you outside the chamber.
+3. **Tether out to the array** - the suit's tether (`scripts/tether.gd`) latches onto the amber-blinking anchors on
+   the hull, the pylons, the truss and the boom (`scripts/exterior.gd`). Aim at one within 16 m - a cyan ring marks
+   it - and fire: **trigger** with a hand pointed at it (VR), **T** (desktop) or **ROPE** (phone). Keep holding to reel
+   in; let go and it stays clipped on as a leash; fire at nothing to unclip. Hands still grab anything outside.
+4. **Unbolt the damaged panel** (wrench) and 5. **splice the power coupling** (multitool) at the junction box on the
+   boom. Bring both: the multitool is somewhere on the deck.
+6. **Get back in and repressurize** - into the chamber, cycle it again. That ends the shift.
+
+About 5 minutes of air outside; it refills inside. Run out, or end up in vacuum without a suit, and the shift ends
+unfinished. Outside, the haunting has no corridors: it comes through the suit radio and knocks in the hull.
+Every deck is generated with the EVA room's back wall clear and a rope route checked from the airlock to the array
+(`DERELICT_AUTOTEST=routes` surveys 16 decks). Playtest shortcut: open the page with `?eva`, or run with
+`DERELICT_EVA=1`, to start on day 3.
+
 ## The orbit: Earth, sun and sunlight
 
 The sky is a shader (`sky/orbit_sky.gdshader`), so the Earth can fill most of the lower half of the view the way it
@@ -258,10 +282,13 @@ DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000
 
 ## Quest 3 performance notes
 
-- Compatibility renderer, no glow/SSAO, light depth fog, MSAA 2x, 9 unshadowed omni lights + one shadowed spot
-  (the flashlight). Hull geometry is batched per area and material (about 10 meshes per room) so draw calls stay
-  in the low hundreds even with all the greebles. If you see frame drops, set `flashlight.shadow_enabled = false`
-  in `player.gd` first, then drop `normal_enabled` on the hull materials in `station.gd`.
+- Compatibility renderer, no glow/SSAO, light depth fog, MSAA 2x. The hull is merged per 20 m chunk into one mesh
+  per material *group* (plating, grating, flat metals via vertex colours, self-lit screens, hazard, glass), so a
+  deck is roughly 80-100 hull draw calls; terminals and name plates cull beyond 16-20 m.
+- In a headset: no flashlight shadow map (the single biggest cost), eye buffers at 85 % scale, at most 3 sunlit
+  windows, one corridor light per two cells. Low graphics (phones) also drops the shadow and goes to 2 windows.
+- The loading stage after "ENTER VR" / "Play" walks the camera through every room behind the black fade so all
+  shaders compile before you can see anything.
 - Shadow atlas is 1024 on mobile (`project.godot`).
 - Physics runs at 72 Hz to match the headset's default refresh.
 

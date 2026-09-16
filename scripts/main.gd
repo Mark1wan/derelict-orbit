@@ -17,6 +17,13 @@ var touch_ui: TouchControls
 var touch_device := false
 
 func _ready() -> void:
+	# playtest shortcut straight to the spacewalk day: ?eva in the URL, or DERELICT_EVA=1
+	if OS.has_environment("DERELICT_EVA"):
+		Game.start_day = 3
+	elif OS.has_feature("web"):
+		var eva: Variant = JavaScriptBridge.eval("/[?&]eva\\b/.test(location.search) ? 1 : 0", true)
+		if eva != null and int(eva) == 1:
+			Game.start_day = 3
 	touch_device = Game.is_touch_device()
 	if touch_device:
 		# a smaller base size: the 2D UI comes out at thumb size on a phone held sideways
@@ -42,6 +49,10 @@ func _ready() -> void:
 		status.text = "WebXR not available here. Desktop mode."
 	if OS.get_environment("DERELICT_AUTOTEST") == "touch":
 		_autotest_touch()
+	elif OS.get_environment("DERELICT_AUTOTEST") == "eva":
+		_autotest_eva()
+	elif OS.get_environment("DERELICT_AUTOTEST") == "routes":
+		_survey_routes()
 	elif OS.has_environment("DERELICT_AUTOTEST"):
 		_autotest()
 	if OS.has_environment("DERELICT_SHOTS"):
@@ -54,6 +65,11 @@ func _photo_mode(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	if OS.get_environment("DERELICT_SHOTS_ONLY") == "touch":
 		await _touch_shots(dir)
+		print("[shots] done -> ", dir)
+		get_tree().quit()
+		return
+	if OS.get_environment("DERELICT_SHOTS_ONLY") == "eva":
+		await _eva_shots(dir)
 		print("[shots] done -> ", dir)
 		get_tree().quit()
 		return
@@ -207,10 +223,13 @@ func _autotest() -> void:
 	assert(Game.phase == Game.Phase.DAY, "should be DAY")
 	print("[autotest] day %d tasks: %s" % [Game.day, str(Game.tasks)])
 	var meshes := 0
+	var hull := 0
 	for n in station.root.get_children():
 		if n is MeshInstance3D:
 			meshes += 1
-	print("[autotest] deck %s: %d corridor cells, %d rooms, %d merged meshes" % [station.layout_label(), station.layout.corridor.size(), station.layout.rooms.size(), meshes])
+			if n.name.begins_with("c") or n.name.begins_with("room"):
+				hull += 1
+	print("[autotest] deck %s: %d corridor cells, %d rooms, %d hull meshes + %d other meshes" % [station.layout_label(), station.layout.corridor.size(), station.layout.rooms.size(), hull, meshes - hull])
 	# locomotion: thrusters burn fuel and move you; a grab pulls the body toward the anchor
 	Input.action_press("d_forward")
 	await get_tree().create_timer(1.0).timeout
@@ -310,6 +329,26 @@ func _autotest() -> void:
 	for kind in ["shadow", "bang", "flicker", "whisper", "watcher", "drift", "blackout", "shadow_close"]:
 		haunt._fire_day_event(9.0)
 		await get_tree().create_timer(0.3).timeout
+	# the chupacabra is built on its own rig, which has none of the stalker's poses: force a few,
+	# lurking, withdrawing and bolting, and check it only ever asks for poses its rig has
+	var corners: Array = station.corner_spots()
+	for i in 4:
+		var spot: Array = corners[(i * 7) % corners.size()]
+		var beast := Chupacabra.new()
+		haunt.add_child(beast)
+		beast.lurk_at(spot[0], spot[1])
+		var poses: Dictionary = beast.body._rig["poses"]
+		assert(poses.has(beast.body.idle_pose) and poses.has(beast.body.twitch_pose), "the chupacabra's idle poses should be in its own rig")
+		await get_tree().create_timer(0.2).timeout
+		if i % 2 == 0:
+			beast._withdraw()
+		else:
+			beast._state = Chupacabra.State.COIL
+			beast._t = 0.0
+			beast.body.set_pose("coil", true)
+		await get_tree().create_timer(1.2).timeout
+		assert(not is_instance_valid(beast), "the chupacabra should be gone after it leaves")
+	print("[autotest] chupacabra ok: 4 forced (withdraw, bolt)")
 	await get_tree().create_timer(3.5).timeout
 	# complete tasks the way a player must: fetch the tool each terminal names, then hold trigger on it
 	for t in Game.tasks:
@@ -343,7 +382,7 @@ func _autotest() -> void:
 	assert(Game.phase == Game.Phase.DAY and Game.day == 2, "power restored -> DAY 2")
 	print("[autotest] day 2 ok, intensity %.1f" % Game.intensity())
 	# fast-forward to night 2 and get caught
-	Game.day_time = Game.DAY_LENGTH + 1.0
+	Game.day_time = Game.day_length() + 1.0
 	await get_tree().create_timer(8.0).timeout
 	assert(Game.phase == Game.Phase.NIGHT, "should be NIGHT 2")
 	haunt.stalker.global_position = player.camera.global_position + Vector3(0.5, 0, 0)
@@ -477,6 +516,158 @@ func _autotest_touch() -> void:
 		assert(on <= WindowSun.MAX_LIT_LOW, "low graphics should light at most %d windows" % WindowSun.MAX_LIT_LOW)
 	print("[touch-test] ALL OK")
 	get_tree().quit()
+
+## The spacewalk, headless: DERELICT_AUTOTEST=eva godot --headless --path .
+## Starts on the mission day and does every step the way a player has to, tethering out along the
+## anchor route for real (physics, collisions) and reporting any hop that needed help.
+func _autotest_eva() -> void:
+	print("[eva-test] start")
+	Game.start_day = 3
+	_start_desktop()
+	await get_tree().create_timer(2.5).timeout
+	assert(Game.phase == Game.Phase.DAY and Game.mission == "eva_solar" and Game.tasks.size() == Game.EVA_STEPS.size(), "day 3 should be the spacewalk")
+	var al: Airlock = station.airlock
+	var ex: Exterior = station.exterior
+	assert(al != null and ex != null, "the EVA room should have its airlock, and the outside its anchors")
+	print("[eva-test] deck %s: %d anchors, route ok %s (%d anchors long), wing %+d, shift %.0f s" % [station.layout_label(), ex.anchors.size(), ex.route_ok, ex.route.size(), int(ex.wing_side), Game.day_length()])
+	assert(ex.route_ok, "a chain of anchors should reach the array")
+	assert(not player.outside and not player.in_vacuum, "the start should be inside, in air")
+	# 1. suit up
+	var rack: Interactable = station.interactables["eva_suit"]
+	assert(rack.active, "the suit rack should be the first step")
+	var g := 0
+	while not rack.done and g < 400:
+		rack.hold(0.05, player.held_kind())
+		g += 1
+	assert(player.suit_on and Game.next_step_id() == "eva_cycle_out", "the rack should put the suit on")
+	# 2. the airlock refuses from the room, cycles from inside the chamber
+	player.teleport_head_to(al.room_point())
+	al.debug_cycle()
+	assert(al.state == Airlock.State.PRESSURIZED, "the airlock should not cycle with you outside the chamber")
+	player.teleport_head_to(al.centre())
+	await get_tree().physics_frame
+	al.debug_cycle()
+	assert(al.state == Airlock.State.DEPRESSURIZING, "inside the chamber, suited, it should cycle")
+	await get_tree().create_timer(Airlock.CYCLE_TIME + 3.5).timeout
+	print("[eva-test] airlock: %s, in vacuum %s, O2 %.3f" % [al.state, player.in_vacuum, player.suit_o2])
+	assert(al.state == Airlock.State.VACUUM and player.in_vacuum and Game.next_step_id() == "eva_reach", "the chamber should be open to space")
+	# 3. out along the anchors by tether
+	player.teleport_head_to(al.exit_point())
+	player.velocity = Vector3.ZERO
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert(player.outside, "past the outer hatch should count as outside")
+	var o2_out := player.suit_o2
+	var t0 := Time.get_ticks_msec()
+	var reeled := 0
+	var helped := 0
+	for idx: int in ex.route:
+		var target: Vector3 = ex.anchors[idx]
+		if player.belt.global_position.distance_to(target) < 2.0:
+			continue
+		var ok := player.debug_tether_to(target)
+		if ok:
+			player.debug_reel(true)
+			var t := 0.0
+			while t < 10.0 and player.belt.global_position.distance_to(target) > Tether.MIN_LEN + 0.7:
+				await get_tree().physics_frame
+				t += 1.0 / 72.0
+			player.debug_reel(false)
+			ok = player.belt.global_position.distance_to(target) <= Tether.MIN_LEN + 0.7
+		if ok:
+			reeled += 1
+		else:
+			helped += 1
+			print("[eva-test]   hop to anchor %d needed help (aim %s, %.1f m away)" % [idx, player.tether.latched, player.belt.global_position.distance_to(target)])
+			player.tether.release()
+			player.teleport_head_to(target + Vector3(0, 1.2, 0))
+		player.velocity = player.velocity * 0.2
+	await get_tree().create_timer(0.3).timeout
+	print("[eva-test] tethered out: %d hops reeled, %d helped, %.1f s, O2 %.2f -> %.2f" % [reeled, helped, (Time.get_ticks_msec() - t0) / 1000.0, o2_out, player.suit_o2])
+	assert(helped <= maxi(1, (reeled + helped) / 4), "most hops along the route should work by tether alone")
+	assert(Game.next_step_id() == "eva_unbolt", "reaching the array should tick off the traverse")
+	assert(player.suit_o2 < o2_out, "the suit should use air outside")
+	# 4-5. the repair: wrench, then multitool
+	for it: Interactable in [ex.unbolt, ex.splice]:
+		assert(it.active, "%s should be up next" % it.id)
+		assert(player.debug_equip(it.tool), "could not get hold of the %s" % it.tool)
+		player.teleport_head_to(it.global_position + Vector3.UP * 1.2)
+		g = 0
+		while not it.done and g < 600:
+			it.hold(0.05, player.held_kind())
+			g += 1
+		print("[eva-test] %s with the %s: done %s" % [it.id, it.tool, it.done])
+	assert(Game.next_step_id() == "eva_return", "the array fixed, the last step is getting back in")
+	# 6. back in and repressurize
+	player.teleport_head_to(al.centre())
+	player.velocity = Vector3.ZERO
+	await get_tree().physics_frame
+	al.debug_cycle()
+	await get_tree().create_timer(Airlock.CYCLE_TIME + 3.5).timeout
+	assert(al.state == Airlock.State.PRESSURIZED, "the chamber should repressurize")
+	assert(Game.phase == Game.Phase.SLEEP, "every step done -> SLEEP")
+	await get_tree().create_timer(7.0).timeout
+	assert(Game.phase == Game.Phase.NIGHT and not player.suit_on and not player.tether.latched, "night: suit off, tether in")
+	print("[eva-test] ALL OK")
+	get_tree().quit()
+
+## Spacewalk routes over many decks: DERELICT_AUTOTEST=routes godot --headless --path .
+## Every deck must have an airlock and a rope route to the array; prints how long each walk is.
+func _survey_routes() -> void:
+	var lengths := []
+	var fails := 0
+	for s in range(100, 4100, 250):
+		station.regenerate(s)
+		for i in 4:
+			await get_tree().physics_frame
+		var ex: Exterior = station.exterior
+		var ok := ex != null and ex.route_ok
+		if not ok:
+			fails += 1
+		var walk := 0.0
+		if ok:
+			var prev: Vector3 = station.airlock.exit_point()
+			for idx: int in ex.route:
+				walk += prev.distance_to(ex.anchors[idx])
+				prev = ex.anchors[idx]
+			lengths.append(ex.route.size())
+		print("[routes] deck %04d: airlock %s, route %s, %d anchors, %.0f m of rope" % [s, station.airlock != null, ok, ex.route.size() if ex else 0, walk])
+	print("[routes] %d decks, %d without a route, anchors per route %s" % [16, fails, lengths])
+	assert(fails == 0, "every deck should have a route")
+	get_tree().quit()
+
+## Review shots of the spacewalk: the hatch, the chamber through the visor, the open outer hatch,
+## the station from outside, a tether latched on, the damaged array, and the whole route.
+func _eva_shots(dir: String) -> void:
+	Game.start_day = 3
+	_start_desktop()
+	await get_tree().create_timer(3.0).timeout
+	player.hud_label.visible = false
+	player.wrist.visible = false
+	var al: Airlock = station.airlock
+	var ex: Exterior = station.exterior
+	var orbit: Orbit = Game.orbit
+	orbit.hold(-20.0)
+	var out := al.outward()
+	await _shot(dir, "eva_hatch", al.room_point() - out * 2.5, al.room_point() + out * 4.0)
+	player.set_suit(true)
+	player.hud_label.visible = false
+	await _shot(dir, "eva_chamber", al.centre() - out * 1.6, al.centre() + out * 3.0)
+	al.state = Airlock.State.VACUUM
+	await get_tree().create_timer(2.5).timeout
+	await _shot(dir, "eva_open_hatch", al.centre() - out * 1.2, al.exit_point() + out * 6.0)
+	await _shot(dir, "eva_station_from_outside", al.exit_point() + out * 7.0 + Vector3(0, 4.0, 0), al.centre())
+	if ex.route.size() > 2:
+		var first: Vector3 = ex.anchors[ex.route[1]]
+		player.teleport_head_to(al.exit_point() + Vector3(0, 0.6, 0))
+		player.look_at_point(first)
+		player.debug_tether_to(first)
+		await get_tree().create_timer(0.5).timeout
+		await _save(dir, "eva_tether")
+		player.tether.release()
+	await _shot(dir, "eva_site", ex.site + Vector3(-ex.wing_side * 3.2, 2.6, -3.4), ex.site + Vector3(ex.wing_side * 1.5, 0, 2.0))
+	await _shot(dir, "eva_route_overview", ex.site + Vector3(-ex.wing_side * 16.0, 14.0, 26.0), ex.site + Vector3(-ex.wing_side * 14.0, -6.0, 0))
+	orbit.release()
 
 func _tap(p: Vector2) -> void:
 	touch_ui.finger_down(9, p)
@@ -640,6 +831,7 @@ func _enter_vr() -> void:
 	webxr.requested_reference_space_types = "local-floor, local"
 	webxr.required_features = "local"
 	webxr.optional_features = "local-floor"
+	webxr.render_target_size_multiplier = 0.85   # Quest 3: ~28% fewer pixels per eye, barely visible
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
@@ -692,14 +884,68 @@ func _begin(xr: bool) -> void:
 	player.begin(xr)
 	player.teleport_head_to(station.start_point())
 	Sfx.set_ambient("hum")
-	await get_tree().create_timer(1.2).timeout
+	if OS.has_environment("DERELICT_AUTOTEST") or OS.has_environment("DERELICT_SHOTS"):
+		await get_tree().create_timer(1.2).timeout
+	else:
+		await _warm_up()
 	Game.start_game()
+
+## The loading stage. Shaders compile the first time a material is drawn, so without this the first
+## look into every room and every lamp, screen and pane of glass costs a hitch during play. Behind
+## the black fade the camera visits each room and a spread of corridor cells for a frame or two,
+## then spins at the start point, so everything on the deck has been drawn once before the fade lifts.
+func _warm_up() -> void:
+	player.fade_target = 1.0
+	player.fade_mat.albedo_color.a = 1.0
+	Game.notice.emit("KESTREL-9\nInitialising deck systems...", 8.0)
+	var start := station.start_point()
+	var lay: StationLayout = station.layout
+	var deadline := Time.get_ticks_msec() + 5000   # a slow machine gets the rooms, then we go anyway
+	for r: Dictionary in lay.rooms:
+		if Time.get_ticks_msec() > deadline:
+			break
+		var dir: Vector2i = r["dir"]
+		_look_from(station.room_entry(r["index"]), StationLayout.world(r["center"], 1.4))
+		for i in 2:
+			await get_tree().process_frame
+		_look_from(StationLayout.world(r["center"], 1.4), StationLayout.world(r["center"], 1.4) + Vector3(dir.x, 0, dir.y) * 5.0)
+		await get_tree().process_frame
+	var n := 0
+	for c: Vector2i in lay.corridor:
+		n += 1
+		if n % 3 != 0 or Time.get_ticks_msec() > deadline:
+			continue
+		var cell: Dictionary = lay.corridor[c]
+		var d: Vector2i = cell["open"][0]
+		_look_from(StationLayout.world(c, 1.5), StationLayout.world(c, 1.5) + Vector3(d.x, 0, d.y) * 6.0)
+		await get_tree().process_frame
+	player.teleport_head_to(start)
+	for k in 8:
+		if Time.get_ticks_msec() > deadline + 1500:
+			break
+		player.origin.rotation.y = k * TAU / 8.0
+		await get_tree().process_frame
+	player.origin.rotation.y = 0.0
+	player.yaw = 0.0
+	await get_tree().create_timer(0.6).timeout
+	player.hud_label.text = ""
+	player.fade_target = 0.0
+
+func _look_from(eye: Vector3, target: Vector3) -> void:
+	player.teleport_head_to(eye)
+	if player.xr_active:
+		return
+	var v := target - eye
+	player.yaw = atan2(-v.x, -v.z)
+	player.pitch = atan2(v.y, Vector2(v.x, v.z).length())
+	player.origin.rotation.y = player.yaw
+	player.camera.rotation.x = player.pitch
 
 ## Dev shortcut (desktop keyboard): Ctrl+Shift+N ends the current shift immediately.
 func _unhandled_key_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and e.ctrl_pressed and e.shift_pressed and e.keycode == KEY_N:
 		if Game.phase == Game.Phase.DAY:
-			Game.day_time = Game.DAY_LENGTH + 1.0
+			Game.day_time = Game.day_length() + 1.0
 
 # ---------------------------------------------------------------- power / mood
 func _on_power(on: bool) -> void:

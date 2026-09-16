@@ -97,6 +97,8 @@ func setup(p_id: String, p_title: String, p_room: String, p_power := false, p_to
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.modulate = Color(0.8, 0.9, 1.0)
 	add_child(label)
+	for n in [housing, screen, bar, label]:
+		n.visibility_range_end = 16.0
 	_refresh()
 
 func _label_text() -> String:

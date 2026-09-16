@@ -110,6 +110,22 @@ and tap **PLAY**. Controls are in the README. Please note the phone model and br
 `DERELICT_TOUCH=1 DERELICT_AUTOTEST=touch godot --headless --path .` tests the touch controls without a phone;
 `DERELICT_TOUCH=1 DERELICT_SHOTS=/tmp/touch DERELICT_SHOTS_ONLY=touch godot --path .` saves screenshots of the phone UI.
 
+## Spacewalk - what to check
+
+Open the game with `?eva` on the end of the address to start straight on the spacewalk day.
+
+- Suit up: is the visor rim too heavy in the headset? Too subtle on a phone? Is the breathing too loud?
+- The airlock: does it read as a decompression chamber - shutters coming down, hiss, red light, the outer hatch
+  opening onto the Earth? Is 6 s of cycling too long?
+- The tether: can you find and hit anchors easily (VR trigger with a hand pointed, T, ROPE)? Is reeling at 3.4 m/s
+  comfortable in VR, or does it need the vignette? Does the slack line look right?
+- Getting lost: drift away unclipped with no fuel - is that scary in a good way, or just stuck?
+- The route to the array: how long does it take, and how much O2 is left at the end?
+- The repair at the junction box with the wrench and multitool, then back in: does 7 minutes feel right for the day?
+
+`DERELICT_AUTOTEST=eva godot --headless --path .` runs the whole mission; `DERELICT_SHOTS=/tmp/eva
+DERELICT_SHOTS_ONLY=eva godot --path .` saves screenshots of it.
+
 ## Tools and the belt - what to check in the headset
 
 - Look down: four holster rings at the waist, following your heading but not your head tilt. Seated and standing.

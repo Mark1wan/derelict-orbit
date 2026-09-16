@@ -47,6 +47,10 @@ func _ready() -> void:
 	body.rig_path = RIG
 	body.autopose = false        # it is not idling, it is holding still, which is different
 	body.glitch = 0.0
+	# its own rig's poses, set before it enters the tree: Creature._ready() snaps to idle_pose, and
+	# the default ones are the stalker's
+	body.idle_pose = "perch"
+	body.twitch_pose = "alert"
 	add_child(body)
 	body.set_pose("peek", true)
 

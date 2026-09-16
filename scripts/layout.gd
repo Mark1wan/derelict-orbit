@@ -18,6 +18,9 @@ var corridor := {}
 ## [{ "type": String, "center": Vector2i, "dir": Vector2i (centre -> door cell), "door_cell": Vector2i, "rot": int, "index": int }]
 var rooms := []
 var occupied := {}          # Vector2i -> room index (all 9 cells of each room)
+## Cells kept empty: the two behind the EVA room's back wall, where the airlock chamber hangs and
+## where you come out of it into space.
+var reserved := {}
 
 func generate(p_seed: int, room_count := 6) -> bool:
 	seed_ = p_seed
@@ -26,6 +29,7 @@ func generate(p_seed: int, room_count := 6) -> bool:
 		corridor.clear()
 		rooms.clear()
 		occupied.clear()
+		reserved.clear()
 		if _grow(room_count):
 			_assign_pieces()
 			return true
@@ -33,7 +37,7 @@ func generate(p_seed: int, room_count := 6) -> bool:
 	return false
 
 func _free(c: Vector2i) -> bool:
-	return absi(c.x) <= LIMIT and absi(c.y) <= LIMIT and not corridor.has(c) and not occupied.has(c)
+	return absi(c.x) <= LIMIT and absi(c.y) <= LIMIT and not corridor.has(c) and not occupied.has(c) and not reserved.has(c)
 
 ## Adding `c` must not complete a 2x2 block of corridor cells.
 func _makes_blob(c: Vector2i) -> bool:
@@ -62,9 +66,12 @@ func _grow(room_count: int) -> bool:
 			_add_cell(n)
 	if corridor.size() < 12:
 		return false
-	# rooms: power first (the game needs it), then a shuffled selection of the others
+	# rooms: power first (the game needs it), the EVA airlock second (the spacewalk needs it and its
+	# way out has to be kept clear before anything else is placed), then a shuffled selection
 	var types := ROOM_TYPES.duplicate()
+	types.erase("eva")
 	_shuffle(types)
+	types.insert(0, "eva")
 	types.insert(0, "power")
 	var placed := 0
 	for t: String in types:
@@ -74,9 +81,16 @@ func _grow(room_count: int) -> bool:
 			placed += 1
 	if placed < 4:
 		return false
-	if rooms.is_empty() or rooms[0]["type"] != "power":
+	if rooms.is_empty() or rooms[0]["type"] != "power" or eva_room() < 0:
 		return false
 	return true
+
+## Index of the EVA airlock room, or -1.
+func eva_room() -> int:
+	for r: Dictionary in rooms:
+		if r["type"] == "eva":
+			return r["index"]
+	return -1
 
 func _shuffle(a: Array) -> void:
 	for i in range(a.size() - 1, 0, -1):
@@ -107,6 +121,16 @@ func _place_room(type: String) -> bool:
 				ok = false
 		if not ok:
 			continue
+		# the airlock: its back wall opens onto the two cells behind it, and those stay empty
+		var behind: Array[Vector2i] = [centre + d * 2, centre + d * 3]
+		if type == "eva":
+			for b: Vector2i in behind:
+				if corridor.has(b) or occupied.has(b) or reserved.has(b):
+					ok = false
+			if not ok:
+				continue
+			for b: Vector2i in behind:
+				reserved[b] = true
 		var rot := _room_rotation(-d)
 		var idx := rooms.size()
 		# rooms roll about their doorway too: upside down, or on their side as a tall hall

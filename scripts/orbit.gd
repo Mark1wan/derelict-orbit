@@ -92,7 +92,7 @@ func sunlit() -> bool:
 func _target() -> float:
 	match Game.phase:
 		Game.Phase.DAY:
-			return lerpf(DAY_START, DAY_END, clampf(Game.day_time / Game.DAY_LENGTH, 0.0, 1.0))
+			return lerpf(DAY_START, DAY_END, clampf(Game.day_time / Game.day_length(), 0.0, 1.0))
 		Game.Phase.SLEEP:
 			return SUNSET
 		Game.Phase.NIGHT, Game.Phase.DEAD:

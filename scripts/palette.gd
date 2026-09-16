@@ -9,7 +9,31 @@ var emissive: Array[StandardMaterial3D] = []
 var emergency: Array[StandardMaterial3D] = []
 var mat_warn: StandardMaterial3D        # floor marker lights: amber by day, red in the dark
 
-## glTF material name -> palette key
+## glTF material name -> [group, tint]. Surfaces of one group merge into ONE mesh per chunk;
+## the tint rides along as a vertex colour so a dozen flat materials cost a single draw call.
+##   panel  textured plating with a normal map (tinted)     vc    flat metals, pipes, fabric...
+##   floor  grating                                          lit   self-lit screens and lamps (dark at night)
+##   hazard yellow/black stripes    warn  floor markers (amber by day, red at night)    glass
+const KIT_GROUPS := {
+	"Hull_Panel": ["panel", Color(0.78, 0.8, 0.84)], "Hull_Dark": ["panel", Color(0.5, 0.52, 0.56)],
+	"Door_Panel": ["panel", Color(0.45, 0.47, 0.5)],
+	"Hull_Light": ["vc", Color(0.66, 0.68, 0.72)], "Floor_Walk": ["vc", Color(0.2, 0.21, 0.24)],
+	"Pipe_Steel": ["vc", Color(0.55, 0.58, 0.6)], "Pipe_Copper": ["vc", Color(0.5, 0.36, 0.26)],
+	"Seal_Gasket": ["vc", Color(0.08, 0.08, 0.09)], "Seat_Fabric": ["vc", Color(0.25, 0.3, 0.4)],
+	"Suit_Orange": ["vc", Color(0.9, 0.45, 0.1)], "Suit_White": ["vc", Color(0.85, 0.86, 0.88)],
+	"Foliage": ["vc", Color(0.25, 0.55, 0.2)], "Mat_Rubber": ["vc", Color(0.1, 0.1, 0.11)],
+	"Accent_Red": ["vc", Color(0.7, 0.12, 0.08)],
+	"Floor_Grate": ["floor", Color(1, 1, 1)],
+	"Accent_Warn": ["hazard", Color(1, 1, 1)],
+	"Light_Strip": ["lit", Color(0.85, 0.92, 1.0)], "Screen_Lit": ["lit", Color(0.35, 0.9, 1.0)],
+	"Light_Data": ["lit", Color(1.0, 0.7, 0.25)], "Light_Green": ["lit", Color(0.2, 1.0, 0.4)],
+	"Light_Warn": ["warn", Color(1, 1, 1)],
+	"Glass_Window": ["glass", Color(1, 1, 1)], "Glass_Port": ["glass", Color(1, 1, 1)],
+}
+const TEXTURED_GROUPS := {"panel": true, "floor": true, "hazard": true}   # need tangents for normal maps / UVs
+const DEFAULT_GROUP := ["vc", Color(0.24, 0.26, 0.3)]
+
+## glTF material name -> palette key (single-material lookups, e.g. props)
 const KIT_MAP := {
 	"Hull_Panel": "hull", "Hull_Light": "light_metal", "Hull_Dark": "dark",
 	"Floor_Grate": "floor", "Floor_Walk": "walk",
@@ -21,18 +45,33 @@ const KIT_MAP := {
 	"Door_Panel": "frame", "Seal_Gasket": "gasket", "Seat_Fabric": "fabric",
 	"Suit_Orange": "orange", "Suit_White": "white", "Foliage": "leaf", "Mat_Rubber": "rubber",
 }
-const NO_COLLIDE := {"strip": true, "warn": true, "screen": true, "data": true, "green": true, "hazard": true, "red_paint": true, "leaf": true}
+const NO_COLLIDE := {"lit": true, "warn": true, "hazard": true, "strip": true, "screen": true, "data": true, "green": true, "red_paint": true, "leaf": true}
 
 func _init() -> void:
 	var panel := StationTex.panel(256, Color(0.62, 0.65, 0.70))
 	var panel_dark := StationTex.panel(256, Color(0.40, 0.42, 0.46))
 	var grate := StationTex.grate(128)
+	# merged groups (see KIT_GROUPS)
+	var pm := textured(panel, Color(1, 1, 1), 0.5, 0.62, 0.35, 1.0)
+	pm.vertex_color_use_as_albedo = true
+	pm.vertex_color_is_srgb = true
+	mats["panel"] = pm
+	var vc := plain(Color(1, 1, 1), 0.55, 0.4)
+	vc.vertex_color_use_as_albedo = true
+	vc.vertex_color_is_srgb = true
+	mats["vc"] = vc
+	var lit := StandardMaterial3D.new()
+	lit.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lit.vertex_color_use_as_albedo = true
+	lit.vertex_color_is_srgb = true
+	lit.albedo_color = Color(1, 1, 1)
+	mats["lit"] = lit
 	mats["hull"] = textured(panel, Color(0.78, 0.8, 0.84), 0.5, 0.62, 0.35, 1.0)
 	mats["dark"] = textured(panel_dark, Color(0.62, 0.64, 0.68), 0.5, 0.7, 0.4, 0.8)
 	mats["light_metal"] = plain(Color(0.66, 0.68, 0.72), 0.5, 0.6)
 	mats["floor"] = textured(grate, Color(0.9, 0.9, 0.9), 1.0, 0.75, 0.5, 1.4)
 	mats["walk"] = plain(Color(0.2, 0.21, 0.24), 0.9, 0.05)
-	mats["frame"] = textured(panel_dark, Color(0.45, 0.47, 0.5), 1.0, 0.5, 0.7, 0.6)
+	mats["frame"] = triplanar(textured(panel_dark, Color(0.45, 0.47, 0.5), 1.0, 0.5, 0.7, 0.0))
 	mats["metal"] = plain(Color(0.24, 0.26, 0.3), 0.45, 0.8)
 	mats["pipe"] = plain(Color(0.5, 0.36, 0.26), 0.35, 0.9)
 	mats["pipe2"] = plain(Color(0.55, 0.58, 0.6), 0.6, 0.5)
@@ -43,8 +82,8 @@ func _init() -> void:
 	mats["leaf"] = plain(Color(0.25, 0.55, 0.2), 0.9, 0.0)
 	mats["rubber"] = plain(Color(0.1, 0.1, 0.11), 0.95, 0.0)
 	mats["red_paint"] = plain(Color(0.7, 0.12, 0.08), 0.6, 0.1)
-	mats["crate"] = textured(panel_dark, Color(0.6, 0.55, 0.4), 1.5, 0.85, 0.1, 0.8)
-	mats["ext"] = textured(panel_dark, Color(0.35, 0.36, 0.4), 0.25, 0.8, 0.5, 0.5)
+	mats["crate"] = triplanar(textured(panel_dark, Color(0.6, 0.55, 0.4), 1.5, 0.85, 0.1, 0.0))
+	mats["ext"] = triplanar(textured(panel_dark, Color(0.35, 0.36, 0.4), 0.25, 0.8, 0.5, 0.0))
 	mats["ext"].disable_fog = true
 	mats["ext"].emission_enabled = true
 	mats["ext"].emission = Color(0.16, 0.18, 0.22)
@@ -57,9 +96,7 @@ func _init() -> void:
 	mats["truss"] = truss
 	var hazard := plain(Color(1, 1, 1), 0.8, 0.0)
 	hazard.albedo_texture = StationTex.hazard()
-	hazard.uv1_triplanar = true
-	hazard.uv1_world_triplanar = true
-	hazard.uv1_scale = Vector3.ONE * 2.0
+	hazard.uv1_scale = Vector3(2.0, 2.0, 1.0)
 	mats["hazard"] = hazard
 	var solar := plain(Color(1, 1, 1), 0.3, 0.6)
 	solar.albedo_texture = StationTex.solar()
@@ -96,16 +133,22 @@ static func plain(albedo: Color, rough := 0.7, metal := 0.2) -> StandardMaterial
 	m.metallic = metal
 	return m
 
+## World-space triplanar variant for geometry without authored UVs (props, exterior extras).
+static func triplanar(m: StandardMaterial3D) -> StandardMaterial3D:
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3.ONE * m.uv1_scale.x
+	return m
+
 static func textured(tex: Dictionary, tint: Color, scale: float, rough: float, metal: float, normal_depth := 1.0) -> StandardMaterial3D:
 	var m := plain(tint, rough, metal)
 	m.albedo_texture = tex["albedo"]
-	m.normal_enabled = true
-	m.normal_texture = tex["normal"]
-	m.normal_scale = normal_depth
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * scale
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if normal_depth > 0.0:
+		m.normal_enabled = true
+		m.normal_texture = tex["normal"]
+		m.normal_scale = normal_depth
+	m.uv1_scale = Vector3(scale, scale, 1.0)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	return m
 
 func emissive_mat(col: Color, energy := 2.0, is_emergency := false) -> StandardMaterial3D:
@@ -122,6 +165,7 @@ func emissive_mat(col: Color, energy := 2.0, is_emergency := false) -> StandardM
 	return m
 
 func set_power(on: bool) -> void:
+	mats["lit"].albedo_color = Color(1, 1, 1) if on else Color(0.05, 0.05, 0.06)
 	for m in emissive:
 		m.emission_enabled = on
 	for m in emergency:

@@ -56,6 +56,7 @@ static var _cache: Dictionary = {}
 ## shared material, which is fine while only one of them is ever solid at a time.
 static var _mesh_cache: Dictionary = {}
 static var _mat_cache: Dictionary = {}
+static var _warned: Dictionary = {}     # "rig:pose" names already warned about
 
 func _ready() -> void:
 	_rng.randomize()
@@ -188,8 +189,16 @@ func _part_transform(p: Dictionary) -> Transform3D:
 
 # ---------------------------------------------------------------- posing
 ## Set the pose. `snap` applies it on this frame (the glitch); otherwise it is eased into.
+## A name this rig does not have (another creature's pose) is warned about once and ignored.
 func set_pose(name: String, snap := false) -> void:
-	var pose: Dictionary = _rig["poses"][name]
+	var poses: Dictionary = _rig["poses"]
+	if not poses.has(name):
+		var key := "%s:%s" % [rig_path, name]
+		if not _warned.has(key):
+			_warned[key] = true
+			push_warning("creature rig %s has no pose '%s'; holding the current one" % [rig_path, name])
+		return
+	var pose: Dictionary = poses[name]
 	var bones: Dictionary = pose["bones"]
 	for bone: String in _bones:
 		var a: Array = bones.get(bone, [0, 0, 0])

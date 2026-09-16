@@ -130,6 +130,122 @@ static func cell_transform(cell: Vector2i, k: int, roll := 0) -> Transform3D:
 ## closed door in a random corridor would cut the deck in two - keep its bulkhead frame only.
 const SKIP := {"corridor_door": {"Door_Panel": true, "Glass_Port": true}}
 
+# ---------------------------------------------------------------- inside, outside, and the hatch
+## The kit's modules are closed boxes, so the faces lying on a piece's outer bounds and looking out
+## are the hull as seen from space. part() splits every piece into an "in" part and an "out" part,
+## so the station can put the outside on the exterior render layer - lit by the sun, which must
+## never reach the corridors.
+##
+## room_eva's airlock hatch is a closed door painted on a solid back wall. With `hatch` the door
+## and the wall behind it are cut away (HATCH_LO..HATCH_HI in the room's frame), the wall rebuilt
+## around the hole, and the airlock chamber (airlock.gd) is bolted on behind it.
+const OUTER_EPS := 0.03
+const HATCH_LO := Vector3(-1.34, 0.42, 5.37)
+const HATCH_HI := Vector3(1.34, 3.08, 6.05)
+const HATCH_SKIP := {"Door_Panel": true, "Glass_Window": true}
+
+static func part(piece: String, which: String, hatch := false) -> String:
+	var base := piece + ("#hatch" if hatch else "")
+	var pname := base + "@" + which
+	if _meshes.has(pname):
+		return pname
+	var m := mesh(piece)
+	var names := material_names(piece)
+	var skip: Dictionary = HATCH_SKIP if hatch else SKIP.get(piece, {})
+	var lo := m.get_aabb().position
+	var hi := m.get_aabb().end
+	var out := {"in": ArrayMesh.new(), "out": ArrayMesh.new()}
+	var out_names := {"in": [] as Array[String], "out": [] as Array[String]}
+	for s in m.get_surface_count():
+		if skip.has(names[s]):
+			continue
+		var tools := {}
+		var arrays := m.surface_get_arrays(s)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var count := idx.size() if idx.size() > 0 else verts.size()
+		var walls := {}          # wall faces cut through by the hatch: rebuilt around the hole below
+		var i := 0
+		while i < count:
+			var ids := [idx[i], idx[i + 1], idx[i + 2]] if idx.size() > 0 else [i, i + 1, i + 2]
+			i += 3
+			var tri: Array[Vector3] = []
+			tri.assign([verts[ids[0]], verts[ids[1]], verts[ids[2]]])
+			var n := (norms[ids[0]] + norms[ids[1]] + norms[ids[2]]).normalized()
+			if hatch and _in_hatch(tri):
+				var b := AABB(tri[0], Vector3.ZERO).expand(tri[1]).expand(tri[2])
+				if b.size.x > HATCH_HI.x - HATCH_LO.x + 0.3:
+					var key := "%.2f|%d" % [tri[0].z, signi(roundi(n.z))]
+					walls[key] = (walls[key] as AABB).merge(b) if walls.has(key) else b
+				continue
+			var w := "out" if _on_bounds(tri, n, lo, hi) else "in"
+			for k in 3:
+				_vertex(_tool(tools, w), tri[k], norms[ids[k]])
+		for key: String in walls:
+			var b: AABB = walls[key]
+			var nz := float(key.get_slice("|", 1))
+			var z := b.position.z
+			var rects := [
+				Rect2(b.position.x, b.position.y, HATCH_LO.x - b.position.x, b.size.y),
+				Rect2(HATCH_HI.x, b.position.y, b.end.x - HATCH_HI.x, b.size.y),
+				Rect2(HATCH_LO.x, b.position.y, HATCH_HI.x - HATCH_LO.x, HATCH_LO.y - b.position.y),
+				Rect2(HATCH_LO.x, HATCH_HI.y, HATCH_HI.x - HATCH_LO.x, b.end.y - HATCH_HI.y)]
+			for r: Rect2 in rects:
+				if r.size.x <= 0.001 or r.size.y <= 0.001:
+					continue
+				var tl := Vector3(r.position.x, r.end.y, z)
+				var tr := Vector3(r.end.x, r.end.y, z)
+				var br := Vector3(r.end.x, r.position.y, z)
+				var bl := Vector3(r.position.x, r.position.y, z)
+				var n := Vector3(0, 0, nz)
+				var quad: Array[Vector3] = []
+				quad.assign([tl, tr, br, tl, br, bl] if nz > 0.0 else [tl, br, tr, tl, bl, br])
+				var w := "out" if _on_bounds([tl, tr, br], n, lo, hi) else "in"
+				for p: Vector3 in quad:
+					_vertex(_tool(tools, w), p, n)
+		for w: String in tools:
+			(tools[w] as SurfaceTool).commit(out[w])
+			(out_names[w] as Array[String]).append(names[s])
+	for w: String in ["in", "out"]:
+		_meshes[base + "@" + w] = out[w]
+		_names[base + "@" + w] = out_names[w]
+	return pname
+
+static func _tool(tools: Dictionary, w: String) -> SurfaceTool:
+	if not tools.has(w):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		tools[w] = st
+	return tools[w]
+
+static func _vertex(st: SurfaceTool, p: Vector3, n: Vector3) -> void:
+	st.set_normal(n)
+	st.set_uv(Vector2(p.x + p.z, p.y) * 0.5)
+	st.add_vertex(p)
+
+static func _in_hatch(tri: Array[Vector3]) -> bool:
+	var b := AABB(tri[0], Vector3.ZERO).expand(tri[1]).expand(tri[2])
+	if b.position.z < HATCH_LO.z or b.end.z > HATCH_HI.z:
+		return false
+	return b.end.x > HATCH_LO.x + 0.001 and b.position.x < HATCH_HI.x - 0.001 \
+		and b.end.y > HATCH_LO.y + 0.001 and b.position.y < HATCH_HI.y - 0.001
+
+static func _on_bounds(tri: Array, n: Vector3, lo: Vector3, hi: Vector3) -> bool:
+	for axis in 3:
+		for side: float in [-1.0, 1.0]:
+			var bound: float = hi[axis] if side > 0.0 else lo[axis]
+			if n[axis] * side < 0.9:
+				continue
+			var all_on := true
+			for v: Vector3 in tri:
+				if absf(v[axis] - bound) > OUTER_EPS:
+					all_on = false
+					break
+			if all_on:
+				return true
+	return false
+
 # ---------------------------------------------------------------- what is already on the wall
 ## Wall fittings only ever mount on a handful of known planes - the two sides of a corridor cell,
 ## the three walls of a room - so rather than voxelising a whole piece, each of those planes gets a
@@ -261,39 +377,75 @@ static func find_clear_spot(piece: String, axis: int, coord: float, face: float,
 			taken[Vector2i(u, v)] = true
 	return Vector2((pick.x + 0.5) * PROFILE_RES, (pick.y + 0.5) * PROFILE_RES)
 
-## Accumulates surfaces from many placed pieces, grouped by a material key.
+## Accumulates surfaces from many placed pieces. Surfaces are appended per source material,
+## then collapsed per GROUP (see Palette.KIT_GROUPS) into one de-indexed surface whose vertex
+## colour carries each material's tint - so a chunk costs one draw call per group, not per material.
 class Merger:
-	var tools := {}
-	var counts := {}
-	func add(piece: String, xf: Transform3D, keymap: Callable) -> void:
+	var tools := {}       # material name -> SurfaceTool
+	var group_of := {}    # material name -> group key
+	var tint_of := {}     # material name -> Color
+	func add(piece: String, xf: Transform3D, _keymap: Callable = Callable()) -> void:
 		var m := Kit.mesh(piece)
 		var names := Kit.material_names(piece)
 		var skip: Dictionary = Kit.SKIP.get(piece, {})
 		for s in m.get_surface_count():
-			if skip.has(names[s]):
+			var n := names[s]
+			if skip.has(n):
 				continue
-			var key: String = keymap.call(names[s])
-			if not tools.has(key):
+			if not tools.has(n):
 				var st := SurfaceTool.new()
 				st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				tools[key] = st
-				counts[key] = 0
-			tools[key].append_from(m, s, xf)
-			counts[key] += 1
-	## materials.call(key) -> Material. Every opaque key gets a trimesh collider on `body`.
+				tools[n] = st
+				var g: Array = Palette.KIT_GROUPS.get(n, Palette.DEFAULT_GROUP)
+				group_of[n] = g[0]
+				tint_of[n] = g[1]
+			tools[n].append_from(m, s, xf)
+	## materials.call(group) -> Material. Opaque groups get a trimesh collider on `body`.
 	func commit(parent: Node, body: StaticBody3D, materials: Callable, no_collide: Dictionary, prefix: String) -> Array[MeshInstance3D]:
 		var out: Array[MeshInstance3D] = []
-		for key: String in tools:
-			var st: SurfaceTool = tools[key]
-			var mesh := st.commit()
-			if mesh.get_surface_count() == 0:
+		var acc := {}   # group -> {pos, nrm, tan, uv, col}
+		for n: String in tools:
+			var st: SurfaceTool = tools[n]
+			var g: String = group_of[n]
+			st.deindex()
+			if Palette.TEXTURED_GROUPS.has(g):
+				st.generate_tangents()
+			var arr: Array = st.commit_to_arrays()
+			var pos: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			if pos.is_empty():
 				continue
+			if not acc.has(g):
+				acc[g] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "col": PackedColorArray()}
+			var a: Dictionary = acc[g]
+			a["pos"].append_array(pos)
+			a["nrm"].append_array(arr[Mesh.ARRAY_NORMAL])
+			if arr[Mesh.ARRAY_TANGENT] != null:
+				a["tan"].append_array(arr[Mesh.ARRAY_TANGENT])
+			if arr[Mesh.ARRAY_TEX_UV] != null:
+				a["uv"].append_array(arr[Mesh.ARRAY_TEX_UV])
+			var cols := PackedColorArray()
+			cols.resize(pos.size())
+			cols.fill(tint_of[n])
+			a["col"].append_array(cols)
+		for g: String in acc:
+			var a: Dictionary = acc[g]
+			var arrays := []
+			arrays.resize(Mesh.ARRAY_MAX)
+			arrays[Mesh.ARRAY_VERTEX] = a["pos"]
+			arrays[Mesh.ARRAY_NORMAL] = a["nrm"]
+			arrays[Mesh.ARRAY_COLOR] = a["col"]
+			if a["uv"].size() == a["pos"].size():
+				arrays[Mesh.ARRAY_TEX_UV] = a["uv"]
+			if a["tan"].size() == a["pos"].size() * 4:
+				arrays[Mesh.ARRAY_TANGENT] = a["tan"]
+			var mesh := ArrayMesh.new()
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 			var mi := MeshInstance3D.new()
 			mi.mesh = mesh
-			mi.material_override = materials.call(key)
-			mi.name = "%s_%s" % [prefix, key]
+			mi.material_override = materials.call(g)
+			mi.name = "%s_%s" % [prefix, g]
 			parent.add_child(mi)
-			if body and not no_collide.has(key):
+			if body and not no_collide.has(g):
 				var cs := CollisionShape3D.new()
 				cs.shape = mesh.create_trimesh_shape()
 				body.add_child(cs)
