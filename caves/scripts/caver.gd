@@ -1,0 +1,597 @@
+class_name Caver
+extends CharacterBody3D
+## You, in the cave. A CharacterBody3D under gravity that reads an Intent struct, asks
+## CaverBody what shape it currently is, and moves only as far as the rock will let it.
+##
+## The interesting difference from an ordinary first-person controller is that movement is
+## GATED rather than blocked. A normal controller pushes forward and lets the physics engine
+## slide it along a wall; that is exactly the feeling a caving game must not have, because
+## sliding is free and squeezing is not. Here the body measures the space around itself first
+## (CaverBody.probe), decides what posture it can be, and then scales what you asked for by
+## how much room there is. Contact pressure at 0.9 means you barely move whatever the stick
+## says, and the scrape, the rumble and the closing vignette all come off the same number.
+##
+## Climbing is the one thing lifted almost unchanged from derelict-orbit: grip near rock and
+## the hand is anchored to the world point it touched, then the body is driven so that hand
+## returns to where it grabbed. In zero-G that was the whole locomotion system. Under gravity
+## it is chimneying, stemming a rift and hauling yourself over breakdown, and it needed almost
+## no changes to become those things.
+
+const GRAVITY := 9.8
+const TERMINAL := 14.0
+const ACCEL := 9.0
+const FRICTION := 13.0
+const STEP_UP := 0.42          ## breakdown blocks you can just walk over
+const SQUEEZE_CRAWL := 0.34    ## slowest the rock can make you: a shuffle, never a standstill
+const GRAB_REACH_XR := 0.20    ## sphere around the controller that counts as touching rock
+const GRAB_REACH_FLAT := 1.9   ## how far in front of your eye the virtual hand can find rock
+const GRAB_PULL := 3.2         ## how hard a hand can haul the body toward its anchor
+const PULL_GAIN := 1.15        ## metres of virtual-hand travel per screen height dragged
+const LOOK_SENS := 0.0022
+const SNAP_ANGLE := 30.0
+const HEAD_CLEAR := 0.16       ## closer than this to rock and the view starts to black out
+const EYE_LERP := 7.0
+
+# VR comfort. Both are the derelict-orbit quads: unshaded, depth-test-disabled, glued to the
+# camera, because a CanvasLayer is not visible in XR.
+const FADE_SHADER := """
+shader_type spatial;
+render_mode unshaded, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec4 tint : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+void fragment() { ALBEDO = tint.rgb; ALPHA = tint.a; }
+"""
+
+const VIGNETTE_SHADER := """
+shader_type spatial;
+render_mode unshaded, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
+uniform float strength : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 tint : source_color = vec3(0.04, 0.03, 0.02);
+void fragment() {
+	float d = distance(UV, vec2(0.5)) * 2.0;
+	ALBEDO = tint;
+	ALPHA = smoothstep(0.22, 0.95, d) * strength;
+}
+"""
+
+@onready var origin: XROrigin3D = $XROrigin3D
+@onready var camera: XRCamera3D = $XROrigin3D/XRCamera3D
+@onready var left_hand: XRController3D = $XROrigin3D/LeftHand
+@onready var right_hand: XRController3D = $XROrigin3D/RightHand
+@onready var body_shape: CollisionShape3D = $BodyShape
+
+var body := CaverBody.new()
+var intent := Intent.new()
+var started := false
+var xr_active := false
+## The fourth producer. When the autotest is writing the Intent struct itself, the desktop and
+## XR producers have to keep their hands off it - which is only possible because there is a
+## struct to write in the first place.
+var scripted := false
+
+var lamp: Lamp = null
+var slate: Slate = null
+var rope: Rope = null
+
+var yaw := 0.0
+var pitch := 0.0
+var eye := 1.62                ## current, eased, height of the head above the feet
+var fade_target := 1.0
+var _fade := 1.0
+var _vignette := 0.0
+
+# Per-hand grab state. In VR both hands are real; flat and touch use slot 0 as a virtual hand
+# that lives a fixed distance in front of the eye and is dragged around by the mouse/finger.
+var _anchor := [Vector3.ZERO, Vector3.ZERO]
+var _held := [false, false]
+var _hand_local := [Vector3.ZERO, Vector3.ZERO]
+var _hand_vel := [Vector3.ZERO, Vector3.ZERO]
+var _hand_prev := [Vector3.ZERO, Vector3.ZERO]
+var _xr_prev := {}
+
+var _capsule := CapsuleShape3D.new()
+var _fade_mat: ShaderMaterial
+var _vig_mat: ShaderMaterial
+var _hand_mesh := [null, null]
+var _hand_mat := [null, null]
+var _scrape: AudioStreamPlayer
+var _last_pos := Vector3.ZERO
+var _probe_frame := 0
+
+func _ready() -> void:
+	Cave.caver = self
+	motion_mode = MOTION_MODE_GROUNDED
+	floor_max_angle = deg_to_rad(58.0)
+	floor_snap_length = 0.35
+	floor_stop_on_slope = true
+	up_direction = Vector3.UP
+	body_shape.shape = _capsule
+	_build_view()
+	_build_hands()
+	Cave.phase_changed.connect(_on_phase)
+
+# ---------------------------------------------------------------- setup
+
+func _build_view() -> void:
+	# Fade quad: the VR answer to putting your head through a wall. It is also the loading
+	# fade and the respawn fade, exactly as in derelict-orbit.
+	var fade := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(4, 4)
+	fade.mesh = qm
+	_fade_mat = ShaderMaterial.new()
+	_fade_mat.shader = Shader.new()
+	_fade_mat.shader.code = FADE_SHADER
+	_fade_mat.set_shader_parameter("tint", Color(0, 0, 0, 1))
+	fade.material_override = _fade_mat
+	fade.position = Vector3(0, 0, -0.2)
+	fade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fade.sorting_offset = 100.0
+	camera.add_child(fade)
+
+	var vig := MeshInstance3D.new()
+	var vq := QuadMesh.new()
+	vq.size = Vector2(0.9, 0.9)
+	vig.mesh = vq
+	_vig_mat = ShaderMaterial.new()
+	_vig_mat.shader = Shader.new()
+	_vig_mat.shader.code = VIGNETTE_SHADER
+	vig.material_override = _vig_mat
+	vig.position = Vector3(0, 0, -0.21)
+	vig.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	vig.sorting_offset = 99.0
+	camera.add_child(vig)
+
+	_scrape = AudioStreamPlayer.new()
+	_scrape.bus = "Master"
+	add_child(_scrape)
+
+func _build_hands() -> void:
+	# A gloved fist, near enough. The mesh only exists so you can see where your hand is and
+	# whether it has found something; it is retinted every frame rather than animated.
+	for i in 2:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.085, 0.07, 0.12)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.20, 0.19, 0.17)
+		m.roughness = 0.95
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_hand_mat[i] = m
+		_hand_mesh[i] = mi
+		if i == 0:
+			left_hand.add_child(mi)
+		else:
+			right_hand.add_child(mi)
+
+func begin(xr: bool) -> void:
+	xr_active = xr
+	started = true
+	if not xr:
+		# Flat play has no local-floor reference space, so the head is placed by hand and the
+		# hand meshes belong to the camera rather than to controllers that do not exist.
+		camera.position = Vector3(0, eye, 0)
+		for i in 2:
+			var mi: MeshInstance3D = _hand_mesh[i]
+			mi.get_parent().remove_child(mi)
+			camera.add_child(mi)
+			mi.visible = i == 0
+			mi.position = Vector3(0.19, -0.17, -0.42)
+	if lamp:
+		lamp.set_shadow_allowed(shadow_allowed())
+
+## The headlamp shadow is the whole look of the game and also, by a distance, the most
+## expensive thing in it - a shadow map re-rendered every frame for everything in the cone.
+## Same gate as derelict-orbit's flashlight: desktop, high graphics, flat only.
+func shadow_allowed() -> bool:
+	return started and not xr_active and not Cave.low_quality
+
+func teleport(p: Vector3, look_dir := Vector3.ZERO) -> void:
+	global_position = p
+	velocity = Vector3.ZERO
+	_last_pos = p
+	for i in 2:
+		_held[i] = false
+	if look_dir != Vector3.ZERO:
+		yaw = atan2(-look_dir.x, -look_dir.z)
+		pitch = clampf(asin(clampf(look_dir.normalized().y, -1.0, 1.0)), -1.45, 1.45)
+		origin.rotation.y = yaw
+		if not xr_active:
+			camera.rotation.x = pitch
+	if is_inside_tree():
+		_fit_here()
+
+## Measure and fold before the first physics step, so a body dropped into a crawl arrives
+## already the right shape. Without this it lands standing, a capsule twice the width of the
+## passage, and move_and_slide ejects it through the wall - which it will do for a warm-up
+## tour and a respawn as readily as for a test. Two passes, because where the chest sits
+## depends on the posture and the posture depends on what the chest can see.
+func _fit_here() -> void:
+	var space := get_world_3d().direct_space_state
+	for pass_ in 2:
+		body.probe(space, chest_point(), _body_frame(), global_position)
+		body.choose_posture(false, false, 1.0)
+	eye = body.eye_height()
+	_shape_body()
+
+func _on_phase(p: int) -> void:
+	if p == Cave.Phase.CAVING:
+		fade_target = 0.0
+
+# ---------------------------------------------------------------- the frame
+
+func _physics_process(delta: float) -> void:
+	if not started:
+		return
+	_read_input(delta)
+
+	var frame := _body_frame()
+	var chest_pt := chest_point()
+	# The ring is twelve raycasts; at 72 Hz that is 864 a second, which is nothing, but the
+	# headroom and width casts on top of it are not worth doing twice in a frame either.
+	body.probe(get_world_3d().direct_space_state, chest_pt, frame, global_position)
+	body.breathe(intent.exhale, delta)
+	body.choose_posture(intent.lower, intent.raise, delta)
+	body.update_wedge(intent.move.y > 0.25, global_position, delta)
+
+	_shape_body()
+	_move(delta, frame)
+	_climb(delta)
+	move_and_slide()
+
+	_track_progress()
+	if rope:
+		rope.caver_moved(self, intent, delta)
+	intent.clear_edges()
+
+func _read_input(delta: float) -> void:
+	if scripted:
+		pass   # the autotest is the producer this frame; do not overwrite what it wrote
+	elif xr_active:
+		intent.read_xr(left_hand, right_hand, _xr_prev)
+		if intent.snap != 0:
+			_snap_turn(float(intent.snap) * SNAP_ANGLE)
+	elif Cave.touch:
+		pass   # TouchControls writes straight into `intent` in its own _process
+	else:
+		intent.read_desktop(camera, GRAB_REACH_FLAT)
+
+	if intent.lamp and lamp:
+		lamp.toggle_main()
+	if intent.backup and lamp:
+		lamp.toggle_backup()
+	if intent.slate and slate:
+		slate.toggle()
+
+## The body's own frame: x across the passage, y up it, z back the way you came. The ring is
+## cast in the x/y plane, so it measures the cross-section you have to fit through rather than
+## an arbitrary horizontal slice - which matters the moment a passage tilts.
+func _body_frame() -> Basis:
+	var fwd := -origin.global_transform.basis.z
+	if xr_active:
+		var head := -camera.global_transform.basis.z
+		fwd = Vector3(head.x, 0.0, head.z)
+	fwd.y = 0.0
+	if fwd.length_squared() < 0.001:
+		fwd = Vector3.FORWARD
+	fwd = fwd.normalized()
+	var across := Vector3.UP.cross(fwd).normalized()
+	return Basis(across, fwd.cross(across).normalized(), -fwd)
+
+func chest_point() -> Vector3:
+	# Where the widest part of you is: roughly at the eye when upright, and just off the floor
+	# when you are flat out. It is the point the ring is cast from, so it decides what "tight"
+	# means, and it has to be the chest rather than the head.
+	var h: float = body.eye_height()
+	return global_position + Vector3.UP * (h * 0.78 + 0.06)
+
+## Resize the capsule to whatever shape we currently are. Prone postures lie it down along the
+## direction of travel, because a standing capsule in a 34 cm bedding crawl is a sphere that
+## cannot get anywhere.
+func _shape_body() -> void:
+	var b := body.box()
+	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
+	if prone:
+		_capsule.radius = clampf(b.y * 0.5, 0.08, 0.30)
+		_capsule.height = maxf(1.30, _capsule.radius * 2.0 + 0.02)
+		body_shape.rotation = Vector3(PI * 0.5, origin.rotation.y, 0.0)
+		body_shape.position = Vector3(0, _capsule.radius + 0.01, 0)
+	else:
+		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5, 0.10, 0.28)
+		_capsule.height = maxf(b.y, _capsule.radius * 2.0 + 0.02)
+		body_shape.rotation = Vector3.ZERO
+		body_shape.position = Vector3(0, _capsule.height * 0.5, 0)
+
+# ---------------------------------------------------------------- moving
+
+func _move(delta: float, frame: Basis) -> void:
+	var on_rope: bool = rope != null and rope.clipped
+	if not is_on_floor() and not intent.any_grab() and not on_rope:
+		velocity.y = maxf(velocity.y - GRAVITY * delta, -TERMINAL)
+	elif is_on_floor() and velocity.y < 0.0:
+		velocity.y = 0.0
+
+	var fwd := -frame.z
+	var side := frame.x
+	var wish := (fwd * intent.move.y + side * intent.move.x).limit_length(1.0)
+
+	# What the rock allows. Pressure alone would let you crawl into a pinch at full speed and
+	# stop dead; easing it out means the passage slows you down before it stops you, which is
+	# the only warning a real one gives.
+	#
+	# The floor matters as much as the curve. A squeeze you fit through is slow, not still -
+	# four centimetres a second with rock on both shoulders, twenty-odd seconds to cross the
+	# Devil's Pinch. Floor it any lower and a passage you genuinely fit is indistinguishable
+	# from one you do not, which is exactly the distinction the game is about.
+	var room: float = 1.0 - smoothstep(0.35, 0.94, body.pressure)
+	var target_speed: float = body.speed() * maxf(room, SQUEEZE_CRAWL)
+	if body.wedged:
+		# Forward does nothing. Backwards, and changing shape, still work - that is the way out.
+		if intent.move.y > 0.0:
+			wish -= fwd * intent.move.y
+		target_speed = minf(target_speed, 0.20)
+	if intent.brake > 0.5:
+		target_speed *= 0.25
+
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	if wish.length_squared() > 0.0001:
+		flat = flat.move_toward(wish * target_speed, ACCEL * delta)
+	else:
+		flat = flat.move_toward(Vector3.ZERO, FRICTION * delta)
+	velocity.x = flat.x
+	velocity.z = flat.z
+
+	# Breakdown is a floor of loose blocks; without a step-up you catch on every one of them.
+	floor_max_angle = deg_to_rad(58.0 if body.posture <= CaverBody.KNEES else 40.0)
+	floor_snap_length = STEP_UP if is_on_floor() else 0.0
+
+## Grip near rock and the hand is pinned to the world point it found; the body is then driven
+## so that hand goes back to where it grabbed. Straight out of derelict-orbit's player.gd,
+## where it was the entire locomotion system in zero-G. Under gravity the same three lines are
+## climbing, chimneying and hauling over breakdown, and a hand on the rock also stops you
+## falling, which is what a hand on the rock is for.
+func _climb(delta: float) -> void:
+	var pulling := false
+	for i in 2:
+		var h: Intent.Hand = intent.hands[i]
+		if not h.active:
+			_held[i] = false
+			continue
+		var hand_pos := _hand_world(i, h)
+		_hand_vel[i] = _hand_vel[i].lerp((hand_pos - _hand_prev[i]) / maxf(delta, 0.0001), 0.5)
+		_hand_prev[i] = hand_pos
+
+		if h.grab and not _held[i]:
+			var found := _rock_near(i, h, hand_pos)
+			if found != Vector3.INF:
+				_held[i] = true
+				_anchor[i] = found
+				if not xr_active:
+					_hand_local[i] = camera.global_transform.affine_inverse() * found
+				Sfx.play("grab", -14.0, randf_range(0.9, 1.1))
+		elif not h.grab and _held[i]:
+			_held[i] = false
+			# Let go with whatever the hand was doing, the way you push off a wall.
+			if xr_active:
+				velocity += _hand_vel[i].limit_length(2.4) * 0.4
+
+		if _held[i]:
+			if not xr_active and h.pull != Vector2.ZERO:
+				var b := camera.global_transform.basis
+				_hand_local[i] += (b.x * h.pull.x + b.y * h.pull.y).normalized() * h.pull.length() * PULL_GAIN
+				_hand_local[i] = camera.global_transform.affine_inverse() * (camera.global_transform * _hand_local[i])
+			var now := _hand_world(i, h)
+			var anchor: Vector3 = _anchor[i]
+			var pull := (anchor - now) / maxf(delta, 0.0001)
+			velocity = velocity.lerp(pull.limit_length(GRAB_PULL), 0.55)
+			pulling = true
+
+	for i in 2:
+		if _hand_mat[i]:
+			var c := Color(0.20, 0.19, 0.17)
+			if _held[i]:
+				c = Color(0.36, 0.52, 0.30)
+			elif intent.hands[i].active and _rock_near(i, intent.hands[i], _hand_world(i, intent.hands[i])) != Vector3.INF:
+				c = Color(0.30, 0.34, 0.40)
+			_hand_mat[i].albedo_color = _hand_mat[i].albedo_color.lerp(c, 0.25)
+	if pulling:
+		velocity.y = maxf(velocity.y, -1.2)
+
+func _hand_world(i: int, h: Intent.Hand) -> Vector3:
+	if xr_active:
+		return h.pose.origin
+	if _held[i]:
+		return camera.global_transform * _hand_local[i]
+	return h.pose.origin
+
+## Is there rock within reach of this hand? In VR it is a sphere around the controller, the
+## way derelict-orbit does it; flat and touch cast a ray from the eye, because a virtual hand
+## floating in front of you has no business feeling for walls it cannot see.
+func _rock_near(i: int, h: Intent.Hand, hand_pos: Vector3) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	if xr_active:
+		var q := PhysicsShapeQueryParameters3D.new()
+		var sphere := SphereShape3D.new()
+		sphere.radius = GRAB_REACH_XR
+		q.shape = sphere
+		q.transform = Transform3D(Basis.IDENTITY, hand_pos)
+		q.collision_mask = 1
+		var hits := space.intersect_shape(q, 1)
+		return hand_pos if not hits.is_empty() else Vector3.INF
+	var from := camera.global_position
+	var dir := -camera.global_transform.basis.z
+	if i == 0 and h.pose != Transform3D.IDENTITY:
+		dir = (h.pose.origin - from).normalized() if h.pose.origin.distance_to(from) > 0.05 else dir
+	var ray := PhysicsRayQueryParameters3D.create(from, from + dir * GRAB_REACH_FLAT, 1)
+	var hit := space.intersect_ray(ray)
+	return hit["position"] if not hit.is_empty() else Vector3.INF
+
+# ---------------------------------------------------------------- head, view, feedback
+
+func _process(delta: float) -> void:
+	if not started:
+		return
+	_ease_head(delta)
+	_feedback(delta)
+
+func _ease_head(delta: float) -> void:
+	eye = lerpf(eye, body.eye_height(), clampf(delta * EYE_LERP, 0.0, 1.0))
+	if not xr_active:
+		camera.position = Vector3(0, eye, 0)
+		return
+	# In VR the headset owns the pose, so the body height is applied to the ORIGIN and the
+	# camera is left alone. Physically crouching therefore crouches you in the cave, and the
+	# posture the rock forces on you moves the floor under your feet to meet it.
+	var real: float = maxf(camera.position.y, 0.1)
+	origin.position.y = clampf(eye - real, -1.4, 0.4)
+
+## Everything the rock does to you that is not movement. Pressure drives all of it, because
+## pressure is the one number that knows how close the cave is.
+func _feedback(delta: float) -> void:
+	var p: float = body.pressure
+
+	var want_vig: float = clampf((p - 0.30) / 0.60, 0.0, 1.0) * 0.85
+	if body.wedged:
+		want_vig = maxf(want_vig, 0.95)
+	_vignette = lerpf(_vignette, want_vig, clampf(delta * 4.0, 0.0, 1.0))
+	_vig_mat.set_shader_parameter("strength", _vignette)
+
+	# Head clearance is its own thing, separate from pressure: in VR you can lean your head
+	# into rock the body model knows nothing about, and the honest answer is to go black
+	# rather than show you the inside of the world.
+	var head_gap := _head_clearance()
+	var want_fade: float = fade_target
+	if head_gap < HEAD_CLEAR:
+		want_fade = maxf(want_fade, 1.0 - clampf(head_gap / HEAD_CLEAR, 0.0, 1.0))
+	_fade = move_toward(_fade, want_fade, delta * (2.6 if want_fade > _fade else 1.6))
+	_fade_mat.set_shader_parameter("tint", Color(0, 0, 0, _fade))
+
+	Sfx.set_scrape(_scrape, p, velocity.length())
+	Sfx.set_breath(body.exhale, body.air, p)
+	if xr_active and p > 0.55:
+		var amp: float = clampf((p - 0.55) / 0.45, 0.0, 1.0) * 0.35
+		if velocity.length() > 0.05:
+			for c in [left_hand, right_hand]:
+				c.trigger_haptic_pulse("haptic", 0.0, amp, 0.06, 0.0)
+	elif Cave.touch and p > 0.85 and velocity.length() > 0.05:
+		if randf() < 0.05:
+			Input.vibrate_handheld(18)
+
+func _head_clearance() -> float:
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	var s := SphereShape3D.new()
+	s.radius = 0.22
+	q.shape = s
+	q.transform = Transform3D(Basis.IDENTITY, camera.global_position)
+	q.collision_mask = 1
+	var rest := space.get_rest_info(q)
+	if rest.is_empty():
+		return 1.0
+	return maxf(camera.global_position.distance_to(rest["point"]), 0.0)
+
+func _snap_turn(deg: float) -> void:
+	var before := camera.global_position
+	origin.rotation.y += deg_to_rad(deg)
+	origin.global_position += before - camera.global_position
+	_vignette = maxf(_vignette, 0.7)
+
+func _track_progress() -> void:
+	var moved := global_position.distance_to(_last_pos)
+	if moved > 0.002 and moved < 2.0:
+		Cave.travelled += moved
+	_last_pos = global_position
+	Cave.note_depth(global_position.y)
+	if Cave.cave and Cave.cave.has_method("passage_at"):
+		var p: Dictionary = Cave.cave.passage_at(global_position)
+		if not p.is_empty():
+			Cave.enter_passage(p["id"], p["label"])
+
+# ---------------------------------------------------------------- flat look
+
+func _unhandled_input(e: InputEvent) -> void:
+	if not started or xr_active:
+		return
+	if e is InputEventMouse and (Cave.touch or e.device == InputEvent.DEVICE_ID_EMULATION):
+		return
+	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		var m := e as InputEventMouseMotion
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and _held[0]:
+			# Right mouse held with a grip on the rock drags the hand, not the view: that is
+			# how you haul yourself up something on a flat screen.
+			intent.hands[0].pull += Vector2(m.relative.x, -m.relative.y) / 600.0
+			return
+		yaw -= m.relative.x * LOOK_SENS
+		var dy: float = m.relative.y * LOOK_SENS * (-1.0 if Cave.invert_look else 1.0)
+		pitch = clampf(pitch - dy, -1.45, 1.45)
+		origin.rotation.y = yaw
+		camera.rotation.x = pitch
+	elif e is InputEventMouseButton and e.pressed:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+# ---------------------------------------------------------------- touch hooks
+
+func touch_look(rel: Vector2) -> void:
+	yaw -= rel.x * LOOK_SENS * 1.35
+	pitch = clampf(pitch - rel.y * LOOK_SENS * 1.35 * (-1.0 if Cave.invert_look else 1.0), -1.45, 1.45)
+	origin.rotation.y = yaw
+	camera.rotation.x = pitch
+
+func touch_grab_begin(screen: Vector2) -> bool:
+	var from := camera.project_ray_origin(screen)
+	var dir := camera.project_ray_normal(screen)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * GRAB_REACH_FLAT, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return false
+	intent.hands[0].active = true
+	intent.hands[0].grab = true
+	_held[0] = true
+	_anchor[0] = hit["position"]
+	_hand_local[0] = camera.global_transform.affine_inverse() * _anchor[0]
+	Sfx.play("grab", -14.0, randf_range(0.9, 1.1))
+	return true
+
+func touch_grab_end() -> void:
+	intent.hands[0].grab = false
+	_held[0] = false
+
+func touch_pull(rel: Vector2) -> void:
+	intent.hands[0].pull += rel
+
+# ---------------------------------------------------------------- test hooks
+#
+# Used by CAVE_AUTOTEST. They live on the production class on purpose, the way
+# derelict-orbit's player.gd:1002-1030 does: a test that drives the real code through the
+# real entry points is worth more than one that pokes at a copy of it.
+
+func debug_move(dir: Vector2) -> void:
+	scripted = true
+	intent.move = dir.limit_length(1.0)
+
+func debug_exhale(v: float) -> void:
+	scripted = true
+	intent.exhale = clampf(v, 0.0, 1.0)
+
+func debug_brake(v: float) -> void:
+	scripted = true
+	intent.brake = clampf(v, 0.0, 1.0)
+
+func debug_face(dir: Vector3) -> void:
+	teleport(global_position, dir)
+
+func debug_state() -> Dictionary:
+	return {
+		"posture": body.name_of(),
+		"chest": body.chest,
+		"pressure": body.pressure,
+		"headroom": body.headroom,
+		"width": body.width,
+		"wedged": body.wedged,
+		"air": body.air,
+		"depth": -global_position.y,
+	}

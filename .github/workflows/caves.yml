@@ -1,0 +1,109 @@
+name: Sowbelly build
+
+# The cave game is its own Godot project under caves/, so it gets its own build. Same shape as
+# webxr.yml - pick a Godot, install it, import, export the web build - with two gates that one
+# does not have: the fit checker proves every passage in sowbelly.json is physically passable,
+# and the headless autotest runs WITHOUT `|| true`, so a broken game loop fails the build.
+#
+# Pages takes one deployment per repository, so this workflow only publishes an artifact.
+# webxr.yml exports the cave into build/web/caves/ on the default branch; that is what a
+# headset opens. A branch is tested from the zip below.
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths:
+      - "caves/**"
+      - ".github/workflows/caves.yml"
+  workflow_dispatch:
+    inputs:
+      godot:
+        description: "Godot version to build with (blank = the one in caves/project.godot, falling back to the latest 4.x stable)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caves-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PRESET: "Web (WebXR, Quest 3)"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The cave is data. If a passage has pinched shut so that no posture fits through it, the
+      # game is unfinishable and nothing else in this job would notice - so this runs first, and
+      # it needs nothing but Python.
+      - name: Check every passage is passable
+        run: python3 caves/tools/check_fit.py
+
+      - name: Pick a Godot version
+        id: pick
+        run: |
+          set -euo pipefail
+          want="${{ inputs.godot }}"
+          if [ -z "$want" ]; then
+            want=$(grep -oP 'config/features=PackedStringArray\("\K[0-9]+\.[0-9]+' caves/project.godot || true)
+          fi
+          echo "project asks for: ${want:-unknown}"
+          check() { curl -sfI "https://github.com/godotengine/godot/releases/download/$1-stable/Godot_v$1-stable_linux.x86_64.zip" >/dev/null; }
+          ver=""
+          if [ -n "$want" ] && check "$want"; then
+            ver="$want"
+          else
+            for candidate in $(curl -s https://api.github.com/repos/godotengine/godot/releases?per_page=60 \
+                | grep -oP '"tag_name": "\K4\.[0-9.]+(?=-stable")' | sort -Vr | head -8); do
+              if check "$candidate"; then ver="$candidate"; break; fi
+            done
+          fi
+          if [ -z "$ver" ]; then echo "::error::no usable Godot 4.x release found"; exit 1; fi
+          echo "building with Godot $ver"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install Godot and its export templates
+        run: |
+          set -euo pipefail
+          v="${{ steps.pick.outputs.version }}"
+          curl -sSLo godot.zip "https://github.com/godotengine/godot/releases/download/$v-stable/Godot_v$v-stable_linux.x86_64.zip"
+          curl -sSLo templates.tpz "https://github.com/godotengine/godot/releases/download/$v-stable/Godot_v$v-stable_export_templates.tpz"
+          unzip -q godot.zip && mv Godot_v$v-stable_linux.x86_64 /usr/local/bin/godot && chmod +x /usr/local/bin/godot
+          mkdir -p "$HOME/.local/share/godot/export_templates/$v.stable"
+          unzip -q templates.tpz
+          mv templates/* "$HOME/.local/share/godot/export_templates/$v.stable/"
+          godot --version
+
+      # Noisy and non-zero on a cold cache, as upstream. The export is the real check.
+      - name: Import assets
+        run: godot --headless --path caves --import || true
+
+      # The cave is generated in code and the body model is the game, so a headless run that
+      # walks the route proves more than the export does. No `|| true`: if the caver cannot get
+      # through the Devil's Pinch, this branch is broken and should say so.
+      - name: Walk the cave headless
+        run: CAVE_AUTOTEST=1 timeout 240 godot --headless --path caves --quit-after 5000
+
+      - name: Reach every touch control headless
+        run: CAVE_AUTOTEST=touch timeout 180 godot --headless --path caves --quit-after 3000
+
+      - name: Export ${{ env.PRESET }}
+        run: |
+          set -euo pipefail
+          mkdir -p caves/build/caves
+          godot --headless --path caves --export-release "$PRESET" build/caves/index.html
+          test -f caves/build/caves/index.html || { echo "::error::no index.html - the export did not run"; exit 1; }
+          ls -lh caves/build/caves
+          find caves/build/caves -name "*.wasm" -size +1M -print -quit | grep -q . \
+            || { echo "::error::no wasm in the export"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sowbelly-webxr-${{ github.sha }}
+          path: caves/build/caves
+          retention-days: 30

@@ -99,6 +99,19 @@ jobs:
       - name: Smoke test the game loop headless
         run: DERELICT_AUTOTEST=1 timeout 180 godot --headless --path . --quit-after 3000 || true
 
+      # Sowbelly (caves/) is its own project with its own workflow, but Pages takes one
+      # deployment per repository - so the cave rides along under /caves/ rather than competing
+      # for the root. Godot is already installed by this point; this is just two more exports.
+      - name: Export Sowbelly into build/web/caves
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          set -euo pipefail
+          godot --headless --path caves --import || true
+          godot --headless --path caves --export-release "$PRESET" build/caves/index.html
+          mkdir -p build/web/caves
+          cp -r caves/build/caves/. build/web/caves/
+          test -f build/web/caves/index.html || { echo "::error::no cave build to publish"; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: derelict-orbit-webxr-${{ github.sha }}

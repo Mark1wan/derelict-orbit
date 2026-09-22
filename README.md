@@ -258,6 +258,28 @@ DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000
 - Shadow atlas is 1024 on mobile (`project.godot`).
 - Physics runs at 72 Hz to match the headset's default refresh.
 
+## Sowbelly: the same machinery, underground
+
+[`caves/`](caves/README.md) is a second game built on this one's parts - a caving simulator
+about extremely tight spaces. Its own Godot project, its own build
+([`.github/workflows/caves.yml`](.github/workflows/caves.yml)), published alongside this one at
+`…/caves/`.
+
+Most of what carried over is not the station, it is the machinery around it: the WebXR
+bootstrap and the quality gates from `scripts/main.gd`, the SurfaceTool batcher and its
+collider-from-the-same-vertices `commit()` from `scripts/geo.gd`, the two-noise-layers-plus-a-
+height-image texture recipe from `scripts/tex.gd`, the numpy sound bank, the
+`DERELICT_AUTOTEST` harness, and the whole export preset. Grab-and-pull went over almost
+unchanged: in zero-G it was the entire locomotion system, and under gravity the same three
+lines are climbing and chimneying a rift.
+
+What changed is the body. Kestrel-9's player is a 0.3 m sphere at the head; a caver is a
+cross-section that has to fit through a hole, and whether it fits depends on how much air is
+in its chest. The one structural improvement worth porting back is `caves/scripts/intent.gd`:
+one struct describing what the player asked for, filled by four producers and read by one
+consumer, instead of this project's two branches in `_physics_process` with touch smuggled
+into the desktop one.
+
 ## Ideas for next iterations
 
 - Hand-tracked grab-and-pull along rails (the brake-on-grip is a stand-in for that).
