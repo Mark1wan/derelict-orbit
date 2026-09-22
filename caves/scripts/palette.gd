@@ -7,8 +7,8 @@ extends RefCounted
 ##
 ## Two mapping strategies. Passages are swept along a centreline and come out with a real
 ## cylindrical unwrap, so they use ordinary UVs - cheaper than triplanar, which costs three
-## texture fetches per map and is a poor trade on a Quest. Chambers and loose rock have no
-## sensible unwrap, so those get world triplanar.
+## texture fetches per map and is a poor trade on a Quest. Loose rock has no sensible unwrap,
+## so that gets world triplanar.
 
 var mats := {}
 
@@ -44,11 +44,21 @@ func _init() -> void:
 	f.roughness = 1.0
 	mats["flow"] = f
 
-	# Breakdown: the floor of any chamber whose ceiling has been coming down for a while.
+	# Breakdown: the floor of a room whose ceiling has been coming down for a while.
 	mats["rubble"] = triplanar(textured(rubble, Color(0.52, 0.50, 0.47), SCALE["rubble"], 0.95, 0.0, 1.6))
 
-	# Chambers are blobs with no unwrap.
+	# Loose rock and anything else with no sensible unwrap.
 	mats["rock_tri"] = triplanar(textured(lime, Color(0.58, 0.56, 0.52), SCALE["rock"], 0.92, 0.0, 1.5))
+
+	# Seams: the lip of rock where one passage's tube crosses another's end face. Those faces
+	# have to stay - cutting them opens a hole to the void - but they belong to the tunnel and
+	# so they face into it, which from the room next door means looking at their backs. Every
+	# other face in the cave is single-sided and that is correct; these are the handful that
+	# would otherwise be solid and invisible, which is the one thing this cave is not allowed
+	# to have. Drawn from both sides, a seam is just a lip at the mouth, which is what it is.
+	var seam := textured(lime, Color(0.55, 0.53, 0.49), SCALE["rock"], 0.93, 0.0, 1.5)
+	seam.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mats["seam"] = seam
 
 	# Rigging: rope, hangers, the survey station tags. Not rock, and meant to read instantly
 	# as the only man-made thing in the beam.

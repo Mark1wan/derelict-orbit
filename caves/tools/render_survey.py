@@ -37,6 +37,7 @@ GRID = (26, 25, 23)
 
 PASSAGE_TINT = {
     "shaft": (44, 42, 38),
+    "room": (52, 49, 44),
     "crawl": MUD,
     "rift": WET,
     "lead": (58, 40, 38),
@@ -163,27 +164,27 @@ def profile_at(passage, t):
 def draw_plan(c, cave, box):
     """Looking straight down. Passage outlines at their true width.
 
-    Sowbelly runs 64 m along Z and 37 m across X, so the plan is turned a quarter turn to put
-    its long axis across the page - which is what a caver drawing this by hand would do, and
+    Sowbelly runs about 43 m along Z and 29 m across X, so the plan is turned a quarter turn to
+    put its long axis across the page - which is what a caver drawing this by hand would do, and
     why the north arrow below points along +Z rather than up.
     """
     x0, y0, x1, y1 = box
     pts_all = []
     for p in cave["passages"]:
         pts_all += [(q[0], q[2]) for q in p["path"]]
-    for ch in cave.get("chambers", []):
-        cx, _, cz = ch["centre"]
-        sx, _, sz = ch["size"]
-        pts_all += [(cx - sx / 2, cz - sz / 2), (cx + sx / 2, cz + sz / 2)]
     lo_x = min(q[0] for q in pts_all) - 4
     hi_x = max(q[0] for q in pts_all) + 4
     lo_z = min(q[1] for q in pts_all) - 4
     hi_z = max(q[1] for q in pts_all) + 4
     # Turned: world Z runs across the page, world X runs down it.
     scale = min((x1 - x0) / (hi_z - lo_z), (y1 - y0) / (hi_x - lo_x))
+    # Centred in whichever axis it does not fill, so a compact cave sits in the middle of the
+    # plate rather than pinned to one corner of it.
+    pad_x = ((x1 - x0) - (hi_z - lo_z) * scale) / 2
+    pad_y = ((y1 - y0) - (hi_x - lo_x) * scale) / 2
 
     def to_px(wx, wz):
-        return (x0 + (wz - lo_z) * scale, y0 + (wx - lo_x) * scale)
+        return (x0 + pad_x + (wz - lo_z) * scale, y0 + pad_y + (wx - lo_x) * scale)
 
     # 10 m grid, so the reader has a sense of size before reading any number.
     g = 10.0
@@ -218,20 +219,6 @@ def draw_plan(c, cave, box):
         c.text(px, py, s, col)
 
     _taken = set()
-
-    for ch in cave.get("chambers", []):
-        cx, _, cz = ch["centre"]
-        sx, _, sz = ch["size"]
-        ring = []
-        for i in range(48):
-            a = math.tau * i / 48
-            ring.append(to_px(cx + math.cos(a) * sx / 2, cz + math.sin(a) * sz / 2))
-        c.poly(ring, PASSAGE_TINT["shaft"])
-        for i in range(48):
-            p, q = ring[i], ring[(i + 1) % 48]
-            c.line(p[0], p[1], q[0], q[1], EDGE)
-        lx, ly = to_px(cx, cz)
-        label(lx - c.text_width(ch["label"]) / 2, ly - 4, ch["label"])
 
     for p in cave["passages"]:
         pts = spline_points(p)
@@ -360,7 +347,7 @@ def main(out_path):
     for p in cave["passages"]:
         pts = spline_points(p)
         length += sum(math.dist(pts[i], pts[i - 1]) for i in range(1, len(pts)))
-    stats = "%d PASSAGES   %d M SURVEYED   %.1f M DEEP" % (len(cave["passages"]), length, deepest)
+    stats = "%d PASSAGES   %.0f M SURVEYED   %.1f M DEEP" % (len(cave["passages"]), length, deepest)
     c.text(W - 40 - c.text_width(stats), 74, stats, DIM)
 
     c.text(40, 108, "PLAN", TEXT, scale=2)

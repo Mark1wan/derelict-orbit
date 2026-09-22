@@ -1,5 +1,5 @@
 extends Node3D
-## Builds Sowbelly from cave/sowbelly.json: sweeps every passage, blows out every chamber,
+## Builds Sowbelly from cave/sowbelly.json: sweeps every passage, trims the junctions,
 ## chunks the lot per material, and hangs a trimesh collider off the same vertices.
 ##
 ## The chunking is derelict-orbit's, at the same 20 m granularity (station.gd:117). It matters
@@ -8,6 +8,14 @@ extends Node3D
 ## the work, and chunks small enough to be culled individually are the whole performance story.
 ## A passage is one Bore; a Bore's faces are routed per chunk and per material by the callback
 ## it is handed, so nothing is ever built twice.
+##
+## There is exactly ONE kind of thing in a cave: a passage. A room is a short passage with a big
+## section, a shaft is a vertical one, a lead is one that pinches out. That is not a
+## simplification, it is the fix for the worst bug this project has had - rooms used to be
+## closed blob shells composited with swept tubes, the two were joined by cutting holes in each
+## and hoping they lined up, and what was left over was rock you could not see and could not
+## walk through, in the middle of the room you land in. One kind of object means one junction
+## rule, and the rule can be exact.
 ##
 ## Nothing in here is procedural yet. The plan is that a generator emits the same JSON a human
 ## would write, which is why the shape of that file is a list of centrelines and profiles
@@ -21,14 +29,19 @@ var palette: CavePalette
 var bores: Array[Bore] = []
 var ropes: Array[Rope] = []
 var start_point := Vector3(0, 0.4, 1.6)
-var start_look := Vector3(0, -0.35, -1)
+var start_look := Vector3(0, -0.4, -1)
+var start_on_rope := false   ## you begin clipped on, hanging, rather than stood somewhere
 
 var _body: StaticBody3D
+var decor: StaticBody3D    ## stalactites and the like - solid, but not part of the passage wall
+var seams: StaticBody3D    ## junction lips - solid, double-sided, not part of the passage wall
 var _chunks := {}          ## "key|material" -> Geo, during the build only
 var _tri_count := 0
 var _mesh_count := 0
 var _drips: Array[Vector3] = []
 var _drip_timer := 0.0
+var _trimmed := 0          ## faces dropped for being inside another passage
+var _seam_tris := 0        ## triangles kept but drawn both ways, at a junction (see Bore.SEAM)
 
 func _ready() -> void:
 	Cave.cave = self
@@ -42,38 +55,84 @@ func build() -> void:
 		push_error("cave: could not read %s" % CAVE_FILE)
 		return
 
-	var s: Array = data.get("start", [0, 0.4, 1.6])
-	start_point = Vector3(s[0], s[1], s[2])
-	var l: Array = data.get("start_look", [0, -0.35, -1])
-	start_look = Vector3(l[0], l[1], l[2])
-
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1
 	_body.collision_mask = 0
 	_body.name = "Rock"
 	add_child(_body)
 
-	# Every passage is built first, then swept, because a passage's open ends have to be
-	# trimmed against the passages they run into and that needs all of them to exist.
+	# Formations are solid rock you can bark a shin on, but they are not the passage wall, and
+	# the clearance test has to be able to tell the difference: a stalactite half way across a
+	# room is scenery, the same face belonging to a tunnel that runs through the room is a bug.
+	decor = StaticBody3D.new()
+	decor.collision_layer = 1
+	decor.collision_mask = 0
+	decor.name = "Formations"
+	add_child(decor)
+
+	# The lips at the junctions, on their own body for the same reason: they are rock, they are
+	# meant to be in the way, and they are drawn from both sides so they are never the invisible
+	# kind. The clearance test skips them and the leak test does not.
+	seams = StaticBody3D.new()
+	seams.collision_layer = 1
+	seams.collision_mask = 0
+	seams.name = "Seams"
+	add_child(seams)
+
+	# Every passage is constructed first and swept afterwards, because every face of every one
+	# of them is trimmed against every other, and that needs all of them to exist.
 	for p: Dictionary in data.get("passages", []):
 		bores.append(Bore.new(p))
 	for b in bores:
 		b.build(
 			func(mat: String) -> Geo: return _pick(b.points[b.points.size() / 2], mat),
-			func(at: Vector3) -> bool: return _inside_another(at, b))
+			func(corners: PackedVector3Array, margin: float) -> int:
+				return _inside_another(corners, b, margin))
 
-	for c: Dictionary in data.get("chambers", []):
-		_build_chamber(c)
+	for b in bores:
+		if b.kind == "room":
+			_build_speleothems(b)
 
+	_resolve_start()
 	_commit()
 	_build_lights()
 	_build_fill_lights()
 	_build_ropes()
 	_collect_drips()
 
-	print("[cave] %s: %d passages, %d chambers, %d meshes, %d tris, %d ms" % [
-		data.get("name", "?"), bores.size(), data.get("chambers", []).size(),
-		_mesh_count, _tri_count, Time.get_ticks_msec() - t0])
+	var rooms := 0
+	var run := 0.0
+	for b in bores:
+		run += b.length()
+		if b.kind == "room":
+			rooms += 1
+	print("[cave] %s: %d passages (%d rooms), %.0f m, %d meshes, %d tris (%d seam), %d cut, %d ms" % [
+		data.get("name", "?"), bores.size(), rooms, run,
+		_mesh_count, _tri_count, _seam_tris, _trimmed, Time.get_ticks_msec() - t0])
+
+## Where the player begins. Taken from the geometry rather than written down: `start` names a
+## rigged rope and how far down it you start, and the point comes out of the rope itself. A
+## hand-written coordinate was wrong twice - once 1.6 m outside a 1.2 m shaft with no floor
+## within forty metres - and there is no way to be sure by looking at it. This cannot be wrong
+## unless the rope is.
+func _resolve_start() -> void:
+	var s = data.get("start", {})
+	if s is Dictionary and s.has("on"):
+		for r: Dictionary in data.get("rig", []):
+			if r.get("id", "") != s["on"]:
+				continue
+			var top: Array = r["top"]
+			var bottom: Array = r["bottom"]
+			var a := Vector3(top[0], top[1], top[2])
+			var b := Vector3(bottom[0], bottom[1], bottom[2])
+			var down: float = float(s.get("down", 3.0))
+			start_point = a + (b - a).normalized() * down
+			start_on_rope = true
+			break
+	elif s is Array and s.size() == 3:
+		start_point = Vector3(s[0], s[1], s[2])
+	var l: Array = (s as Dictionary).get("look", [0, -0.4, -1]) if s is Dictionary else [0, -0.4, -1]
+	start_look = Vector3(l[0], l[1], l[2])
 
 func _load() -> Dictionary:
 	if not FileAccess.file_exists(CAVE_FILE):
@@ -92,27 +151,32 @@ func _pick(at: Vector3, mat: String) -> Geo:
 		_chunks[key] = Geo.new()
 	return _chunks[key]
 
-## Is this point inside some OTHER passage's open space? Where two passages meet, their tubes
-## cross at an angle and each one's wall hangs through the other's lumen - invisible rock,
-## right at the junction, which is the worst possible place for it. A face that is inside its
-## neighbour is not a wall at all, so it is dropped.
-func _inside_another(at: Vector3, self_bore: Bore) -> bool:
+## Is this FACE inside some OTHER passage's open space? Where two passages meet, their tubes
+## cross at an angle and each one's wall hangs through the other's lumen - invisible rock, right
+## at the junction, which is the worst possible place for it. A face inside its neighbour is not
+## a wall at all, so it goes; one across the edge of a mouth is quartered and asked again.
+## Bore.swallows_face decides all three answers; Bore.build says what each one costs.
+func _inside_another(corners: PackedVector3Array, self_bore: Bore, margin: float) -> int:
+	var worst: int = Bore.KEEP
 	for b in bores:
 		if b == self_bore:
 			continue
-		var n := b.nearest(at)
-		var i: int = n["i"]
-		var f: Basis = b.frames[i]
-		var off: Vector3 = at - b.points[i]
-		# Only the part of the offset in the other passage's cross-section plane matters; how
-		# far along it the point sits is already accounted for by picking the nearest station.
-		if absf(off.dot(f.z)) > Bore.STATION_STEP * 1.5:
-			continue
-		var local := Vector2(off.dot(f.x), off.dot(f.y)) * 1.12
-		# Scaled OUT before the test, so a face has to be well inside the neighbour before it
-		# is dropped. Cutting generously here punches holes in the floor at a junction, and
-		# falling through the world is a worse bug than a little rock where two tubes cross.
-		if Geo.contains(b.sections[i], local):
+		var say: int = b.swallows_face(corners, margin)
+		# CUT wins over SEAM: if any neighbour encloses the face outright it is not a wall,
+		# whatever another one thinks of it.
+		if say == Bore.CUT:
+			_trimmed += 1
+			return Bore.CUT
+		if say == Bore.SEAM:
+			worst = Bore.SEAM
+	return worst
+
+## Is this point inside ANY passage's open space? `CAVE_AUTOTEST=clear` walks a leaking ray with
+## it to say where the ray left the cave, which beats reporting where it started: a hole a few
+## centimetres across at a junction is not findable from the other end of a passage.
+func inside_any(at: Vector3, margin := 1.0) -> bool:
+	for b in bores:
+		if b.contains_point(at, margin):
 			return true
 	return false
 
@@ -120,90 +184,54 @@ func _commit() -> void:
 	for key: String in _chunks:
 		var g: Geo = _chunks[key]
 		var mat: String = key.split("|")[1]
-		var mi := g.commit(palette.get_mat(mat), self, _body, key.replace("|", "_"))
+		var onto: StaticBody3D = _body
+		if mat == "flow":
+			onto = decor
+		elif mat == "seam":
+			onto = seams
+			_seam_tris += g.tris
+		var mi := g.commit(palette.get_mat(mat), self, onto, key.replace("|", "_"))
 		if mi:
 			_mesh_count += 1
 			_tri_count += g.tris
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_chunks.clear()
 
-# ---------------------------------------------------------------- chambers
+# ---------------------------------------------------------------- rooms
 
-## A chamber is a displaced sphere seen from the inside, with its floor routed to breakdown
-## and holes cut wherever a passage arrives - otherwise there would be a membrane of rock
-## stretched across every mouth.
-func _build_chamber(c: Dictionary) -> void:
-	var ctr: Array = c.get("centre", [0, 0, 0])
-	var sz: Array = c.get("size", [10, 6, 10])
-	var centre := Vector3(ctr[0], ctr[1], ctr[2])
-	var size := Vector3(sz[0], sz[1], sz[2])
-
-	var n := FastNoiseLite.new()
-	n.seed = int(c.get("seed", 1))
-	n.frequency = 0.8
-	n.fractal_octaves = 3
-	n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-
-	# Where the chamber's shell has to be opened. A hand-written radius per mouth is a number
-	# that is wrong the moment a passage moves, and when it is too small the leftover shell
-	# hangs across the passage as rock you cannot see and cannot get past - which is exactly
-	# what it did, leaving 31 cm of headroom three metres into a 1.5 m tube.
-	#
-	# So the cuts are derived instead: any station of any passage that falls inside this
-	# chamber opens a hole the size of the passage there. Explicit mouths stay as a way to open
-	# something bigger by hand, but nothing depends on them being right.
-	var mouths: Array = []
-	for m: Dictionary in data.get("mouths", []):
-		if m.get("into", "") != c.get("id", ""):
-			continue
-		var a: Array = m["at"]
-		mouths.append([Vector3(a[0], a[1], a[2]), float(m.get("r", 1.0))])
-
-	var reach: Vector3 = size * 0.5 + Vector3(2.5, 2.5, 2.5)
-	for b in bores:
-		for i in b.points.size():
-			var p: Vector3 = b.points[i]
-			if ((p - centre) / reach).length_squared() > 1.0:
-				continue
-			var sec: PackedVector2Array = b.sections[i]
-			var r := 0.0
-			for q: Vector2 in sec:
-				r = maxf(r, q.length())
-			mouths.append([p, r * 1.3 + 0.4])
-
-	var wall_key: String = c.get("wall", "rock_tri")
-	var floor_key: String = c.get("floor", "rubble")
-	var g := Geo.new()
-	var cb := func(mid: Vector3, up: float) -> Geo:
-		for m: Array in mouths:
-			if mid.distance_to(m[0]) < m[1]:
-				return null
-		return _pick(mid, floor_key if up < -0.42 else wall_key)
-	g.blob(centre, size, 40, 24, float(c.get("rough", 1.0)), n, cb)
-
-	_build_speleothems(c, centre, size, n)
-
-## Stalactites on the ceiling and stalagmites under them, placed by the same noise field that
-## shaped the chamber so they land where the water would actually have run.
-func _build_speleothems(c: Dictionary, centre: Vector3, size: Vector3, n: FastNoiseLite) -> void:
-	var count := int(c.get("speleothems", 0))
+## Stalactites on the ceiling of a room and stalagmites under them. Rooms are passages, so the
+## placement rides the passage's own frames - hang them off the roof of each section rather than
+## off a box, and they land where the section actually is however it bends.
+func _build_speleothems(b: Bore) -> void:
+	var count := 0
+	for p: Dictionary in data.get("passages", []):
+		if p.get("id", "") == b.id:
+			count = int(p.get("speleothems", 0))
 	if count <= 0:
 		return
 	var rng := RandomNumberGenerator.new()
-	rng.seed = int(c.get("seed", 1)) + 77
-	var g: Geo = _pick(centre, "flow")
+	rng.seed = b.points.size() * 17 + count
+	var g: Geo = _pick(b.points[b.points.size() / 2], "flow")
 	for i in count:
-		var th := rng.randf() * TAU
-		var rad := sqrt(rng.randf()) * 0.42
-		var x := centre.x + cos(th) * size.x * rad
-		var z := centre.z + sin(th) * size.z * rad
-		var roof := centre.y + size.y * 0.42
-		var floor_y := centre.y - size.y * 0.44
-		var len_ := rng.randf_range(0.25, 1.5)
-		g.spike(Vector3(x, roof, z), len_, rng.randf_range(0.05, 0.17), false, 6)
-		if rng.randf() < 0.55:
-			g.spike(Vector3(x + rng.randf_range(-0.2, 0.2), floor_y, z + rng.randf_range(-0.2, 0.2)),
-				rng.randf_range(0.2, 0.9), rng.randf_range(0.07, 0.2), true, 6)
+		var at: int = rng.randi_range(1, maxi(b.points.size() - 2, 1))
+		var sec: PackedVector2Array = b.sections[at]
+		var lo := INF
+		var hi := -INF
+		for q: Vector2 in sec:
+			lo = minf(lo, q.y)
+			hi = maxf(hi, q.y)
+		var half := 0.0
+		for q: Vector2 in sec:
+			half = maxf(half, absf(q.x))
+		var f: Basis = b.frames[at]
+		# Out towards the walls rather than down the middle of the room: the line you walk is
+		# the line you look along, and a stalagmite in it reads as a bug even when it is not.
+		var side: float = half * rng.randf_range(0.40, 0.80) * (1.0 if rng.randf() < 0.5 else -1.0)
+		var roof: Vector3 = b.points[at] + f.y * (hi - 0.05) + f.x * side
+		g.spike(roof, rng.randf_range(0.2, 0.7), rng.randf_range(0.04, 0.12), false, 6)
+		if rng.randf() < 0.5:
+			var floor_p: Vector3 = b.points[at] + f.y * (lo + 0.02) + f.x * side
+			g.spike(floor_p, rng.randf_range(0.15, 0.5), rng.randf_range(0.05, 0.14), true, 6)
 
 # ---------------------------------------------------------------- fittings
 
@@ -269,23 +297,6 @@ func _build_fill_lights() -> void:
 			made += 1
 			i += step
 
-	for c: Dictionary in data.get("chambers", []):
-		var ctr: Array = c.get("centre", [0, 0, 0])
-		var sz: Array = c.get("size", [10, 6, 10])
-		var centre := Vector3(ctr[0], ctr[1], ctr[2])
-		var size := Vector3(sz[0], sz[1], sz[2])
-		var reach: float = maxf(size.x, size.z) * 0.75
-		for k in 4:
-			if made >= FILL_MAX:
-				break
-			var a := TAU * (float(k) + 0.5) / 4.0
-			_fill_light(centre + Vector3(cos(a) * size.x * 0.26, size.y * 0.16, sin(a) * size.z * 0.26),
-				reach, 1.25)
-			made += 1
-		if made < FILL_MAX:
-			_fill_light(centre + Vector3(0, size.y * 0.34, 0), reach * 1.2, 1.1)
-			made += 1
-
 	print("[cave] lit: %d fill lights at %.1f m spacing" % [made, spacing])
 
 func _fill_light(at: Vector3, reach: float, energy := FILL_ENERGY) -> void:
@@ -320,14 +331,6 @@ func _collect_drips() -> void:
 		for i in range(0, b.points.size(), step):
 			if rng.randf() < 0.6:
 				_drips.append(b.points[i] + Vector3(0, 0.1, 0))
-	for c: Dictionary in data.get("chambers", []):
-		var ctr: Array = c.get("centre", [0, 0, 0])
-		var sz: Array = c.get("size", [10, 6, 10])
-		for i in 6:
-			_drips.append(Vector3(
-				ctr[0] + rng.randf_range(-1, 1) * sz[0] * 0.35,
-				ctr[1] - sz[1] * 0.40,
-				ctr[2] + rng.randf_range(-1, 1) * sz[2] * 0.35))
 
 func _process(delta: float) -> void:
 	if _drips.is_empty() or Cave.caver == null:
@@ -360,14 +363,6 @@ func passage_at(p: Vector3) -> Dictionary:
 		if n["dist"] < best_d:
 			best_d = n["dist"]
 			best = {"id": b.id, "label": b.label, "along": n["along"], "t": n["t"], "dist": n["dist"]}
-	for c: Dictionary in data.get("chambers", []):
-		var ctr: Array = c.get("centre", [0, 0, 0])
-		var sz: Array = c.get("size", [10, 6, 10])
-		var centre := Vector3(ctr[0], ctr[1], ctr[2])
-		var half := Vector3(sz[0], sz[1], sz[2]) * 0.5
-		var local := (p - centre) / half
-		if local.length() < 1.0:
-			return {"id": c.get("id", ""), "label": c.get("label", ""), "along": 0.0, "t": 0.0, "dist": 0.0}
 	if best_d > 6.0:
 		return {}
 	return best

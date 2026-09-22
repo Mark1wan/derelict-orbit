@@ -2,8 +2,9 @@ name: Sowbelly build
 
 # The cave game is its own Godot project under caves/, so it gets its own build. Same shape as
 # webxr.yml - pick a Godot, install it, import, export the web build - with two gates that one
-# does not have: the fit checker proves every passage in sowbelly.json is physically passable,
-# and the headless autotest runs WITHOUT `|| true`, so a broken game loop fails the build.
+# does not have: the fit checker proves every passage in sowbelly.json is physically passable
+# and that consecutive passages meet, and four headless autotests run WITHOUT `|| true`, so a
+# broken game loop fails the build.
 #
 # Pages takes one deployment per repository, so this workflow only publishes an artifact.
 # webxr.yml exports the cave into build/web/caves/ on the default branch; that is what a
@@ -86,8 +87,25 @@ jobs:
       # The cave is generated in code and the body model is the game, so a headless run that
       # walks the route proves more than the export does. No `|| true`: if the caver cannot get
       # through the Devil's Pinch, this branch is broken and should say so.
+      # Fires a ray from every station along every section direction and compares where it
+      # hits with where the section says the wall is. Anything that comes back early is
+      # geometry inside a passage: invisible, because its faces are single-sided, and solid,
+      # because its collider is not. This is the direct test for "no invisible walls" and it
+      # covers the whole cave rather than one line through it.
+      - name: Check nothing is in the way
+        # A failed assert aborts the test function without reaching get_tree().quit(), so the
+        # engine idles out the rest of the budget. 2000 iterations is ample for the test and
+        # makes a failure come back in seconds instead of minutes.
+        run: CAVE_AUTOTEST=clear timeout 240 godot --headless --path caves --quit-after 2000
+
       - name: Walk the cave headless
         run: CAVE_AUTOTEST=1 timeout 240 godot --headless --path caves --quit-after 5000
+
+      # Starts where a player starts and walks the centreline, so it fails on the things only
+      # a player meets: an unlit lip between two passages, a spawn with no floor under it, a
+      # posture that will not fold in time. Also asserts the safety net never fires.
+      - name: Walk it the way a player would
+        run: CAVE_AUTOTEST=route timeout 300 godot --headless --path caves --quit-after 90000
 
       - name: Reach every touch control headless
         run: CAVE_AUTOTEST=touch timeout 180 godot --headless --path caves --quit-after 3000

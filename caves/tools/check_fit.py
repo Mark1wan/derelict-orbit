@@ -19,7 +19,8 @@ What it checks, per passage:
   - a passage marked `needs_exhale` really does reject a relaxed chest somewhere;
   - a passage marked `dead_end` really does pinch shut, and you can get far enough in to
     find that out;
-  - the sections are sane: positive area, no profile keyframe out of order.
+  - the sections are sane: positive area, no profile keyframe out of order;
+  - consecutive passages on the route really overlap, and their floors meet at the join.
 
 Usage:  python3 caves/tools/check_fit.py [cave/sowbelly.json]
 Exit code 1 on any failure, and it says which station and by how much.
@@ -44,6 +45,7 @@ SHAPE_POWER = {
 
 SIDES = 22          # Bore.SIDES
 STATION_STEP = 0.35 # Bore.STATION_STEP
+MAX_STEP = 0.40     # metres of floor mismatch a body can get over at a junction
 
 # Must match CaverBody.POSTURE_LABEL in scripts/body.gd.
 POSTURE_TEXT = {
@@ -233,6 +235,145 @@ def section_at(keys, t):
              sa[i][1] + (sb[i][1] - sa[i][1]) * f) for i in range(SIDES)]
 
 
+# ---------------------------------------------------------------- junctions
+
+def frames(pts):
+    """One (x, y, z) frame per station, mirroring Geo.frames in scripts/geo.gd."""
+    n = len(pts)
+    if n < 2:
+        return []
+    tan = []
+    for i in range(n):
+        if i == 0:
+            a, b = pts[0], pts[1]
+        elif i == n - 1:
+            a, b = pts[n - 2], pts[n - 1]
+        else:
+            a, b = pts[i - 1], pts[i + 1]
+        tan.append(norm((b[0] - a[0], b[1] - a[1], b[2] - a[2])))
+    out, prev_x = [], None
+    for t in tan:
+        if abs(t[1]) < 0.94:
+            x = norm(cross((0.0, 1.0, 0.0), t))            # levelled
+        elif prev_x is not None:
+            d = dot(prev_x, t)
+            x = norm(tuple(prev_x[k] - t[k] * d for k in range(3)))  # vertical: carry it through
+        else:
+            x = norm(cross((0.0, 0.0, -1.0), t))
+        y = norm(cross(t, x))
+        out.append((x, y, t))
+        prev_x = x
+    return out
+
+
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def norm(v):
+    m = math.sqrt(dot(v, v)) or 1.0
+    return (v[0] / m, v[1] / m, v[2] / m)
+
+
+def in_polygon(sec, px, py):
+    """Point in a closed section polygon - the same even-odd test as Geo.contains."""
+    inside = False
+    j = len(sec) - 1
+    for i in range(len(sec)):
+        a, b = sec[i], sec[j]
+        if (a[1] > py) != (b[1] > py):
+            if px < (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]:
+                inside = not inside
+        j = i
+    return inside
+
+
+def swallows(passage, world, stations=None, frs=None):
+    """Is this world point inside the passage's open space? Returns the station index or None.
+
+    The same test Bore.contains_point does at runtime, which is what decides whether one
+    passage's faces are trimmed out of another's lumen. If it says no for a join, the two
+    tubes do not actually meet and there is a wall between them.
+    """
+    stations = stations or sections_along(passage)
+    frs = frs or frames([st[1] for st in stations])
+    for i, (_, pos, sec) in enumerate(stations):
+        fx, fy, fz = frs[i]
+        off = (world[0] - pos[0], world[1] - pos[1], world[2] - pos[2])
+        if abs(dot(off, fz)) > STATION_STEP * 1.5:
+            continue
+        if in_polygon(sec, dot(off, fx), dot(off, fy)):
+            return i
+    return None
+
+
+def floor_at(stations, i):
+    """World height of the passage floor at station i."""
+    _, pos, sec = stations[i]
+    return pos[1] + min(q[1] for q in sec)
+
+
+def check_route(cave, problems):
+    """Consecutive passages on the route must actually meet, and meet at the same floor.
+
+    Two tubes that stop short of each other leave a wall between them; two that meet with
+    their floors half a metre apart leave a step a crawling body cannot climb. Neither shows
+    up in a per-passage fit check, and both were real: the Pitch used to end inside a chamber
+    shell nothing ever cut a hole in.
+    """
+    by_id = {p["id"]: p for p in cave["passages"]}
+    cache = {}
+
+    def load(pid):
+        if pid not in cache:
+            st = sections_along(by_id[pid])
+            cache[pid] = (st, frames([s[1] for s in st]))
+        return cache[pid]
+
+    route = cave.get("route", [])
+    print()
+    for a_id, b_id in zip(route, route[1:]):
+        if a_id not in by_id or b_id not in by_id:
+            problems.append(f"route names '{a_id if a_id not in by_id else b_id}', "
+                            "which is not a passage")
+            continue
+        a_st, a_fr = load(a_id)
+        b_st, b_fr = load(b_id)
+        # The join is an overlap, not a butt weld: either the end of one is inside the other,
+        # or the start of the other is inside the one. A shaft landing in a room satisfies the
+        # first; a crawl leaving a room satisfies the second.
+        i = swallows(by_id[b_id], a_st[-1][1], b_st, b_fr)
+        j = swallows(by_id[a_id], b_st[0][1], a_st, a_fr)
+        gap = math.dist(a_st[-1][1], b_st[0][1])
+        if i is None and j is None:
+            problems.append(f"{a_id} -> {b_id}: the passages do not overlap "
+                            f"({gap:.2f} m between their ends) - there is rock in the way")
+            continue
+        # Floors, compared at the place they actually meet: the mouth of the arriving
+        # passage against the floor of the one it arrives into, at that same station. A step
+        # you cannot climb is as impassable as a wall.
+        if i is not None:
+            fa, fb, via = floor_at(a_st, len(a_st) - 1), floor_at(b_st, i), "end inside"
+        else:
+            fa, fb, via = floor_at(a_st, j), floor_at(b_st, 0), "start inside"
+        step = abs(fa - fb)
+        note = "ok"
+        if step > MAX_STEP:
+            # A pitch is allowed to arrive from above - that is what the rope is for.
+            if by_id[a_id].get("kind") == "shaft":
+                note = "drop"
+            else:
+                problems.append(f"{a_id} -> {b_id}: floors are {step:.2f} m apart at the join "
+                                f"- that is a step, not a passage")
+                note = "STEP"
+        print(f"  join {a_id:>10} -> {b_id:<10} ends {gap:>5.2f} m apart ({via}), "
+              f"floors {step:>4.2f} m apart  {note}")
+
+
 # ---------------------------------------------------------------- the check
 
 def best_posture(sec, rows, chest, gear):
@@ -336,7 +477,8 @@ def main(path):
                 problems.append(f"{p['id']}: profile keyframes out of order at index {i}")
 
     print("-" * 100)
-    print(f"{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
+    check_route(cave, problems)
+    print(f"\n{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
           f"deepest point {-deepest:.1f} m below the entrance")
 
     # The squeeze the whole cave is built around: name it, and say by how much.

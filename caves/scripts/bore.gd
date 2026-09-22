@@ -15,6 +15,12 @@ extends RefCounted
 
 const STATION_STEP := 0.35  # metres between cross-sections; also the survey's resolution
 const SIDES := 22           # points around a section - enough for rock, cheap enough for a Quest
+const TUBE_MARGIN := 1.12   # a tube face must be this far inside a neighbour before it is cut
+const CAP_MARGIN := 1.00    # an end face is cut wherever a neighbour is, exactly
+
+## What a neighbouring passage says should happen to one of this passage's faces. See
+## `swallows_face`, which is where the three of them are decided and explained.
+enum { KEEP, CUT, SEAM }
 
 var id := ""
 var label := ""
@@ -22,16 +28,19 @@ var kind := "passage"
 var wall_mat := "rock"
 var floor_mat := "mud"
 var rough := 0.0
-var open_start := false     # true: the first ring is a mouth into a chamber, not a rock face
-var open_end := false
 
 var points := PackedVector3Array()    ## the centreline, one entry per station
 var sections: Array = []              ## PackedVector2Array per station
 var frames: Array = []                ## Basis per station: x across, y up, z along
 var along := PackedFloat32Array()     ## distance from the passage mouth, per station
 
+var bounds := AABB()                  ## everything this passage occupies, for coarse rejection
+var radius := 0.0                     ## the biggest section radius anywhere along it
+
 var _noise: FastNoiseLite
 var _floor_face := PackedByteArray()  ## per face index: is this one floor rather than wall?
+var _grid := {}                       ## Vector3i cell -> Array[int] of station indices
+var _grid_size := 2.5                 ## metres per grid cell, never smaller than the passage
 
 func _init(data: Dictionary) -> void:
 	id = data.get("id", "")
@@ -40,8 +49,6 @@ func _init(data: Dictionary) -> void:
 	wall_mat = data.get("wall", "rock")
 	floor_mat = data.get("floor", "mud")
 	rough = float(data.get("rough", 0.10))
-	open_start = bool(data.get("open_start", false))
-	open_end = bool(data.get("open_end", false))
 
 	_noise = FastNoiseLite.new()
 	_noise.seed = int(data.get("seed", 1))
@@ -66,6 +73,98 @@ func _init(data: Dictionary) -> void:
 		sections.append(_section_at(keys, along[i] / total))
 
 	_mark_floor_faces()
+	_index()
+
+## Bucket the stations into a coarse grid and work out what this passage occupies, so a caller
+## asking "is this point inside you" can answer without walking the whole centreline.
+func _index() -> void:
+	for i in points.size():
+		var sec: PackedVector2Array = sections[i]
+		for q: Vector2 in sec:
+			radius = maxf(radius, q.length())
+	radius += rough
+	# The cell has to be at least as big as the passage is wide. A station is registered in its
+	# own cell and its 26 neighbours, and a lookup reads one cell - which is only correct while
+	# nothing inside the passage is further from a station than one cell. At a fixed 2.5 m the
+	# Cellar, which is six metres across, could hide a face from its own index.
+	_grid_size = maxf(2.5, radius)
+	bounds = AABB(points[0], Vector3.ZERO)
+	for p: Vector3 in points:
+		bounds = bounds.expand(p)
+	bounds = bounds.grow(radius)
+	for i in points.size():
+		var c := _cell(points[i])
+		for dx in [-1, 0, 1]:
+			for dy in [-1, 0, 1]:
+				for dz in [-1, 0, 1]:
+					var k := c + Vector3i(dx, dy, dz)
+					if not _grid.has(k):
+						_grid[k] = PackedInt32Array()
+					_grid[k].append(i)
+
+func _cell(p: Vector3) -> Vector3i:
+	return Vector3i(floori(p.x / _grid_size), floori(p.y / _grid_size), floori(p.z / _grid_size))
+
+## Stations near this point, or an empty list if the point is nowhere near this passage.
+func stations_near(p: Vector3) -> PackedInt32Array:
+	if not bounds.has_point(p):
+		return PackedInt32Array()
+	return _grid.get(_cell(p), PackedInt32Array())
+
+## Is this point inside this passage's open space? Exact against the real section polygon at the
+## nearest station - a rift is 30 cm one way and two metres the other, and a circle of its
+## longest radius would swallow most of the cave.
+func contains_point(p: Vector3, scale := 1.0) -> bool:
+	if beyond_end(p):
+		return false
+	for i in stations_near(p):
+		var f: Basis = frames[i]
+		var off: Vector3 = p - points[i]
+		if absf(off.dot(f.z)) > STATION_STEP * 1.5:
+			continue
+		if Geo.contains(sections[i], Vector2(off.dot(f.x), off.dot(f.y)) * scale):
+			return true
+	return false
+
+## Is this point past one of the passage's two end faces?
+##
+## A passage is a solid bounded by those faces, and the test has to say so. A station will claim
+## any point within half a station-step along its own tangent, which for the last station means
+## half a metre past the end of the passage - so without this, a neighbour's wall is trimmed
+## away in a slab the passage does not enclose and nothing else covers. The Gullet lost its
+## walls for the first half metre past the Cellar's end face exactly that way, which is a hole
+## you can see through and fall out of.
+func beyond_end(p: Vector3) -> bool:
+	var last: int = points.size() - 1
+	if (p - points[0]).dot((frames[0] as Basis).z) < 0.0:
+		return true
+	return (p - points[last]).dot((frames[last] as Basis).z) > 0.0
+
+## What should be done with this FACE, which belongs to some other passage? One question, asked
+## of the four corners, and the answer is simply whether they agree.
+##
+##   CUT  - every corner is inside this passage. The face is not a wall, it is a pipe hanging
+##          through the middle of somewhere you walk. Drop it.
+##   KEEP - no corner is inside. It is rock.
+##   SEAM - the corners disagree, so the face lies across the edge of a mouth or across one of
+##          this passage's two end faces. Dropping it whole opens a hole to the void beside the
+##          mouth; keeping it whole puts a bar across a passage somebody has to get through.
+##          Neither, so `Geo` quarters it and asks again, down to `Geo.SPLIT` levels. What is
+##          still ambiguous at the limit is a few centimetres across; it is kept, and drawn
+##          from both sides, because a kept face belongs to the OTHER passage and therefore
+##          faces away from anyone standing in this one - solid and invisible, which is the one
+##          thing this cave is not allowed to have. Drawn both ways it is a lip at the mouth,
+##          which is what it is.
+func swallows_face(corners: PackedVector3Array, scale := 1.0) -> int:
+	var inside := 0
+	for c: Vector3 in corners:
+		if contains_point(c, scale):
+			inside += 1
+	if inside == 0:
+		return KEEP
+	if inside == corners.size():
+		return CUT
+	return SEAM
 
 ## Interpolate the profile keyframes at fraction t and build the section polygon.
 ##
@@ -119,31 +218,44 @@ func _mark_floor_faces() -> void:
 ## Sweep this passage into the caller's batches. `pick(material_key) -> Geo` hands back the
 ## builder for a material, so the caller decides the chunking and we just ask for somewhere to
 ## put each face.
-## `trim(point) -> bool` is asked, for faces near an open end only, whether that face is inside
-## some other passage's lumen. Where two passages meet their tubes cross at an angle and each
-## one's wall pokes through the other's open space - rock you cannot see and cannot walk
-## through, right at a junction. Only the ends are checked because that is the only place it
-## can happen, and checking every face would cost more than the whole build.
-const JOIN_RINGS := 10
-
+##
+## `trim(corners, margin) -> int` is asked of EVERY face - tube and end face alike -
+## what to do with it, via each other passage's `swallows_face`: KEEP, CUT or SEAM. That one
+## question is the whole junction rule, and it answers both halves of it:
+##
+##   - A TUBE face inside its neighbour is not a wall. It is a pipe hanging through the middle
+##     of somewhere you walk, invisible because a swept tube's faces are single-sided and solid
+##     because its collider is not. The Pitch came down through the Cellar's roof and left four
+##     metres of exactly that. Dropped.
+##   - An END face is a membrane across a mouth. Both ends of every passage are capped - there
+##     is no "open end" flag any more, because there was no way to write one down correctly:
+##     leaving an end uncapped left a room's whole cross-section open to the void around a
+##     tunnel a fifth of its size, and every passage in the cave leaked that way. So the cap is
+##     always built and the trim cuts the mouth out of it, which is a hole the exact shape of
+##     the passage that arrives rather than a hole someone typed in.
+##
+## The two differ only in margin, because the cost of cutting too much differs. A tube face has
+## to be well inside its neighbour before it goes (TUBE_MARGIN, 1.12): over-cut a tube wall and
+## there is a hole in the cave. An end face goes wherever the neighbour is, exactly (CAP_MARGIN,
+## 1.00): under-cut one and there is rock across the mouth.
+##
+## A SEAM face is routed to its own material, which is the same rock drawn from both sides. See
+## `swallows_face` for why those faces cannot be cut and why they must not be single-sided.
 func build(pick: Callable, trim: Callable = Callable()) -> void:
 	var walls: Geo = pick.call(wall_mat)
 	var floors: Geo = pick.call(floor_mat)
-	var last: int = points.size() - 1
-	var cb := func(k: int, i: int, mid: Vector3) -> Geo:
-		if trim.is_valid():
-			var near_start: bool = open_start and i < JOIN_RINGS
-			var near_end: bool = open_end and i > last - JOIN_RINGS
-			if (near_start or near_end) and trim.call(mid):
-				return null
+	var seams: Geo = pick.call("seam")
+	# Which builder a wall face belongs to, and separately what the junction says about it. Geo
+	# wants them apart because a face the junction calls a SEAM is quartered and asked again.
+	var by_material := func(k: int) -> Geo:
 		return floors if _floor_face[k] == 1 else walls
-	walls.sweep(points, sections, rough, _noise, cb)
-	# A passage that runs into rock is capped; one that opens into a chamber is left open, or
-	# there would be a membrane stretched across the mouth.
-	if not open_start:
-		walls.cap(points, sections, false, rough, _noise)
-	if not open_end:
-		walls.cap(points, sections, true, rough, _noise)
+	var tube := func(corners: PackedVector3Array) -> int:
+		return trim.call(corners, TUBE_MARGIN) if trim.is_valid() else KEEP
+	walls.sweep(points, sections, rough, _noise, by_material, tube, seams)
+	var end_face := func(corners: PackedVector3Array) -> int:
+		return trim.call(corners, CAP_MARGIN) if trim.is_valid() else KEEP
+	walls.cap(points, sections, false, rough, _noise, end_face)
+	walls.cap(points, sections, true, rough, _noise, end_face)
 
 # ---------------------------------------------------------------- queries
 

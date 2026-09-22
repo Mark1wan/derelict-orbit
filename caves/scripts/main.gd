@@ -59,6 +59,8 @@ func _ready() -> void:
 	var mode := OS.get_environment("CAVE_AUTOTEST")
 	if mode == "touch":
 		_autotest_touch()
+	elif mode == "clear":
+		_autotest_clear()
 	elif mode == "route":
 		_autotest_route()
 	elif mode != "":
@@ -154,7 +156,7 @@ func _make_ui() -> void:
 	box.add_child(t)
 
 	var sub := Label.new()
-	sub.text = "61 metres down, and the passage is getting smaller"
+	sub.text = "Twenty-eight metres down, and the passage is getting smaller"
 	sub.add_theme_color_override("font_color", Color(0.55, 0.52, 0.47))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
@@ -275,6 +277,10 @@ func _begin(xr: bool) -> void:
 		_apply_quality()
 	caver.begin(xr)
 	caver.teleport(cave.start_point, cave.start_look)
+	# Already clipped on, a few metres down. There is no standing about at the top to get
+	# wrong - you open your eyes hanging in a shaft with the walls in reach.
+	if cave.start_on_rope and caver.rope:
+		caver.rope.clip_on(caver)
 	if xr:
 		slate.attach_wrist(caver.left_hand, caver.camera)
 	else:
@@ -282,7 +288,7 @@ func _begin(xr: bool) -> void:
 	Sfx.set_ambient("wind", -24.0)
 	await _warm_up()
 	Cave.start()
-	Cave.say("Sowbelly. Clip on and go down.", 5.0)
+	Cave.say("Sowbelly. ALT brakes, W climbs.", 5.0)
 
 ## Walk the cave with the lamp on before handing it over, so every shader the headlamp will
 ## ever compile is compiled while the screen is still black. Straight out of derelict-orbit's
@@ -306,15 +312,9 @@ func _warm_up() -> void:
 			caver.teleport(cave.point_in(p["id"], t) + Vector3(0, 0.5, 0), cave.heading_in(p["id"], t))
 			await get_tree().process_frame
 			await get_tree().process_frame
-	for c: Dictionary in cave.data.get("chambers", []):
-		var ctr: Array = c.get("centre", [0, 0, 0])
-		for yaw in 4:
-			if Time.get_ticks_msec() > deadline + 1200:
-				break
-			caver.teleport(Vector3(ctr[0], ctr[1], ctr[2]),
-				Vector3(cos(TAU * yaw / 4.0), -0.2, sin(TAU * yaw / 4.0)))
-			await get_tree().process_frame
 	caver.teleport(here, here_look)
+	if cave.start_on_rope and caver.rope and not caver.rope.clipped:
+		caver.rope.clip_on(caver)
 	await get_tree().create_timer(0.5).timeout
 	hud.text = ""
 	caver.fade_target = 0.0
@@ -354,23 +354,23 @@ func _autotest() -> void:
 		if c is MeshInstance3D:
 			tris += (c as MeshInstance3D).mesh.get_faces().size() / 3
 	print("[autotest] %d passages, %d meshes, %d tris" % [cave.bores.size(), _mesh_children(), tris])
-	# A floor, not a target. 114 m of passage at Bore.STATION_STEP with Bore.SIDES faces per
+	# A floor, not a target. 86 m of passage at Bore.STATION_STEP with Bore.SIDES faces per
 	# ring cannot come out under this unless a passage silently failed to sweep, which is the
 	# only failure this is here to catch.
-	assert(tris > 10000, "cave is suspiciously small: %d tris" % tris)
+	assert(tris > 6000, "cave is suspiciously small: %d tris" % tris)
 	for bore in cave.bores:
 		assert(bore.points.size() > 4, "passage '%s' has only %d stations" % [bore.id, bore.points.size()])
 
-	# 1. Standing room in the hall, and the lamp is the only thing lighting it.
-	await _put("rubble_hall")
-	assert(b.name_of() == "stand", "cannot stand up in the Rubble Hall: %s (%.2f m of headroom)"
+	# 1. Standing room in the Cellar, and the lamp is the only thing lighting it.
+	await _put_in("cellar", 0.5)
+	assert(b.name_of() == "stand", "cannot stand up in the Cellar: %s (%.2f m of headroom)"
 		% [b.name_of(), b.headroom])
-	assert(b.pressure < 0.35, "the Rubble Hall feels tight: pressure %.2f" % b.pressure)
+	assert(b.pressure < 0.45, "the Cellar feels tight: pressure %.2f" % b.pressure)
 	var lights := 0
 	for n in _all_nodes(self):
 		if n is Light3D and (n as Light3D).visible:
 			lights += 1
-	print("[autotest] hall: %s, headroom %.2f m, pressure %.2f, %d lights in the world"
+	print("[autotest] cellar: %s, headroom %.2f m, pressure %.2f, %d lights in the world"
 		% [b.name_of(), b.headroom, b.pressure, lights])
 	# The budget depends on which cave you asked for. Lit, the fill is what you see by and the
 	# cap is what the Compatibility renderer will carry; dark, the headlamp is the whole of it
@@ -534,9 +534,9 @@ func _autotest_touch() -> void:
 	print("[autotest] EXHALE: chest %.1f cm" % (caver.body.chest * 100.0))
 	touch_ui.finger_up(0, touch_ui.button_center("exhale"))
 
-	# The stick moves you - on the floor of the Rubble Hall, not at the head of a 48 m pitch,
-	# where what it would actually measure is gravity.
-	await _put("rubble_hall")
+	# The stick moves you - on the floor of the Cellar, not at the head of the pitch, where
+	# what it would actually measure is gravity.
+	await _put_in("cellar", 0.5)
 	var before := caver.global_position
 	touch_ui.finger_down(1, Vector2(120, 340))
 	touch_ui.finger_move(1, Vector2(120, 280))
@@ -581,12 +581,218 @@ func _autotest_touch() -> void:
 	print("[autotest] PASS")
 	get_tree().quit()
 
+## CAVE_AUTOTEST=clear - is there anything in the cave that should not be there?
+##
+## The route walker only sees what is on the line it walks, which is how three invisible walls
+## survived it. This looks at the whole cave at once: from every station of every passage, cast
+## a ray along each of the section's own directions and compare where it hits to how far that
+## vertex says the wall is. Displacement only ever pushes rock OUTWARD, so a hit that comes back
+## closer than the section is geometry inside the passage that has no business being there - a
+## wall left hanging through somewhere you walk, invisible because its faces are single-sided
+## and solid because its collider is not.
+##
+## This is the direct test for "no invisible walls", and unlike walking it cannot miss one by
+## taking a different line through the room.
+func _autotest_clear() -> void:
+	print("[autotest] Sowbelly, looking for anything in the way")
+	_start_desktop()
+	await get_tree().create_timer(1.5).timeout
+	var space := get_world_3d().direct_space_state
+
+	# Formations are on their own body and are skipped: a stalactite is meant to be in the way,
+	# you can see it, and a passage that has one in it is not the bug this pass is looking for.
+	# Junction seams are NOT skipped. They are rock kept on purpose, but kept rock that reaches
+	# into a passage still blocks it, and skipping them once hid the lip that stopped the route
+	# walker a metre short of the Bone Box.
+	var skip: Array[RID] = []
+	if cave.decor:
+		skip.append(cave.decor.get_rid())
+
+	var checked := 0
+	var bad: Array[String] = []
+	var worst := 1.0
+	var worst_at := Vector3.ZERO
+	for b in cave.bores:
+		var hits := 0
+		var tightest := 1.0
+		var where := 0.0
+		var where_at := Vector3.ZERO
+		var where_on := ""
+		var last: int = b.points.size() - 1
+		for i in b.points.size():
+			var sec: PackedVector2Array = b.sections[i]
+			var f: Basis = b.frames[i]
+			var o: Vector3 = b.points[i]
+			# A capped end is a wall, and the rays at that station lie in its plane, where a
+			# ray-triangle test is degenerate and reports a hit at zero distance. Step a little
+			# off the cap before casting: what it walls off is rock, and is supposed to be.
+			if i == 0:
+				o += f.z * 0.12
+			elif i == last:
+				o -= f.z * 0.12
+			for k in sec.size():
+				var q: Vector2 = sec[k]
+				var want: float = q.length()
+				if want < 0.02:
+					continue
+				var dir: Vector3 = (f.x * q.x + f.y * q.y).normalized()
+				# A little past the wall, so the passage's own surface is a hit at `want`.
+				var to: Vector3 = o + dir * (want + 0.35)
+				var ray := PhysicsRayQueryParameters3D.create(o, to, 1, skip)
+				var hit := space.intersect_ray(ray)
+				checked += 1
+				if hit.is_empty():
+					continue
+				var d: float = o.distance_to(hit["position"])
+				var frac: float = d / want
+				if frac < tightest:
+					tightest = frac
+					where = b.along[i]
+					where_at = hit["position"]
+					var who: Object = hit["collider"]
+					where_on = who.name if who else "?"
+				if frac < worst:
+					worst = frac
+					worst_at = hit["position"]
+				# Two conditions, and the second is what makes this work at a junction. A hit
+				# is only a fault if it is BOTH early and well inside THIS passage.
+				#
+				# Early: 0.80 rather than 1.0, because the section is a 22-gon inscribed in its
+				# own curve and a ray between two vertices legitimately meets the chord a little
+				# short. Inside this passage: at a mouth a ray leaves through the hole and
+				# measures the neighbour, whose wall is legitimately nearer than this section
+				# claims - that is a junction, not a fault, and the neighbour's own stations
+				# measure it properly. Rock a third of the way across a passage you have to
+				# crawl through is a fault wherever it came from.
+				if frac < 0.80 and b.contains_point(hit["position"], 1.15):
+					hits += 1
+		if hits > 0:
+			bad.append("%s: %d rays blocked, worst %.0f%% of the section at %.1f m in, hitting %s at (%.2f %.2f %.2f)"
+				% [b.label, hits, tightest * 100.0, where, where_on,
+					where_at.x, where_at.y, where_at.z])
+		print("[autotest]   %-20s %4d stations, closest hit %.0f%% of the section"
+			% [b.label, b.points.size(), tightest * 100.0])
+
+	print("[autotest] %d rays cast, worst %.0f%% of the expected section at (%.1f %.1f %.1f)"
+		% [checked, worst * 100.0, worst_at.x, worst_at.y, worst_at.z])
+	for line in bad:
+		print("[autotest]   BLOCKED  " + line)
+
+	# Second pass: is the way ALONG the passage clear? The rays above all go sideways, out from
+	# the centreline, so a membrane stretched across a passage - which is precisely what a
+	# junction leaves if it goes wrong - is the one thing they can never hit. This walks the
+	# centreline itself, station to station, which is the line the body follows.
+	var across: Array[String] = []
+	for b in cave.bores:
+		var stops := 0
+		var first := Vector3.ZERO
+		var first_at := 0.0
+		var on := ""
+		var tail: int = b.points.size() - 1
+		for i in b.points.size() - 1:
+			# Stop short of the two end faces. A passage that runs into rock ends in its own
+			# cap, and a room's centreline ends in the room's back wall - both are rock the
+			# centreline is supposed to meet.
+			var from: Vector3 = b.points[i]
+			var to: Vector3 = b.points[i + 1]
+			if i == 0:
+				from += (b.frames[0] as Basis).z * 0.15
+			if i == tail - 1:
+				to -= (b.frames[tail] as Basis).z * 0.15
+			var ray := PhysicsRayQueryParameters3D.create(from, to, 1, skip)
+			var hit := space.intersect_ray(ray)
+			checked += 1
+			if hit.is_empty():
+				continue
+			if stops == 0:
+				first = hit["position"]
+				first_at = b.along[i]
+				var who: Object = hit["collider"]
+				on = who.name if who else "?"
+			stops += 1
+		if stops > 0:
+			across.append("%s: the centreline is blocked at %d places, first %.1f m in, by %s at (%.2f %.2f %.2f)"
+				% [b.label, stops, first_at, on, first.x, first.y, first.z])
+			print("[autotest]   ACROSS   " + across[across.size() - 1])
+	if across.is_empty():
+		print("[autotest] every passage is clear end to end along its own centreline")
+
+	# Third pass, the other failure: not rock where there should be none, but no rock where
+	# there should be some. A cave is a closed shell, so from anywhere inside it every
+	# direction ends in rock. A ray that reaches eighty metres without hitting anything has
+	# left the world, and where it left is a hole you can walk out of.
+	var leaks: Array[String] = []
+	for b in cave.bores:
+		var out := 0
+		var first_dir := Vector3.ZERO
+		var first_out := Vector3.ZERO
+		var first_at := 0.0
+		var last: int = b.points.size() - 1
+		for i in b.points.size():
+			# Off the end faces, for the same reason as above: at station 0 the ray would
+			# start on the cap's own centre vertex, where the test is degenerate and every
+			# ray reports a miss. That is not a hole, it is a fan apex.
+			var o: Vector3 = b.points[i]
+			if i == 0:
+				o += (b.frames[i] as Basis).z * 0.12
+			elif i == last:
+				o -= (b.frames[i] as Basis).z * 0.12
+			for k in SKY_DIRS.size():
+				var to: Vector3 = o + SKY_DIRS[k].normalized() * 80.0
+				var ray := PhysicsRayQueryParameters3D.create(o, to, 1)
+				checked += 1
+				if space.intersect_ray(ray).is_empty():
+					if out == 0:
+						first_at = b.along[i]
+						first_dir = SKY_DIRS[k].normalized()
+						# Walk the ray until it is in no passage at all. That is where it left
+						# the rock, and saying so beats reporting where it started - a hole a
+						# few centimetres across at a junction is not findable from the origin.
+						for step in 400:
+							var probe: Vector3 = o + first_dir * (float(step) * 0.2)
+							if not cave.inside_any(probe, 1.0):
+								first_out = probe
+								break
+					out += 1
+		if out > 0:
+			leaks.append("%s: %d rays out, first at %.1f m in, leaving the rock at (%.2f %.2f %.2f)"
+				% [b.label, out, first_at, first_out.x, first_out.y, first_out.z])
+			print("[autotest]   LEAK     " + leaks[leaks.size() - 1])
+	if leaks.is_empty():
+		print("[autotest] the shell is closed - every direction from every station ends in rock")
+
+	assert(across.is_empty(), "a passage is blocked across: %s" % ", ".join(across))
+	assert(bad.is_empty(), "there is rock inside the passages: %s" % ", ".join(bad))
+	assert(leaks.is_empty(), "the cave leaks: %s" % ", ".join(leaks))
+	print("[autotest] PASS - nothing in the way anywhere in the cave, and nothing missing")
+	get_tree().quit()
+
+## 32 directions spread evenly over a sphere, for asking "is this point enclosed".
+const SKY_DIRS: Array[Vector3] = [
+	Vector3(0.0, 1.0, 0.0), Vector3(0.0, -1.0, 0.0),
+	Vector3(0.379, 0.939, 0.108), Vector3(-0.163, 0.879, 0.448),
+	Vector3(-0.520, 0.818, -0.246), Vector3(0.308, 0.758, -0.575),
+	Vector3(0.518, 0.697, 0.496), Vector3(-0.767, 0.636, 0.086),
+	Vector3(0.457, 0.576, -0.678), Vector3(0.219, 0.515, 0.829),
+	Vector3(-0.831, 0.455, -0.320), Vector3(0.895, 0.394, 0.211),
+	Vector3(-0.404, 0.333, 0.851), Vector3(-0.311, 0.273, -0.910),
+	Vector3(0.871, 0.212, -0.443), Vector3(-0.858, 0.152, 0.491),
+	Vector3(0.198, 0.091, 0.976), Vector3(0.494, 0.030, -0.869),
+	Vector3(-0.963, -0.030, -0.267), Vector3(0.812, -0.091, 0.577),
+	Vector3(-0.190, -0.152, 0.970), Vector3(-0.508, -0.212, -0.834),
+	Vector3(0.937, -0.273, -0.218), Vector3(-0.807, -0.333, 0.487),
+	Vector3(0.269, -0.394, 0.879), Vector3(0.319, -0.455, -0.831),
+	Vector3(-0.735, -0.515, -0.441), Vector3(0.724, -0.576, 0.380),
+	Vector3(-0.385, -0.636, 0.669), Vector3(-0.122, -0.697, -0.707),
+	Vector3(0.480, -0.758, -0.441), Vector3(-0.451, -0.818, 0.358),
+]
+
 ## CAVE_AUTOTEST=route - walk the whole cave from the spawn point and report where it stops.
 ##
 ## The other two tests teleport into each passage and check it behaves. This one refuses to
 ## teleport: it starts where a player starts, walks the centreline station by station, and says
 ## where the rock would not let it through. That is the only way to catch the class of problem
-## a player actually hits - an unlit lip between two passages, a chamber wall left across a
+## a player actually hits - an unlit lip between two passages, a wall left across a
 ## mouth, a spawn point with no floor under it - because every one of those is invisible to a
 ## test that puts the body past it.
 func _autotest_route() -> void:
@@ -595,16 +801,25 @@ func _autotest_route() -> void:
 	await get_tree().create_timer(1.5).timeout
 	var b: CaverBody = caver.body
 
-	# 1. Is there anything under the spawn point at all?
+	# 1. Does the spawn hold you up? On the rope that means the rope caught you; on the floor it
+	# means there was a floor. Either way you must not still be going down after three seconds.
 	caver.teleport(cave.start_point, cave.start_look)
+	if cave.start_on_rope and caver.rope:
+		caver.rope.clip_on(caver)
+		caver.debug_brake(1.0)
 	var fell := caver.global_position.y
-	for i in 200:
+	for i in 220:
 		await get_tree().physics_frame
 	var drop: float = fell - caver.global_position.y
-	print("[autotest] spawn: dropped %.2f m in 2.8 s, on floor %s, at %.1f m down"
-		% [drop, caver.is_on_floor(), -caver.global_position.y])
-	assert(caver.is_on_floor(), "nothing to stand on at the spawn point - fell %.1f m" % drop)
-	assert(drop < 3.0, "the spawn point is %.1f m above its floor" % drop)
+	print("[autotest] spawn: %s, moved %.2f m in 3 s, at %.1f m down"
+		% ["on the rope" if caver.rope and caver.rope.clipped else "on foot",
+			drop, -caver.global_position.y])
+	var held: bool = caver.is_on_floor() or (caver.rope != null and caver.rope.clipped)
+	assert(held, "the spawn point holds nothing up - dropped %.1f m" % drop)
+	assert(drop < 4.0, "you are still falling %.1f m after three seconds at the spawn" % drop)
+	if caver.rope:
+		caver.rope.unclip(caver)
+	caver.debug_brake(0.0)
 
 	# 2. Walk each passage along its own centreline, and report the first station the body
 	# cannot reach. Teleporting is allowed only between passages, so a blockage inside one is
@@ -622,6 +837,9 @@ func _autotest_route() -> void:
 			continue
 		var length: float = bore.length()
 		var step_t: float = clampf(1.5 / maxf(length, 0.1), 0.02, 0.25)
+		# 45 s a step. A committed shuffle covers 4 cm a second and pressure takes a third of
+		# that off again, so a budget sized for walking condemns every squeeze in the cave.
+		var budget := int(45.0 * Engine.physics_ticks_per_second)
 		await _put_in(bore.id, 0.04)
 		var reached := 0.04
 		var stuck := 0.0
@@ -633,8 +851,9 @@ func _autotest_route() -> void:
 			caver.debug_move(Vector2(0, 1))
 			var before := caver.global_position
 			var closest: float = before.distance_to(want)
+			var got := 0.0
 			var arrived := false
-			for i in 1800:
+			for i in budget:
 				await get_tree().physics_frame
 				# Breathe out when it gets tight, which is what a player does and what the
 				# cave is designed around. Without it the walker reaches the Devil's Pinch,
@@ -642,15 +861,21 @@ func _autotest_route() -> void:
 				# mechanic as a bug.
 				caver.debug_exhale(1.0 if b.pressure > 0.82 else 0.0)
 				closest = minf(closest, caver.global_position.distance_to(want))
-				if closest < 0.8:
+				# Progress is measured ALONG the passage, not as distance to a point on its
+				# centreline. A bedding crawl is three metres wide and forty centimetres high:
+				# a body crosses it a metre to one side of the line and never comes within
+				# 80 cm of the station. That is not a blockage, that is a bedding crawl.
+				got = maxf(got, float(bore.nearest(caver.global_position)["along"]) / maxf(length, 0.001))
+				if got >= t - 0.01 or closest < 0.8:
 					arrived = true
 					break
 			caver.debug_exhale(0.0)
 			if not arrived:
 				var made: float = before.distance_to(caver.global_position)
-				print("[autotest]     %.1f m in: made %.2f m in 25 s, still %.2f m short, %s, p=%.2f, head %.2f, wide %.2f, at %s"
-					% [t * length, made, closest, b.name_of(), b.pressure,
+				print("[autotest]     %.1f m in: made %.2f m in 45 s, reached %.0f%%, still %.2f m off the line, %s, p=%.2f, head %.2f, wide %.2f, at %s"
+					% [t * length, made, got * 100.0, closest, b.name_of(), b.pressure,
 						b.headroom, b.width, caver.global_position])
+				_what_is_in_the_way(caver.global_position, cave.heading_in(bore.id, t))
 				stuck = t
 				break
 			reached = t
@@ -681,23 +906,35 @@ func _autotest_route() -> void:
 		assert(lights >= 8, "lit mode but only %d lights - the cave will be black" % lights)
 		assert(lights <= 60, "%d lights is more than the Compatibility renderer should carry" % lights)
 
+	# Trimming too much punches a hole to the void. The safety net would quietly put you back
+	# and you would never know, so it is asserted rather than trusted.
+	print("[autotest] safety net fired %d times" % caver.rescues)
+	assert(caver.rescues == 0, "fell out of the world %d times - the cave leaks" % caver.rescues)
+
 	if not blocked.is_empty():
 		print("[autotest] BLOCKED: " + ", ".join(blocked))
 	assert(blocked.is_empty(), "a player cannot get through: %s" % ", ".join(blocked))
 	print("[autotest] PASS - the whole route walks")
 	get_tree().quit()
 
-# ---------------------------------------------------------------- test helpers
+## Cast forward at four heights and say what is there. Called when the route walker gives up:
+## "it will not go" is not a bug report, and the difference between rock across the passage, a
+## lip on the floor and nothing at all is the whole of the diagnosis.
+func _what_is_in_the_way(from: Vector3, heading: Vector3) -> void:
+	var space := get_world_3d().direct_space_state
+	var dir := heading.normalized()
+	for h: float in [0.05, 0.35, 0.75, 1.20]:
+		var o: Vector3 = from + Vector3(0, h, 0)
+		var ray := PhysicsRayQueryParameters3D.create(o, o + dir * 2.0, 1)
+		var hit := space.intersect_ray(ray)
+		if hit.is_empty():
+			print("[autotest]       +%.2f m: clear for 2 m" % h)
+			continue
+		var who: Object = hit["collider"]
+		print("[autotest]       +%.2f m: %s at %.2f m, %s" % [h, who.name if who else "?",
+			o.distance_to(hit["position"]), hit["position"]])
 
-func _put(chamber_id: String) -> void:
-	for c: Dictionary in cave.data.get("chambers", []):
-		if c.get("id", "") == chamber_id:
-			var ctr: Array = c["centre"]
-			var sz: Array = c["size"]
-			caver.teleport(Vector3(ctr[0], ctr[1] - sz[1] * 0.30, ctr[2]), Vector3(1, -0.1, 0))
-			break
-	for i in 40:
-		await get_tree().physics_frame
+# ---------------------------------------------------------------- test helpers
 
 func _put_in(id: String, t: float) -> void:
 	caver.teleport(cave.point_in(id, clampf(t, 0.0, 1.0)) + Vector3(0, 0.12, 0),

@@ -125,6 +125,9 @@ var _last_pos := Vector3.ZERO
 var _ground := Vector3.ZERO    ## the last place you were stood on something
 var _falling := 0.0
 var _floor_limit := -1e9       ## below this you are out of the cave; set from the cave data
+var rescues := 0               ## times the safety net has had to put you back. Asserted zero
+                               ## by the route test: trimming too much punches a hole to the
+                               ## void, and this is how that gets noticed.
 var _probe_frame := 0
 
 func _ready() -> void:
@@ -303,6 +306,7 @@ func _safety_net(delta: float) -> void:
 	if back == Vector3.ZERO and Cave.cave:
 		back = Cave.cave.start_point
 	teleport(back + Vector3(0, 0.25, 0))
+	rescues += 1
 	_falling = 0.0
 	Cave.say("you came off - back on your feet" if not below else "out of the cave - back you go", 3.0)
 

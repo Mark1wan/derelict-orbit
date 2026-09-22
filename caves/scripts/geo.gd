@@ -82,6 +82,35 @@ const SHAPE_POWER := {
 	"breakdown": 1.6,   # collapse: angular, pointed
 }
 
+## How much of a section's roughness a vertex gets, by how far down the section it faces.
+##
+## Walls keep all of it. The floor keeps almost none, because displacement is radial and only
+## ever pushes rock away from the centreline - so on a floor it digs rather than piles, and a
+## room with half a metre of it has ditches in it with fifty-degree sides. A standing body
+## walks into one and cannot climb out, which is exactly what happened: the route walker
+## stopped dead 93 % of the way across the Cellar with no rock anywhere near its chest.
+##
+## It is also what a cave looks like. Water leaves walls rough and fills floors flat - silt,
+## sand and cobbles settle - so the rough number in the file is a wall number.
+const FLOOR_EASE := 0.18
+
+## Rings in an end face. A mouth is cut out of one by dropping faces, so the edge of the mouth
+## is only ever as accurate as the faces are small - and SPLIT levels of quartering are applied
+## to the ones that land on the edge, which is where being coarse actually costs.
+const CAP_RINGS := 10
+
+## How many times a face that lands on a junction is quartered before it is built. One face of
+## a room wall is most of a metre across, and a mouth two of them wide would be either walled
+## off or full of holes; two levels takes that to a few centimetres, and only at the junctions.
+const SPLIT := 3
+
+static func _floor_ease(p: Vector2) -> float:
+	var len_sq := p.length_squared()
+	if len_sq < 1e-6:
+		return 1.0
+	var down: float = clampf(-p.y / sqrt(len_sq), 0.0, 1.0)
+	return lerpf(1.0, FLOOR_EASE, sqrt(down))
+
 ## A closed cross-section polygon, `sides` points counter-clockwise starting at +x.
 ## `keel` (0..1) flattens the bottom into a floor - mud, sand, cobbles - without eating into
 ## the clear height, because the flat is added below the section rather than cut out of it.
@@ -250,13 +279,16 @@ static func _catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: floa
 ## along the passage and around the ring without any seam bookkeeping. It only ever pushes
 ## rock away, never in, which is what lets sowbelly.json's numbers be a promise.
 ##
-## `face_cb(k, i, mid) -> Geo` picks the builder for the face between section points k and k+1
-## on ring i, given where that face is in the world, so a crawl can route its floor into the mud
-## batch and its walls into the limestone one in a single pass. Kept from derelict-orbit's
-## Geo.tube; returning null drops the face, which is how one passage opens into another without
-## leaving a membrane of rock across the join.
+## `pick(k) -> Geo` gives the builder for the face between section points k and k+1, so a crawl
+## routes its floor into the mud batch and its walls into the limestone one in a single pass.
+## Kept from derelict-orbit's Geo.tube.
+##
+## `verdict(corners) -> int` says what the junction makes of each face: 0 build it, 1 drop it,
+## 2 it lands on the edge of a mouth, so quarter it and ask again (see `_patch`). That is how
+## one passage opens into another without leaving a membrane of rock across the join.
 func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
-		noise: FastNoiseLite = null, face_cb: Callable = Callable(), uv_scale := 0.7) -> void:
+		noise: FastNoiseLite = null, pick: Callable = Callable(),
+		verdict: Callable = Callable(), seam: Geo = null, uv_scale := 0.7) -> void:
 	var n := path.size()
 	if n < 2 or sections.size() != n:
 		return
@@ -273,7 +305,7 @@ func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 				var radial := (world - path[i]).normalized()
 				# 0..1, never negative: rock is displaced outward only.
 				var d: float = (noise.get_noise_3dv(world * 1.6) * 0.5 + 0.5)
-				world += radial * d * rough
+				world += radial * d * rough * _floor_ease(p)
 			ring.append(world)
 		rings.append(ring)
 		if i > 0:
@@ -296,21 +328,59 @@ func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 		var r1: PackedVector3Array = rings[i + 1]
 		for k in sides:
 			var j := (k + 1) % sides
-			var g: Geo = self
-			if face_cb.is_valid():
-				g = face_cb.call(k, i, (r0[k] + r0[j] + r1[k] + r1[j]) * 0.25)
+			var g: Geo = pick.call(k) if pick.is_valid() else self
 			if g == null:
 				continue
 			var u0 := around[k] * uv_scale
 			var u1 := around[k + 1] * uv_scale
 			var v0 := along[i] * uv_scale
 			var v1 := along[i + 1] * uv_scale
-			g.quad_uv(r0[j], r0[k], r1[k], r1[j],
-				Vector2(u1, v0), Vector2(u0, v0), Vector2(u0, v1), Vector2(u1, v1))
+			_patch(r0[j], r0[k], r1[k], r1[j],
+				Vector2(u1, v0), Vector2(u0, v0), Vector2(u0, v1), Vector2(u1, v1),
+				g, verdict, seam, 0)
 
-## Cap an end of a swept passage with an inward-facing fan - a blind pinch, a dead end, or the
-## rock a passage runs into when it stops. `outward` flips it for the far end.
-func cap(path: PackedVector3Array, sections: Array, at_end: bool, rough := 0.0, noise: FastNoiseLite = null) -> void:
+## One quad of a passage wall, split where it lands on a junction. Same reasoning as
+## `_cap_patch`: a face that is part inside a neighbour and part outside is a hole on one side
+## and rock on the other whichever way it goes whole, and a wall face here is 35 cm along the
+## passage by most of a metre around it - which is the difference between a mouth you can crawl
+## through and a mouth with a bar across it. Splitting is only ever asked for at a junction, so
+## the rest of the cave carries none of the cost.
+func _patch(q0: Vector3, q1: Vector3, q2: Vector3, q3: Vector3,
+		t0: Vector2, t1: Vector2, t2: Vector2, t3: Vector2,
+		g: Geo, verdict: Callable, seam: Geo, depth: int) -> void:
+	if verdict.is_valid():
+		var say: int = verdict.call(PackedVector3Array([q0, q1, q2, q3]))
+		if say == 1:
+			return
+		if say == 2:
+			if depth < SPLIT:
+				var a := (q0 + q1) * 0.5
+				var bb := (q1 + q2) * 0.5
+				var c := (q2 + q3) * 0.5
+				var d := (q3 + q0) * 0.5
+				var m := (q0 + q1 + q2 + q3) * 0.25
+				var ta := (t0 + t1) * 0.5
+				var tb := (t1 + t2) * 0.5
+				var tc := (t2 + t3) * 0.5
+				var td := (t3 + t0) * 0.5
+				var tm := (t0 + t1 + t2 + t3) * 0.25
+				_patch(q0, a, m, d, t0, ta, tm, td, g, verdict, seam, depth + 1)
+				_patch(a, q1, bb, m, ta, t1, tb, tm, g, verdict, seam, depth + 1)
+				_patch(m, bb, q2, c, tm, tb, t2, tc, g, verdict, seam, depth + 1)
+				_patch(d, m, c, q3, td, tm, tc, t3, g, verdict, seam, depth + 1)
+				return
+			if seam != null:
+				g = seam
+	g.quad_uv(q0, q1, q2, q3, t0, t1, t2, t3)
+
+## Cap an end of a swept passage - a blind pinch, a dead end, the rock a passage runs into when
+## it stops, or the wall a tunnel arrives through. `at_end` picks which of the two ends.
+##
+## `face(corners) -> int` says what to do with each patch of it: 0 build it, 1 drop it,
+## 2 it lands on the rim of a mouth, so split it and ask again. Every end is capped and a mouth
+## is a hole dropped out of one, so this is where a junction is actually cut. See `_cap_patch`.
+func cap(path: PackedVector3Array, sections: Array, at_end: bool, rough := 0.0,
+		noise: FastNoiseLite = null, face: Callable = Callable()) -> void:
 	var n := path.size()
 	if n < 2:
 		return
@@ -319,53 +389,73 @@ func cap(path: PackedVector3Array, sections: Array, at_end: bool, rough := 0.0, 
 	var sec: PackedVector2Array = sections[i]
 	var centre: Vector3 = path[i]
 	var norm: Vector3 = -fr[i].z if at_end else fr[i].z
-	var ring := PackedVector3Array()
-	for p: Vector2 in sec:
-		var world: Vector3 = centre + fr[i].x * p.x + fr[i].y * p.y
-		if rough > 0.0 and noise:
-			world += (world - centre).normalized() * (noise.get_noise_3dv(world * 1.6) * 0.5 + 0.5) * rough
-		ring.append(world)
-	var sides := ring.size()
-	for k in sides:
-		var j := (k + 1) % sides
-		if at_end:
-			tri(centre, ring[k], ring[j], norm)
-		else:
-			tri(centre, ring[j], ring[k], norm)
+	var sides := sec.size()
 
-## An irregular closed chamber: a displaced sphere seen from the inside, squashed to `size`.
-## Chambers have no centreline and no sensible unwrap, so these get triplanar materials.
-##
-## `face_cb(centre, up) -> Geo` picks the builder from the face's own world position and how
-## much it faces upward (-1 floor, +1 ceiling), which is how a chamber gets breakdown
-## underfoot and limestone overhead. Returning null drops the face - that is how a passage
-## mouth gets cut out of the wall instead of having a membrane stretched across it.
-func blob(centre: Vector3, size: Vector3, lon := 20, lat := 12, rough := 0.0,
-		noise: FastNoiseLite = null, face_cb: Callable = Callable()) -> void:
-	var grid: Array = []
-	for j in lat + 1:
-		var row := PackedVector3Array()
-		var phi: float = PI * float(j) / float(lat) - PI * 0.5
-		for i in lon:
-			var th := TAU * float(i) / float(lon)
-			var dir := Vector3(cos(phi) * cos(th), sin(phi), cos(phi) * sin(th))
-			var p := centre + dir * size * 0.5
-			if rough > 0.0 and noise:
-				p += dir * (noise.get_noise_3dv(p * 0.55) * 0.5 + 0.5) * rough
-			row.append(p)
-		grid.append(row)
-	for j in lat:
-		var a: PackedVector3Array = grid[j]
-		var b: PackedVector3Array = grid[j + 1]
-		for i in lon:
-			var k := (i + 1) % lon
-			var g: Geo = self
-			if face_cb.is_valid():
-				var mid: Vector3 = (a[i] + a[k] + b[i] + b[k]) * 0.25
-				g = face_cb.call(mid, (mid - centre).normalized().y)
-			if g == null:
-				continue
-			g.quad(a[k], a[i], b[i], b[k], 0.35)   # inward
+	# Concentric rings from the centre out, rather than one fan of long thin triangles, so the
+	# face can have a hole cut in it. Every end of every passage is capped; the ones that are
+	# mouths get opened by `face` calling for the faces inside the passage they run into to be
+	# dropped. A fan cannot do that - its triangles reach from the rim to the centre, so
+	# dropping one takes a whole wedge of the wall with it.
+	var rings: Array = []
+	for r in CAP_RINGS + 1:
+		var f := float(r) / float(CAP_RINGS)
+		var ring := PackedVector3Array()
+		for p: Vector2 in sec:
+			var q: Vector2 = p * f
+			var world: Vector3 = centre + fr[i].x * q.x + fr[i].y * q.y
+			# Only the rim is displaced, and by the same amount the sweep displaces it, so the
+			# cap meets the tube it closes without a seam.
+			if r == CAP_RINGS and rough > 0.0 and noise:
+				world += ((world - centre).normalized()
+					* (noise.get_noise_3dv(world * 1.6) * 0.5 + 0.5) * rough * _floor_ease(p))
+			ring.append(world)
+		rings.append(ring)
+
+	for r in CAP_RINGS:
+		var a: PackedVector3Array = rings[r]
+		var b: PackedVector3Array = rings[r + 1]
+		for k in sides:
+			var j := (k + 1) % sides
+			_cap_patch(a[k], a[j], b[j], b[k], centre if r == 0 else Vector3.INF,
+				norm, at_end, face, 0)
+
+## One quad of an end face, or the triangle at its centre. A patch that is only partly inside
+## the passage arriving through it is the RIM OF A MOUTH - keeping it whole walls off the
+## passage, dropping it whole opens a pinhole to the void beside it - so it is split in four and
+## each quarter asked again, down to SPLIT levels. That gets the rim accurate to a few
+## centimetres without carrying the triangles everywhere else: at the base resolution a mouth in
+## a room's end wall is one patch across, and one patch is 30 cm. What is left at the limit is
+## built as ordinary rock, because a few centimetres of lip at a mouth is a few centimetres.
+func _cap_patch(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, apex: Vector3,
+		norm: Vector3, at_end: bool, face: Callable, depth: int) -> void:
+	var g: Geo = self
+	if face.is_valid():
+		var say: int = face.call(PackedVector3Array([p0, p1, p2, p3]))
+		if say == 1:
+			return
+		if say == 2 and depth < SPLIT and apex == Vector3.INF:
+			var m01 := (p0 + p1) * 0.5
+			var m12 := (p1 + p2) * 0.5
+			var m23 := (p2 + p3) * 0.5
+			var m30 := (p3 + p0) * 0.5
+			var mid := (p0 + p1 + p2 + p3) * 0.25
+			_cap_patch(p0, m01, mid, m30, apex, norm, at_end, face, depth + 1)
+			_cap_patch(m01, p1, m12, mid, apex, norm, at_end, face, depth + 1)
+			_cap_patch(mid, m12, p2, m23, apex, norm, at_end, face, depth + 1)
+			_cap_patch(m30, mid, m23, p3, apex, norm, at_end, face, depth + 1)
+			return
+	if apex != Vector3.INF:
+		# The innermost band collapses to a point at the centre: one triangle, not two.
+		if at_end:
+			g.tri(apex, p3, p2, norm)
+		else:
+			g.tri(apex, p2, p3, norm)
+	elif at_end:
+		g.tri(p0, p3, p2, norm)
+		g.tri(p0, p2, p1, norm)
+	else:
+		g.tri(p0, p2, p3, norm)
+		g.tri(p0, p1, p2, norm)
 
 ## Thin closed prism between two points - a rope anchor, a stalactite, a rail.
 func pipe(p0: Vector3, p1: Vector3, radius: float, sides := 6) -> void:

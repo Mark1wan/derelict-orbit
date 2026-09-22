@@ -20,9 +20,13 @@ a passage and being a wall, and it is the whole game.
 your vision, and that is still in there - `Cave.lit = false` in `scripts/cave_game.gd` restores
 it. But you cannot judge whether a squeeze reads, or whether a passage goes where you think it
 does, through a fifteen degree cone, so while the movement is being played with there are fill
-lights down every passage and the headlamp is not load-bearing. Sixty-one metres down, past a
-rope, a chamber, a hands-and-knees tube and thirty-six metres of bedding crawl, the passage
-narrows to twenty-eight and a half centimetres, and you have to decide.
+lights down every passage and the headlamp is not load-bearing. Twenty-eight metres down, past
+a rope, two small rooms, a hands-and-knees tube and twenty-four metres of bedding crawl, the
+passage narrows to twenty-eight and a half centimetres, and you have to decide.
+
+**Most of it is too small to stand up in.** There are exactly two places in the cave where you
+can, and neither is bigger than a garage. Everything between them is a tube, a bedding plane
+or a slot.
 
 Nothing down here is hunting you. Nothing is counting down. Getting wedged is not a death, it
 is a puzzle: you got held at a particular shape, and the way out is to become a smaller one.
@@ -30,19 +34,26 @@ is a puzzle: you got held at a particular shape, and the way out is to become a 
 ![The Sowbelly survey](docs/survey.png)
 
 *Plan and extended elevation, drawn by `tools/render_survey.py` from the same JSON the game
-loads. 5 passages, 114 m surveyed, 61.2 m deep.*
+loads. 7 passages, 87 m surveyed, 27.6 m deep.*
 
 ## The route
 
-| | Passage | What it is | Crux | What it teaches |
-|---|---|---|---|---|
-| 0 | **The Shakehole** | a bowl in the hillside with the shaft in its floor | — | where you start, and where the daylight stops |
-| 1 | **The Pitch** | 48 m shaft, bell-shaped, rigged with one rope | — | going down, and how far down that is |
-| 2 | **The Rubble Hall** | 32 × 20 m chamber, breakdown floor, stalactites | — | a ceiling your beam cannot reach |
-| 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 0.76 m | hands and knees, without being asked |
-| 4 | **The Flatiron** | bedding plane, 36 m, ceiling down to 41 cm | 0.38 m | flat out, and what contact feels like |
-| 5 | **The Devil's Pinch** | a joint pulled open: tall, and 28.5 cm wide | **0.285 m** | turning sideways and emptying your chest |
-| 6 | **The Drainpipe** | a lead that pinches shut 63 % of the way in | closes | committing, and backing out |
+You begin already clipped on to the rope, three metres down the shaft, with rock all round you.
+
+| | Passage | What it is | Length | Tightest | What it teaches |
+|---|---|---|---|---|---|
+| 1 | **The Pitch** | 17 m shaft, 2.1 m bore, rigged with one rope | 16.8 m | — | going down, and how far down that is |
+| 2 | **The Cellar** | a room at the foot of the rope, 9 × 5, roof 3.0 | 9.5 m | — | standing up, and turning round |
+| 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 15.5 m | 1.10 × 0.95 m | hands and knees, without being asked |
+| 4 | **The Bone Box** | the other room, 7 × 4.5, roof 2.8 | 6.5 m | — | the last place you stand up |
+| 5 | **The Flatiron** | bedding plane, ceiling down to 41 cm | 24.1 m | 0.41 m | flat out, and what contact feels like |
+| 6 | **The Devil's Pinch** | a joint pulled open: tall, and 28.5 cm wide | 9.4 m | **0.285 m** | turning sideways and emptying your chest |
+| 7 | **The Drainpipe** | a lead that pinches shut 62 % of the way in | 4.9 m | closes | committing, and backing out |
+
+A room here is not a different kind of object - it is a short passage with a big cross-section.
+That is the whole of the cave's structure, and it is deliberate: see
+[docs/CAVE.md](docs/CAVE.md) for why two kinds of object turned out to be one kind too many,
+and for the one rule that joins them.
 
 Sowbelly is fictional. The geology, the passage types, the vocabulary and the dimensions come
 from real caving; the cave and everything in it is invented. It is not a model of any real
@@ -133,7 +144,7 @@ scripts/cave_game.gd   autoload `Cave`: session state, settings, the input map
 scripts/sfx.gd         autoload `Sfx`: the sound bank, plus the pressure-driven scrape loop
                        and the exertion-driven breathing that sit under everything
 scripts/main.gd        WebXR session, title, environment, quality, the shader warm-up tour,
-                       and the two headless autotests
+                       and the four headless autotests
 scripts/intent.gd      the input layer: one struct, four producers (desktop, touch, VR, tests),
                        one consumer. Derelict Orbit never had this and it is the main
                        structural change
@@ -146,13 +157,15 @@ scripts/bore.gd        one passage: centreline + profile keyframes -> stations -
 scripts/geo.gd         SurfaceTool batcher (from Derelict Orbit) + cross-sections, levelled
                        frames along a bending centreline, and the sweep that joins them
 scripts/cave_tex.gd    limestone, mud, flowstone and breakdown, with free normal maps
-scripts/palette.gd     the six materials the whole cave is drawn with
+scripts/palette.gd     the handful of materials the whole cave is drawn with, including
+                       the double-sided one the junction lips use
 scripts/lamp.gd        the headlamp: a hot narrow beam, a dim wide flood, dust in both
 scripts/slate.gd       the survey slate: depth, distance, posture, chest, breath left
 scripts/rope.gd        the rope down the Pitch: clip on, descend against a brake, climb back
 cave/sowbelly.json     the cave itself - read by the game AND by both Python tools
 audio/*.wav            12 sounds, all synthesised by tools/gen_audio.py (numpy)
-tools/check_fit.py     proves the cave is passable; runs first in CI, standard library only
+tools/check_fit.py     proves the cave is passable and that the joins meet; standard library
+                       only, so it runs first in CI, before Godot is downloaded
 tools/render_survey.py draws docs/survey.png from sowbelly.json, PNG written with zlib
 tools/gen_audio.py     builds audio/*.wav and their .import sidecars
 docs/CAVE.md           the cave: every passage, every dimension, and how to author another
@@ -179,7 +192,8 @@ python3 caves/tools/gen_audio.py                        # rebuild the sound bank
 ```
 
 ```
-CAVE_AUTOTEST=route godot --headless --path caves --quit-after 80000   # walk it like a player
+CAVE_AUTOTEST=clear godot --headless --path caves --quit-after 2000    # anything in the way?
+CAVE_AUTOTEST=route godot --headless --path caves --quit-after 400000  # walk it like a player
 python3 caves/tools/bundle_single.py                    # one standalone HTML, no server
 python3 caves/tools/browser_check.py                    # open that in a real browser
 ```
@@ -190,15 +204,38 @@ the rope down and back. It runs in CI **without** `|| true`, so it can fail a bu
 
 `CAVE_AUTOTEST=route` is the one that catches what players actually hit. It refuses to
 teleport: it starts where you start and walks the centreline, and reports the first station it
-cannot reach. Every invisible wall in this cave was found by it and by nothing else - a chamber
-shell hanging across a passage mouth, two tubes crossing at a junction, a posture chooser that
-only looked at where the body already was.
+cannot reach. It also asserts the safety net never fires, so a passage trimmed so hard it has
+a hole in its floor fails the build rather than dropping you into the void.
+
+`CAVE_AUTOTEST=clear` is the direct test for the geometry, and unlike walking it cannot miss a
+fault by taking a different line through a room. It asks three questions at every station of
+every passage.
+
+**Is there rock where there should be none?** It fires a ray along each of the 22 section
+directions and compares where it hits with where the section says the wall is. Displacement
+only ever pushes rock outward, so a hit that comes back *early* is geometry inside the passage:
+exactly the thing you cannot see, because its faces are single-sided, and cannot walk through,
+because its collider is not.
+
+**Is the way along it clear?** Those rays all go sideways, so a membrane stretched across a
+passage - which is exactly what a junction leaves if it goes wrong - is the one thing they can
+never hit. So it also walks the centreline itself, station to station, which is the line a body
+follows.
+
+**Is there none where there should be rock?** A cave is a closed shell, so from anywhere inside
+it every direction ends in rock. It fires 32 rays over a sphere and any that reaches eighty
+metres has left the world - and where it left is a hole you can fall out of. This is the one
+that found the real damage: every passage in the cave was open to the void around the tunnel
+leaving it, because an end you declare open is an end with nothing across it.
+
+All three are zero. 5,852 clearance rays, the closest coming back at 83 % of the way to the
+wall; every passage clear end to end; and not one of 8,400 sphere rays gets out.
 
 ## Performance
 
 A cave is cheap to draw, which is the whole reason the headlamp can afford a shadow. Sowbelly
-is 16,760 triangles in 16 meshes, built in under 100 ms at startup, and the export is a
-419 kB pck - everything except the engine is generated on the spot. There is one light in the
+is about 24,800 triangles in 15 meshes, built in about half a second at startup, and the export is a
+small pck - everything except the engine is generated on the spot. There is one light in the
 world that matters, fog swallows anything past about 14 m, and the chunks are 20 m so frustum
 culling does the rest.
 
