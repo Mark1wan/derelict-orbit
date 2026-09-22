@@ -16,23 +16,28 @@ const SIZE := Vector2(0.20, 0.135)
 const TEXT_PIXEL := 0.00040
 const OPEN_TIME := 0.20
 const WRIST_POS := Vector3(0.0, 0.035, 0.09)
-const VIEW_POS := Vector3(0.20, -0.145, -0.42)
+const VIEW_POS := Vector3(0.235, -0.185, -0.50)
 
+## Unshaded on purpose. The card sits 50 cm from a headlamp putting out 5.2 - anything lit
+## would come back pure white, and a survey slate you cannot read is not a survey slate. So
+## the light is painted in instead: a soft fall-off from the top left, which is roughly where
+## the beam would come from anyway since the lamp is strapped above your eyes.
 const CARD_SHADER := """
 shader_type spatial;
-render_mode cull_disabled;
-uniform vec3 base : source_color = vec3(0.68, 0.66, 0.60);
-uniform float grime : hint_range(0.0, 1.0) = 0.35;
+render_mode unshaded, cull_disabled;
+uniform vec3 base : source_color = vec3(0.60, 0.58, 0.52);
+uniform float grime : hint_range(0.0, 1.0) = 0.40;
 void fragment() {
 	// Mud in the scratches, and a bevel of clean plastic at the rim.
 	float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
 	float scuff = fract(sin(dot(floor(UV * vec2(64.0, 44.0)), vec2(12.99, 78.23))) * 43758.5);
-	vec3 c = base * (0.84 + 0.16 * scuff);
-	c = mix(c, vec3(0.22, 0.17, 0.13), grime * scuff * 0.5);
-	c = mix(c * 1.25, c, smoothstep(0.0, 0.03, edge));
+	vec3 c = base * (0.86 + 0.14 * scuff);
+	c = mix(c, vec3(0.20, 0.15, 0.11), grime * scuff * 0.55);
+	// Painted-in beam: brightest at the top left, falling away across the card.
+	float lit = 1.0 - 0.45 * clamp(distance(UV, vec2(0.28, 0.22)), 0.0, 1.0);
+	c *= lit;
+	c = mix(c * 1.18, c, smoothstep(0.0, 0.035, edge));
 	ALBEDO = c;
-	ROUGHNESS = 0.55 + 0.35 * scuff;
-	METALLIC = 0.0;
 }
 """
 
@@ -96,8 +101,8 @@ func attach_view(cam: Camera3D) -> void:
 		get_parent().remove_child(self)
 	cam.add_child(self)
 	position = VIEW_POS
-	rotation_degrees = Vector3(-18, 22, 6)
-	scale = Vector3.ONE * 1.5
+	rotation_degrees = Vector3(-11, 13, 4)
+	scale = Vector3.ONE
 
 func toggle() -> void:
 	open = not open
@@ -128,8 +133,8 @@ func _place_touch() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var aspect: float = maxf(vp.x / maxf(vp.y, 1.0), 0.1)
 	var tan_v: float = tan(deg_to_rad(_cam.fov * 0.5))
-	position = Vector3(tan_v * aspect * 0.42 * 0.62, -tan_v * 0.42 * 0.66, -0.42)
-	scale = Vector3.ONE * clampf(aspect * 1.05, 1.1, 2.1)
+	position = Vector3(tan_v * aspect * 0.50 * 0.60, -tan_v * 0.50 * 0.62, -0.50)
+	scale = Vector3.ONE * clampf(aspect * 0.72, 0.8, 1.5)
 
 func _refresh() -> void:
 	var c: Caver = Cave.caver

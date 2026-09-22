@@ -32,6 +32,13 @@ const SNAP_ANGLE := 30.0
 const HEAD_CLEAR := 0.16       ## closer than this to rock and the view starts to black out
 const EYE_LERP := 7.0
 
+# What the hand marker says, unshaded so it reads the same in a lit chamber and in the dark.
+const HAND_IDLE := Color(0.26, 0.25, 0.23)   ## nothing in reach
+const HAND_NEAR := Color(0.30, 0.44, 0.55)   ## rock you could take hold of
+const HAND_HELD := Color(0.42, 0.68, 0.38)   ## holding on
+## Bottom LEFT on a flat screen: the survey slate has the right-hand corner.
+const DESK_HAND_POS := Vector3(-0.235, -0.185, -0.52)
+
 # VR comfort. Both are the derelict-orbit quads: unshaded, depth-test-disabled, glued to the
 # camera, because a CanvasLayer is not visible in XR.
 const FADE_SHADER := """
@@ -39,6 +46,19 @@ shader_type spatial;
 render_mode unshaded, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
 uniform vec4 tint : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 void fragment() { ALBEDO = tint.rgb; ALPHA = tint.a; }
+"""
+
+## The hand marker. Unshaded so a headlamp at point-blank range cannot blow it out, but with
+## a fake key light baked in from the normal - without that every face is the same colour and
+## a cube reads as a flat hexagon rather than an object.
+const HAND_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec3 tint : source_color = vec3(0.26, 0.25, 0.23);
+void fragment() {
+	float key = 0.52 + 0.48 * clamp(dot(NORMAL, normalize(vec3(-0.35, 0.80, 0.48))), 0.0, 1.0);
+	ALBEDO = tint * key;
+}
 """
 
 const VIGNETTE_SHADER := """
@@ -147,15 +167,19 @@ func _build_view() -> void:
 
 func _build_hands() -> void:
 	# A gloved fist, near enough. The mesh only exists so you can see where your hand is and
-	# whether it has found something; it is retinted every frame rather than animated.
+	# whether it has found something to hold, so it is retinted every frame rather than
+	# animated - and it is unshaded, because it lives 50 cm from a headlamp putting out 5.2
+	# and anything lit at that range comes back as a white block. Unshaded means the tint IS
+	# the reading: dark for nothing, blue for rock in reach, green for holding on.
 	for i in 2:
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(0.085, 0.07, 0.12)
+		bm.size = Vector3(0.055, 0.048, 0.095)
 		mi.mesh = bm
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(0.20, 0.19, 0.17)
-		m.roughness = 0.95
+		var m := ShaderMaterial.new()
+		m.shader = Shader.new()
+		m.shader.code = HAND_SHADER
+		m.set_shader_parameter("tint", HAND_IDLE)
 		mi.material_override = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_hand_mat[i] = m
@@ -177,7 +201,7 @@ func begin(xr: bool) -> void:
 			mi.get_parent().remove_child(mi)
 			camera.add_child(mi)
 			mi.visible = i == 0
-			mi.position = Vector3(0.19, -0.17, -0.42)
+			mi.position = DESK_HAND_POS
 	if lamp:
 		lamp.set_shadow_allowed(shadow_allowed())
 
@@ -388,13 +412,15 @@ func _climb(delta: float) -> void:
 			pulling = true
 
 	for i in 2:
-		if _hand_mat[i]:
-			var c := Color(0.20, 0.19, 0.17)
+		var mat: ShaderMaterial = _hand_mat[i]
+		if mat:
+			var c := HAND_IDLE
 			if _held[i]:
-				c = Color(0.36, 0.52, 0.30)
+				c = HAND_HELD
 			elif intent.hands[i].active and _rock_near(i, intent.hands[i], _hand_world(i, intent.hands[i])) != Vector3.INF:
-				c = Color(0.30, 0.34, 0.40)
-			_hand_mat[i].albedo_color = _hand_mat[i].albedo_color.lerp(c, 0.25)
+				c = HAND_NEAR
+			var now: Color = mat.get_shader_parameter("tint")
+			mat.set_shader_parameter("tint", now.lerp(c, 0.25))
 	if pulling:
 		velocity.y = maxf(velocity.y, -1.2)
 
