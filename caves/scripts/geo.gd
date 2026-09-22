@@ -159,6 +159,23 @@ static func _span_at(sec: PackedVector2Array, x: float) -> Vector2:
 		return Vector2(0.0, 0.0)
 	return Vector2(bot, top)
 
+## Is this point inside the section polygon? Crossing count, which is exact for the convex
+## shapes here and does not care that they are not circles - a rift is thirty centimetres one
+## way and two metres the other, and treating it as a circle of its longest radius throws away
+## most of the passage.
+static func contains(sec: PackedVector2Array, p: Vector2) -> bool:
+	var inside := false
+	var n := sec.size()
+	var j := n - 1
+	for i in n:
+		var a := sec[i]
+		var b := sec[j]
+		if (a.y > p.y) != (b.y > p.y):
+			if p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
+				inside = not inside
+		j = i
+	return inside
+
 # ---------------------------------------------------------------- frames along a centreline
 
 ## One orthonormal frame per path point: basis.x across the passage, basis.y up it, basis.z
@@ -233,10 +250,11 @@ static func _catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: floa
 ## along the passage and around the ring without any seam bookkeeping. It only ever pushes
 ## rock away, never in, which is what lets sowbelly.json's numbers be a promise.
 ##
-## `face_cb(k, i) -> Geo` picks the builder for the face between section points k and k+1 on
-## ring i, so a crawl can route its floor into the mud batch and its walls into the limestone
-## one in a single pass. Kept from derelict-orbit's Geo.tube; returning null drops the face,
-## which is how a passage opens into a chamber without leaving a membrane across the mouth.
+## `face_cb(k, i, mid) -> Geo` picks the builder for the face between section points k and k+1
+## on ring i, given where that face is in the world, so a crawl can route its floor into the mud
+## batch and its walls into the limestone one in a single pass. Kept from derelict-orbit's
+## Geo.tube; returning null drops the face, which is how one passage opens into another without
+## leaving a membrane of rock across the join.
 func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 		noise: FastNoiseLite = null, face_cb: Callable = Callable(), uv_scale := 0.7) -> void:
 	var n := path.size()
@@ -280,7 +298,7 @@ func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 			var j := (k + 1) % sides
 			var g: Geo = self
 			if face_cb.is_valid():
-				g = face_cb.call(k, i)
+				g = face_cb.call(k, i, (r0[k] + r0[j] + r1[k] + r1[j]) * 0.25)
 			if g == null:
 				continue
 			var u0 := around[k] * uv_scale

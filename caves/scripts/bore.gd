@@ -119,10 +119,23 @@ func _mark_floor_faces() -> void:
 ## Sweep this passage into the caller's batches. `pick(material_key) -> Geo` hands back the
 ## builder for a material, so the caller decides the chunking and we just ask for somewhere to
 ## put each face.
-func build(pick: Callable) -> void:
+## `trim(point) -> bool` is asked, for faces near an open end only, whether that face is inside
+## some other passage's lumen. Where two passages meet their tubes cross at an angle and each
+## one's wall pokes through the other's open space - rock you cannot see and cannot walk
+## through, right at a junction. Only the ends are checked because that is the only place it
+## can happen, and checking every face would cost more than the whole build.
+const JOIN_RINGS := 10
+
+func build(pick: Callable, trim: Callable = Callable()) -> void:
 	var walls: Geo = pick.call(wall_mat)
 	var floors: Geo = pick.call(floor_mat)
-	var cb := func(k: int, _i: int) -> Geo:
+	var last: int = points.size() - 1
+	var cb := func(k: int, i: int, mid: Vector3) -> Geo:
+		if trim.is_valid():
+			var near_start: bool = open_start and i < JOIN_RINGS
+			var near_end: bool = open_end and i > last - JOIN_RINGS
+			if (near_start or near_end) and trim.call(mid):
+				return null
 		return floors if _floor_face[k] == 1 else walls
 	walls.sweep(points, sections, rough, _noise, cb)
 	# A passage that runs into rock is capped; one that opens into a chamber is left open, or

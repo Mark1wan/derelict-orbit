@@ -53,16 +53,21 @@ func build() -> void:
 	_body.name = "Rock"
 	add_child(_body)
 
+	# Every passage is built first, then swept, because a passage's open ends have to be
+	# trimmed against the passages they run into and that needs all of them to exist.
 	for p: Dictionary in data.get("passages", []):
-		var b := Bore.new(p)
-		bores.append(b)
-		b.build(func(mat: String) -> Geo: return _pick(b.points[b.points.size() / 2], mat))
+		bores.append(Bore.new(p))
+	for b in bores:
+		b.build(
+			func(mat: String) -> Geo: return _pick(b.points[b.points.size() / 2], mat),
+			func(at: Vector3) -> bool: return _inside_another(at, b))
 
 	for c: Dictionary in data.get("chambers", []):
 		_build_chamber(c)
 
 	_commit()
 	_build_lights()
+	_build_fill_lights()
 	_build_ropes()
 	_collect_drips()
 
@@ -86,6 +91,30 @@ func _pick(at: Vector3, mat: String) -> Geo:
 	if not _chunks.has(key):
 		_chunks[key] = Geo.new()
 	return _chunks[key]
+
+## Is this point inside some OTHER passage's open space? Where two passages meet, their tubes
+## cross at an angle and each one's wall hangs through the other's lumen - invisible rock,
+## right at the junction, which is the worst possible place for it. A face that is inside its
+## neighbour is not a wall at all, so it is dropped.
+func _inside_another(at: Vector3, self_bore: Bore) -> bool:
+	for b in bores:
+		if b == self_bore:
+			continue
+		var n := b.nearest(at)
+		var i: int = n["i"]
+		var f: Basis = b.frames[i]
+		var off: Vector3 = at - b.points[i]
+		# Only the part of the offset in the other passage's cross-section plane matters; how
+		# far along it the point sits is already accounted for by picking the nearest station.
+		if absf(off.dot(f.z)) > Bore.STATION_STEP * 1.5:
+			continue
+		var local := Vector2(off.dot(f.x), off.dot(f.y)) * 1.12
+		# Scaled OUT before the test, so a face has to be well inside the neighbour before it
+		# is dropped. Cutting generously here punches holes in the floor at a junction, and
+		# falling through the world is a worse bug than a little rock where two tubes cross.
+		if Geo.contains(b.sections[i], local):
+			return true
+	return false
 
 func _commit() -> void:
 	for key: String in _chunks:
@@ -115,12 +144,32 @@ func _build_chamber(c: Dictionary) -> void:
 	n.fractal_octaves = 3
 	n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 
+	# Where the chamber's shell has to be opened. A hand-written radius per mouth is a number
+	# that is wrong the moment a passage moves, and when it is too small the leftover shell
+	# hangs across the passage as rock you cannot see and cannot get past - which is exactly
+	# what it did, leaving 31 cm of headroom three metres into a 1.5 m tube.
+	#
+	# So the cuts are derived instead: any station of any passage that falls inside this
+	# chamber opens a hole the size of the passage there. Explicit mouths stay as a way to open
+	# something bigger by hand, but nothing depends on them being right.
 	var mouths: Array = []
 	for m: Dictionary in data.get("mouths", []):
 		if m.get("into", "") != c.get("id", ""):
 			continue
 		var a: Array = m["at"]
 		mouths.append([Vector3(a[0], a[1], a[2]), float(m.get("r", 1.0))])
+
+	var reach: Vector3 = size * 0.5 + Vector3(2.5, 2.5, 2.5)
+	for b in bores:
+		for i in b.points.size():
+			var p: Vector3 = b.points[i]
+			if ((p - centre) / reach).length_squared() > 1.0:
+				continue
+			var sec: PackedVector2Array = b.sections[i]
+			var r := 0.0
+			for q: Vector2 in sec:
+				r = maxf(r, q.length())
+			mouths.append([p, r * 1.3 + 0.4])
 
 	var wall_key: String = c.get("wall", "rock_tri")
 	var floor_key: String = c.get("floor", "rubble")
@@ -177,6 +226,80 @@ func _build_lights() -> void:
 		s.shadow_enabled = false
 		s.name = l.get("id", "light")
 		add_child(s)
+
+## Light the cave itself, so the headlamp is not the only thing you can see by. Off when
+## CaveGame.lit is false, which restores the dark version the atmosphere was designed around.
+##
+## One omni every FILL_SPACING metres down each passage, sat a little above the centreline, with
+## a range derived from how big the passage is there - a shaft gets a lamp that fills it, a
+## bedding crawl gets one that does not spill forty metres up the passage. Chambers get a ring
+## plus one high, because a single light in the middle of a thirty-metre room reads as a bulb
+## rather than as a room.
+##
+## All unshadowed. The Compatibility renderer pays per light per pixel and shadow maps are the
+## most expensive thing in either of these two games, so the fill is light and the one shadow
+## budget stays on the headlamp.
+const FILL_SPACING := 7.5
+const FILL_SPACING_LOW := 12.0
+const FILL_ENERGY := 1.5
+const FILL_TINT := Color(1.0, 0.95, 0.88)
+const FILL_MAX := 48
+
+func _build_fill_lights() -> void:
+	if not Cave.lit:
+		return
+	var spacing: float = FILL_SPACING_LOW if Cave.low_quality else FILL_SPACING
+	var made := 0
+
+	for b in bores:
+		var step: int = maxi(int(round(spacing / Bore.STATION_STEP)), 1)
+		var i: int = step / 2
+		while i < b.points.size() and made < FILL_MAX:
+			var sec: PackedVector2Array = b.sections[i]
+			var lo := INF
+			var hi := -INF
+			var wide := 0.0
+			for q: Vector2 in sec:
+				lo = minf(lo, q.y)
+				hi = maxf(hi, q.y)
+				wide = maxf(wide, absf(q.x))
+			# Just under the ceiling, the way anything you actually hang in a cave ends up.
+			var at: Vector3 = b.points[i] + b.frames[i].y * (hi * 0.55)
+			_fill_light(at, clampf(maxf(hi - lo, wide * 2.0) * 2.6 + 3.0, 4.0, 16.0))
+			made += 1
+			i += step
+
+	for c: Dictionary in data.get("chambers", []):
+		var ctr: Array = c.get("centre", [0, 0, 0])
+		var sz: Array = c.get("size", [10, 6, 10])
+		var centre := Vector3(ctr[0], ctr[1], ctr[2])
+		var size := Vector3(sz[0], sz[1], sz[2])
+		var reach: float = maxf(size.x, size.z) * 0.75
+		for k in 4:
+			if made >= FILL_MAX:
+				break
+			var a := TAU * (float(k) + 0.5) / 4.0
+			_fill_light(centre + Vector3(cos(a) * size.x * 0.26, size.y * 0.16, sin(a) * size.z * 0.26),
+				reach, 1.25)
+			made += 1
+		if made < FILL_MAX:
+			_fill_light(centre + Vector3(0, size.y * 0.34, 0), reach * 1.2, 1.1)
+			made += 1
+
+	print("[cave] lit: %d fill lights at %.1f m spacing" % [made, spacing])
+
+func _fill_light(at: Vector3, reach: float, energy := FILL_ENERGY) -> void:
+	var l := OmniLight3D.new()
+	l.position = at
+	l.omni_range = reach
+	l.light_energy = energy
+	l.light_color = FILL_TINT
+	l.light_specular = 0.12
+	l.shadow_enabled = false
+	l.distance_fade_enabled = true
+	l.distance_fade_begin = 34.0
+	l.distance_fade_length = 10.0
+	add_child(l)
 
 func _build_ropes() -> void:
 	for r: Dictionary in data.get("rig", []):
@@ -248,6 +371,17 @@ func passage_at(p: Vector3) -> Dictionary:
 	if best_d > 6.0:
 		return {}
 	return best
+
+## Below this there is no cave, only the void outside the shell. The caver's safety net uses it
+## to notice it has fallen out of the world.
+func floor_limit() -> float:
+	if data.has("floor_limit"):
+		return float(data["floor_limit"])
+	var lowest := 0.0
+	for b in bores:
+		for p: Vector3 in b.points:
+			lowest = minf(lowest, p.y)
+	return lowest - 8.0
 
 func bore(id: String) -> Bore:
 	for b in bores:

@@ -23,6 +23,12 @@ const ACCEL := 9.0
 const FRICTION := 13.0
 const STEP_UP := 0.42          ## breakdown blocks you can just walk over
 const SQUEEZE_CRAWL := 0.34    ## slowest the rock can make you: a shuffle, never a standstill
+const CENTRING := 0.55         ## how hard the body feels for the middle of a tight gap
+## The collision capsule is a centimetre and a half smaller than the body really is. CaverBody
+## decides what fits - it measures the rock and picks the shape - and the capsule is only there
+## for gross collision. Without the skin the two disagree at exactly the margin the whole cave
+## is built around, and the physics wins an argument it should not be having.
+const CAPSULE_SKIN := 0.015
 const GRAB_REACH_XR := 0.20    ## sphere around the controller that counts as touching rock
 const GRAB_REACH_FLAT := 1.9   ## how far in front of your eye the virtual hand can find rock
 const GRAB_PULL := 3.2         ## how hard a hand can haul the body toward its anchor
@@ -31,6 +37,7 @@ const LOOK_SENS := 0.0022
 const SNAP_ANGLE := 30.0
 const HEAD_CLEAR := 0.16       ## closer than this to rock and the view starts to black out
 const EYE_LERP := 7.0
+const FALL_LIMIT := 12.0       ## seconds of freefall before the safety net decides you are lost
 
 # What the hand marker says, unshaded so it reads the same in a lit chamber and in the dark.
 const HAND_IDLE := Color(0.26, 0.25, 0.23)   ## nothing in reach
@@ -115,6 +122,9 @@ var _hand_mesh := [null, null]
 var _hand_mat := [null, null]
 var _scrape: AudioStreamPlayer
 var _last_pos := Vector3.ZERO
+var _ground := Vector3.ZERO    ## the last place you were stood on something
+var _falling := 0.0
+var _floor_limit := -1e9       ## below this you are out of the cave; set from the cave data
 var _probe_frame := 0
 
 func _ready() -> void:
@@ -192,6 +202,8 @@ func _build_hands() -> void:
 func begin(xr: bool) -> void:
 	xr_active = xr
 	started = true
+	if Cave.cave:
+		_floor_limit = Cave.cave.floor_limit()
 	if not xr:
 		# Flat play has no local-floor reference space, so the head is placed by hand and the
 		# hand meshes belong to the camera rather than to controllers that do not exist.
@@ -265,9 +277,34 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	_track_progress()
+	_safety_net(delta)
 	if rope:
 		rope.caver_moved(self, intent, delta)
 	intent.clear_edges()
+
+## Nobody should ever fall out of the world. A cave is a hollow shell with nothing outside it,
+## so a body that gets through the rock - or is put somewhere it should not be - falls until
+## the floating point runs out, and there is no way back.
+##
+## This catches both shapes of that: falling below the cave entirely, and falling for longer
+## than any drop in it lasts. Either way you go back to the last place you were stood on
+## something, which is always somewhere you can get out of.
+func _safety_net(delta: float) -> void:
+	if is_on_floor() or (rope and rope.clipped):
+		if not body.wedged:
+			_ground = global_position
+		_falling = 0.0
+		return
+	_falling += delta
+	var below: bool = global_position.y < _floor_limit
+	if not below and _falling < FALL_LIMIT:
+		return
+	var back: Vector3 = _ground
+	if back == Vector3.ZERO and Cave.cave:
+		back = Cave.cave.start_point
+	teleport(back + Vector3(0, 0.25, 0))
+	_falling = 0.0
+	Cave.say("you came off - back on your feet" if not below else "out of the cave - back you go", 3.0)
 
 func _read_input(delta: float) -> void:
 	if scripted:
@@ -317,12 +354,12 @@ func _shape_body() -> void:
 	var b := body.box()
 	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
 	if prone:
-		_capsule.radius = clampf(b.y * 0.5, 0.08, 0.30)
+		_capsule.radius = clampf(b.y * 0.5 - CAPSULE_SKIN, 0.07, 0.30)
 		_capsule.height = maxf(1.30, _capsule.radius * 2.0 + 0.02)
 		body_shape.rotation = Vector3(PI * 0.5, origin.rotation.y, 0.0)
 		body_shape.position = Vector3(0, _capsule.radius + 0.01, 0)
 	else:
-		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5, 0.10, 0.28)
+		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5 - CAPSULE_SKIN, 0.09, 0.28)
 		_capsule.height = maxf(b.y, _capsule.radius * 2.0 + 0.02)
 		body_shape.rotation = Vector3.ZERO
 		body_shape.position = Vector3(0, _capsule.height * 0.5, 0)
@@ -357,6 +394,12 @@ func _move(delta: float, frame: Basis) -> void:
 		target_speed = minf(target_speed, 0.20)
 	if intent.brake > 0.5:
 		target_speed *= 0.25
+
+	# Line yourself up in the gap. Only bites when it is actually tight, and it is what turns
+	# "the numbers say I fit but I am stuck" into a squeeze you can work through.
+	var centre_pull: float = body.centring() * body.pressure * CENTRING
+	if absf(centre_pull) > 0.001:
+		wish += frame.x * centre_pull
 
 	var flat := Vector3(velocity.x, 0.0, velocity.z)
 	if wish.length_squared() > 0.0001:

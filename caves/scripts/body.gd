@@ -85,7 +85,12 @@ const WORLD_MASK := 1
 const CONTACT_FLOOR := 0.42  ## occupying less of the space than this does not register at all
 const CONTACT_SPAN := 0.50   ## and this much more of it is full contact
 const CONTACT_WORST := 4     ## how many of the RING rays the reading is taken from
-const LOOKAHEAD := 0.30      ## how far up the passage the second ring is cast
+const LOOKAHEAD := 0.30      ## how far up the passage the second contact ring is cast
+## How far ahead the POSTURE looks, which is much further than contact does - about a pace.
+## Contact is about rock you are touching, so it is measured close; posture is about rock you
+## are walking into, and a passage can halve its width in a stride. At 30 cm the body was
+## still standing up in a 45 cm rift, taking one more step and jamming.
+const POSTURE_AHEAD := 0.85
 const WEDGE_PRESSURE := 0.90
 const WEDGE_STALL := 0.70   ## seconds of asking to go forward before it counts as not going
 const WEDGE_CREEP := 0.020  ## and how little ground you have to make in that time
@@ -109,6 +114,8 @@ var air_locked := false     ## ran out; cannot exhale again until AIR_REARM
 var pressure := 0.0
 var headroom := HEAD_REACH
 var width := RING_REACH * 2.0
+var gap_left := RING_REACH     ## room to the left of the chest, and to the right. The two are
+var gap_right := RING_REACH    ## kept apart so the body can tell which way the middle is.
 var clearances := PackedFloat32Array()
 var tightest_dir := Vector3.ZERO
 
@@ -173,6 +180,18 @@ func breathe(want: float, delta: float) -> void:
 		air = minf(air + AIR_REGAIN * delta, 1.0)
 	chest = CHEST_RELAXED - CHEST_SQUEEZE * exhale
 
+## Which way to shuffle to put yourself in the middle of the gap, -1 to +1 across the passage.
+##
+## A 27 cm body in a 30 cm slot only fits if it is CENTRED, and nothing in a physics engine
+## centres you - lean 2 cm off and you are jammed in a passage the numbers say you fit. A
+## person in a squeeze does this constantly and without thinking about it, feeling for the
+## middle with their shoulders, so the body does it too rather than making the player do it
+## blind with a key that does not exist.
+func centring() -> float:
+	if gap_left + gap_right > RING_REACH:
+		return 0.0
+	return clampf((gap_right - gap_left) * 2.0, -1.0, 1.0)
+
 ## Seconds of squeeze left before your chest opens again, for the slate.
 func breath_left() -> float:
 	if exhale <= 0.15:
@@ -198,16 +217,38 @@ func probe(space: PhysicsDirectSpaceState3D, centre: Vector3, basis: Basis, foot
 	# narrows those are not the same reading. Measuring only the chest means a caver stopped
 	# dead by a pinch 30 cm in front of them reports plenty of room, because the pinch is not
 	# at their chest yet - which is the one moment the number most needs to be right.
+	var fwd: Vector3 = -basis.z
 	var near := _ring(space, centre, basis, hw, hh, true)
-	var ahead := _ring(space, centre - basis.z * LOOKAHEAD, basis, hw, hh, false)
+	var ahead := _ring(space, centre + fwd * LOOKAHEAD, basis, hw, hh, false)
 	pressure = clampf((maxf(near, ahead) - CONTACT_FLOOR) / CONTACT_SPAN, 0.0, 1.0)
 
 	# Headroom is measured from the floor, not from the chest, because that is the number that
 	# decides whether you could stand up here if you wanted to.
-	headroom = _cast(space, foot + basis.y * 0.04, basis.y, HEAD_REACH) + 0.04
-	var left := _cast(space, centre, -basis.x, RING_REACH)
-	var right := _cast(space, centre, basis.x, RING_REACH)
-	width = left + right
+	#
+	# And it is measured HERE AND JUST AHEAD, taking whichever is tighter. Measuring only where
+	# the body already is means you walk up to a sixty-centimetre bedding crawl at full height,
+	# stay at full height because where you are standing is fine, and stop dead against the
+	# lip - which from the inside is indistinguishable from an invisible wall. Nobody caves
+	# like that either: you go down onto your knees a pace before the low bit, because you can
+	# see it coming. This is that pace.
+	var here_head := _cast(space, foot + basis.y * 0.04, basis.y, HEAD_REACH)
+	# The pace ahead is taken along the FLOOR, not along the horizon. `fwd` is flattened, so in
+	# a passage that descends - the Drainpipe drops a metre and a half over four - stepping
+	# forward horizontally walks into the ceiling, and the body reads six centimetres of
+	# headroom in a passage two thirds of a metre tall. So the lookahead finds the floor under
+	# it first, the way a foot does.
+	var step: Vector3 = foot + fwd * POSTURE_AHEAD + basis.y * 0.45
+	var drop := _cast(space, step, -basis.y, 1.6)
+	if drop < 1.6:
+		step -= basis.y * (drop - 0.04)
+	var next_head := _cast(space, step, basis.y, HEAD_REACH)
+	headroom = minf(here_head, next_head) + 0.04
+
+	var ahead_c: Vector3 = centre + fwd * POSTURE_AHEAD
+	gap_left = _cast(space, centre, -basis.x, RING_REACH)
+	gap_right = _cast(space, centre, basis.x, RING_REACH)
+	width = minf(gap_left + gap_right,
+		_cast(space, ahead_c, -basis.x, RING_REACH) + _cast(space, ahead_c, basis.x, RING_REACH))
 
 ## One ring of rays in the plane across the passage, reported as occupancy: the worst few
 ## values of "how much of the room along this line is me". `keep` stores the raw distances

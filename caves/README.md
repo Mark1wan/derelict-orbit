@@ -16,11 +16,13 @@ a half, and it will stay there about six seconds before your body takes the deci
 Three and a half centimetres is not much. It is the difference between the Devil's Pinch being
 a passage and being a wall, and it is the whole game.
 
-**There is one light and it is on your head.** No sky, no sun, no lamps on the wall. The beam
-is not illumination, it is the interface - how you read the shape of a passage, how far away
-the wall is, whether that is mud or flowstone. Sixty-one metres down, past a rope, a chamber,
-a hands-and-knees tube and thirty-six metres of bedding crawl, the passage narrows to
-twenty-eight and a half centimetres, and you have to decide.
+**The cave is lit, for now.** It was built to be pitch black with a headlamp as the whole of
+your vision, and that is still in there - `Cave.lit = false` in `scripts/cave_game.gd` restores
+it. But you cannot judge whether a squeeze reads, or whether a passage goes where you think it
+does, through a fifteen degree cone, so while the movement is being played with there are fill
+lights down every passage and the headlamp is not load-bearing. Sixty-one metres down, past a
+rope, a chamber, a hands-and-knees tube and thirty-six metres of bedding crawl, the passage
+narrows to twenty-eight and a half centimetres, and you have to decide.
 
 Nothing down here is hunting you. Nothing is counting down. Getting wedged is not a death, it
 is a puzzle: you got held at a particular shape, and the way out is to become a smaller one.
@@ -34,6 +36,7 @@ loads. 5 passages, 114 m surveyed, 61.2 m deep.*
 
 | | Passage | What it is | Crux | What it teaches |
 |---|---|---|---|---|
+| 0 | **The Shakehole** | a bowl in the hillside with the shaft in its floor | — | where you start, and where the daylight stops |
 | 1 | **The Pitch** | 48 m shaft, bell-shaped, rigged with one rope | — | going down, and how far down that is |
 | 2 | **The Rubble Hall** | 32 × 20 m chamber, breakdown floor, stalactites | — | a ceiling your beam cannot reach |
 | 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 0.76 m | hands and knees, without being asked |
@@ -175,9 +178,21 @@ python3 caves/tools/render_survey.py                    # redraw docs/survey.png
 python3 caves/tools/gen_audio.py                        # rebuild the sound bank
 ```
 
+```
+CAVE_AUTOTEST=route godot --headless --path caves --quit-after 80000   # walk it like a player
+python3 caves/tools/bundle_single.py                    # one standalone HTML, no server
+python3 caves/tools/browser_check.py                    # open that in a real browser
+```
+
 `CAVE_AUTOTEST=1` is the real test and it is not a smoke test: it walks into the Devil's Pinch
 with a full chest, asserts it gets held, empties the chest, asserts it comes free, and rides
 the rope down and back. It runs in CI **without** `|| true`, so it can fail a build.
+
+`CAVE_AUTOTEST=route` is the one that catches what players actually hit. It refuses to
+teleport: it starts where you start and walks the centreline, and reports the first station it
+cannot reach. Every invisible wall in this cave was found by it and by nothing else - a chamber
+shell hanging across a passage mouth, two tubes crossing at a junction, a posture chooser that
+only looked at where the body already was.
 
 ## Performance
 

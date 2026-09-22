@@ -9,8 +9,16 @@ extends Node3D
 ## That makes this by far the cheaper of the two games to draw - which is the budget the
 ## headlamp's shadow map is spent out of.
 
+# The dark cave: ambient barely above nothing and fog that eats everything past ~14 m, so the
+# headlamp is the whole of your vision.
 const FOG_DENSITY := 0.048
 const AMBIENT := 0.0055
+
+# The lit cave (Cave.lit, on by default). Enough ambient to read shape at distance, fog pulled
+# right back so a passage is legible end to end, and cave.gd hangs fill lights down every
+# passage on top. See CaveGame.lit for why this is the default for now.
+const FOG_DENSITY_LIT := 0.0085
+const AMBIENT_LIT := 0.30
 
 @onready var cave: Node3D = $Cave
 @onready var caver: Caver = $Caver
@@ -51,6 +59,8 @@ func _ready() -> void:
 	var mode := OS.get_environment("CAVE_AUTOTEST")
 	if mode == "touch":
 		_autotest_touch()
+	elif mode == "route":
+		_autotest_route()
 	elif mode != "":
 		_autotest()
 
@@ -61,16 +71,24 @@ func _make_env() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0, 0, 0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	# Not quite zero. A cave is absolutely black and a game that is absolutely black is
-	# unplayable, so there is the faintest wash of cold light - enough to tell a wall from a
-	# void at two metres once your eyes have given up.
-	env.ambient_light_color = Color(0.42, 0.46, 0.55)
-	env.ambient_light_energy = AMBIENT
+	if Cave.lit:
+		# Warm and neutral rather than the cold wash of the dark version: this is standing in
+		# for lamps that are notionally strung through the cave, not for starlight.
+		env.ambient_light_color = Color(0.72, 0.70, 0.66)
+		env.ambient_light_energy = AMBIENT_LIT
+		env.fog_light_color = Color(0.10, 0.10, 0.11)
+		env.fog_density = FOG_DENSITY_LIT
+	else:
+		# Not quite zero. A cave is absolutely black and a game that is absolutely black is
+		# unplayable, so there is the faintest wash of cold light - enough to tell a wall from
+		# a void at two metres once your eyes have given up.
+		env.ambient_light_color = Color(0.42, 0.46, 0.55)
+		env.ambient_light_energy = AMBIENT
+		env.fog_light_color = Color(0.018, 0.020, 0.024)
+		env.fog_density = FOG_DENSITY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 1.05
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.018, 0.020, 0.024)
-	env.fog_density = FOG_DENSITY
 	env.fog_sky_affect = 0.0
 	# No glow, no SSAO, no reflections: GL Compatibility on a Quest pays for all of them and
 	# in a cave lit by one lamp none of them would be visible anyway.
@@ -354,7 +372,14 @@ func _autotest() -> void:
 			lights += 1
 	print("[autotest] hall: %s, headroom %.2f m, pressure %.2f, %d lights in the world"
 		% [b.name_of(), b.headroom, b.pressure, lights])
-	assert(lights <= 4, "too many lights for a cave: %d" % lights)
+	# The budget depends on which cave you asked for. Lit, the fill is what you see by and the
+	# cap is what the Compatibility renderer will carry; dark, the headlamp is the whole of it
+	# and anything else on is a mistake.
+	if Cave.lit:
+		assert(lights >= 8, "lit mode but only %d lights - the cave will be black" % lights)
+		assert(lights <= 60, "%d lights is more than the renderer should carry" % lights)
+	else:
+		assert(lights <= 4, "the dark cave should have almost no lights, found %d" % lights)
 
 	# 2. The Gullet puts you on your hands and knees without being asked.
 	await _put_in("gullet", 0.6)
@@ -554,6 +579,112 @@ func _autotest_touch() -> void:
 
 	touch_ui.release_all()
 	print("[autotest] PASS")
+	get_tree().quit()
+
+## CAVE_AUTOTEST=route - walk the whole cave from the spawn point and report where it stops.
+##
+## The other two tests teleport into each passage and check it behaves. This one refuses to
+## teleport: it starts where a player starts, walks the centreline station by station, and says
+## where the rock would not let it through. That is the only way to catch the class of problem
+## a player actually hits - an unlit lip between two passages, a chamber wall left across a
+## mouth, a spawn point with no floor under it - because every one of those is invisible to a
+## test that puts the body past it.
+func _autotest_route() -> void:
+	print("[autotest] Sowbelly, walking the route")
+	_start_desktop()
+	await get_tree().create_timer(1.5).timeout
+	var b: CaverBody = caver.body
+
+	# 1. Is there anything under the spawn point at all?
+	caver.teleport(cave.start_point, cave.start_look)
+	var fell := caver.global_position.y
+	for i in 200:
+		await get_tree().physics_frame
+	var drop: float = fell - caver.global_position.y
+	print("[autotest] spawn: dropped %.2f m in 2.8 s, on floor %s, at %.1f m down"
+		% [drop, caver.is_on_floor(), -caver.global_position.y])
+	assert(caver.is_on_floor(), "nothing to stand on at the spawn point - fell %.1f m" % drop)
+	assert(drop < 3.0, "the spawn point is %.1f m above its floor" % drop)
+
+	# 2. Walk each passage along its own centreline, and report the first station the body
+	# cannot reach. Teleporting is allowed only between passages, so a blockage inside one is
+	# always found.
+	# Steps are in METRES, not fractions, and each gets long enough for the slowest shape the
+	# rock can force on you. A 3 % step of a short passage is less than the arrival tolerance -
+	# the body is already there and never moves, which reads as blocked - and a committed
+	# shuffle covers 4 cm a second, so a step budget sized for walking condemns every squeeze
+	# in the cave. Both of those were bugs in this test before they were anything else.
+	var blocked: Array[String] = []
+	for bore in cave.bores:
+		if bore.kind == "shaft":
+			# You do not walk down a shaft. This one is rigged; the rope test covers it.
+			print("[autotest]   %-20s   -   a pitch: rigged, not walked" % bore.label)
+			continue
+		var length: float = bore.length()
+		var step_t: float = clampf(1.5 / maxf(length, 0.1), 0.02, 0.25)
+		await _put_in(bore.id, 0.04)
+		var reached := 0.04
+		var stuck := 0.0
+		var t := 0.04
+		while t < 0.97:
+			t = minf(t + step_t, 0.99)
+			var want: Vector3 = cave.point_in(bore.id, t) + Vector3(0, 0.1, 0)
+			caver.debug_face(cave.heading_in(bore.id, t))
+			caver.debug_move(Vector2(0, 1))
+			var before := caver.global_position
+			var closest: float = before.distance_to(want)
+			var arrived := false
+			for i in 1800:
+				await get_tree().physics_frame
+				# Breathe out when it gets tight, which is what a player does and what the
+				# cave is designed around. Without it the walker reaches the Devil's Pinch,
+				# meets a slot narrower than a relaxed chest, and reports the game's central
+				# mechanic as a bug.
+				caver.debug_exhale(1.0 if b.pressure > 0.82 else 0.0)
+				closest = minf(closest, caver.global_position.distance_to(want))
+				if closest < 0.8:
+					arrived = true
+					break
+			caver.debug_exhale(0.0)
+			if not arrived:
+				var made: float = before.distance_to(caver.global_position)
+				print("[autotest]     %.1f m in: made %.2f m in 25 s, still %.2f m short, %s, p=%.2f, head %.2f, wide %.2f, at %s"
+					% [t * length, made, closest, b.name_of(), b.pressure,
+						b.headroom, b.width, caver.global_position])
+				stuck = t
+				break
+			reached = t
+		caver.debug_move(Vector2.ZERO)
+		var pct := int(round(reached * 100.0))
+		var note := "walked it"
+		if stuck > 0.0:
+			note = "STOPPED at %d%% (%.1f m in), %s, pressure %.2f" % [
+				int(round(stuck * 100.0)), stuck * bore.length(), b.name_of(), b.pressure]
+			# The Drainpipe is meant to stop you; everything else is not.
+			var lead := false
+			for p: Dictionary in cave.data.get("passages", []):
+				if p.get("id", "") == bore.id and p.get("dead_end", false):
+					lead = true
+			if lead:
+				note = "closed at %d%% - which is the point of a lead" % int(round(stuck * 100.0))
+			else:
+				blocked.append("%s at %d%%" % [bore.label, int(round(stuck * 100.0))])
+		print("[autotest]   %-20s %3d%%  %s" % [bore.label, pct, note])
+
+	# 3. The lights.
+	var lights := 0
+	for n in _all_nodes(self):
+		if n is Light3D and (n as Light3D).visible:
+			lights += 1
+	print("[autotest] %d lights (Cave.lit = %s)" % [lights, Cave.lit])
+	if Cave.lit:
+		assert(lights >= 8, "lit mode but only %d lights - the cave will be black" % lights)
+		assert(lights <= 60, "%d lights is more than the Compatibility renderer should carry" % lights)
+
+	if not blocked.is_empty():
+		print("[autotest] BLOCKED: " + ", ".join(blocked))
+	assert(blocked.is_empty(), "a player cannot get through: %s" % ", ".join(blocked))
+	print("[autotest] PASS - the whole route walks")
 	get_tree().quit()
 
 # ---------------------------------------------------------------- test helpers

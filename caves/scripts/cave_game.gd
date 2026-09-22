@@ -24,6 +24,19 @@ var low_quality := false      ## phones by default; a title toggle otherwise
 var touch := false            ## the touch overlay is up and driving the intent struct
 var invert_look := false
 
+## Light the whole cave, rather than only what the headlamp is pointed at.
+##
+## A real cave is absolutely black and the headlamp is the whole of your vision, which is
+## atmospheric and - while the movement is still being built and played with - actively in the
+## way. You cannot judge whether a squeeze reads, or whether a passage goes where you think it
+## does, through a 15 degree cone. So this is on by default: fill lights down every passage,
+## the ambient well up, the fog well back. The headlamp still works and still looks right; it
+## just is not load-bearing any more.
+##
+## Turning it off restores the dark version, and that is the mode the lighting was designed
+## for, so the switch stays rather than the dark values being deleted.
+var lit := true
+
 # Who is who. Set by the nodes themselves on _ready.
 var caver: Node3D = null
 var cave: Node3D = null
