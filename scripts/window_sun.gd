@@ -105,10 +105,12 @@ func _update() -> void:
 			candidates.append(p)
 	candidates.sort_custom(func(a: Pane, b: Pane) -> bool: return a.center.distance_squared_to(eye) < b.center.distance_squared_to(eye))
 	var on := {}
+	# PS1 mode does not cut these: sunlight through a window is most of what a shift looks like, and
+	# a window light costs a sum per vertex there now, not a sum per pixel
 	var budget := MAX_LIT
 	if Game.low_quality:
 		budget = MAX_LIT_LOW
-	elif Game.player and Game.player.xr_active:
+	elif Game.xr:
 		budget = MAX_LIT_XR
 	for i in mini(budget, candidates.size()):
 		on[candidates[i]] = true

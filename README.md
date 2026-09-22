@@ -18,6 +18,10 @@ terminal and holding **trigger**. Every night the main power fails and you wake 
 from the power plant. Find the plant and hold the MAIN POWER panel to bring the lights back. Something walks the
 station at night. Your flashlight freezes it while the beam is on it; the moment you look away it moves. Survive 7 nights.
 
+**Earth is on the radio.** Once a shift the comms console keys up and Gateway Control reads you a
+message - about the lights that come on at 03:00, about life support scrubbing for two - and then
+waits on your report. That uplink is where the story is told; see [The uplink](#the-uplink-messages-from-earth).
+
 The haunting escalates with the day counter (and with every shift you leave unfinished):
 
 | Intensity | What you get |
@@ -43,13 +47,13 @@ The haunting escalates with the day counter (and with every shift you leave unfi
 | Hold B + left stick | rotation thrusters: forward / back pitches, left / right rolls - the spin keeps going, a grab stops it |
 | Hold B + right stick left / right | rotation thruster: yaw |
 | A / X | flashlight on / off, wherever it is (hand, belt or drifting) |
-| Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names |
+| Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names, or at the comms console to send your shift report (no tool needed) |
 | Y (left hand) | crew terminal hologram on / off: tasks with the tool each needs, clock, thruster fuel, belt, where the tools are |
 
 **Desktop fallback (any browser / the Godot editor)**: **right mouse** on a surface within arm's reach grabs it, drag
 to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, **R + mouse** rolls and pitches the whole body, **Tab** shows or hides the crew terminal. **1-4** swap
-your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach or uses the
-held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
+your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach, uses the
+held tool on a terminal, or sends your shift report on the comms console, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
 
 **Phones and tablets (held sideways)**: the title screen shows **PLAY** when the page is opened on a touch device
 (`scripts/touch_controls.gd`). Android Chrome goes fullscreen and locks to landscape; an iPhone keeps its browser bars.
@@ -62,7 +66,7 @@ held tool on a terminal, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` en
 | Press and hold on a surface within reach | grab it (ring fills, phone buzzes) - then drag to pull yourself, lift to let go with momentum |
 | Two fingers: twist / slide up or down | roll / pitch the whole body |
 | Quick tap | pick up the loose item nearest the middle of the view |
-| USE (hold) | use the tool in your hand on the terminal in the middle of the view; hold it to restart after dying |
+| USE (hold) | use the tool in your hand on the terminal in the middle of the view - or send your shift report on the comms console; hold it to restart after dying |
 | BRACE (hold) | hold on to whatever is in front of you |
 | DROP, LIGHT, TASKS | let go of what you hold, flashlight, crew terminal |
 | Belt buttons 1-4 | swap your hand with that holster |
@@ -89,6 +93,29 @@ Every task terminal names the repair tool it needs, and only that tool, pointed 
 You start with the flashlight and the wrench. The multitool and the scanner are floating just inside the door of
 two other rooms (seeded per deck). The wrist lists what is in your hands, on the belt, and where the rest was
 last seen. The MAIN POWER panel at night needs no tool.
+
+## The uplink: messages from Earth
+
+The story is told over the radio. Twenty seconds into every shift the comms console keys up and
+**GATEWAY CONTROL, HOUSTON** reads you a message - an attention tone, the squelch opening, and a
+voice, while the console prints what it is saying line by line at the pace it is spoken. Then it is
+your turn: point at the console, hold **TRIGGER** (**USE** on a phone) for a couple of seconds, and
+your own shift report goes back. No tool needed; you are pressing a key, not fixing anything.
+
+Answer it and the week is a conversation. Day 2 is flight asking why the deck lights drew current
+at 03:00 with you asleep. Day 3 is life support scrubbing carbon dioxide for two people. Day 4
+answers a report you have not sent yet. By day 6 the station is filing its own crew manifest, and
+it says two. Skip a report and Gateway opens the next shift asking why you went quiet, before it
+says anything else. On nights 4 and 6 the console has power when nothing else does - it runs off
+its own cell - and something keys the mic that is not Gateway and is not you.
+
+The voice is synthesised like everything else here, by `tools/gen_voice.py`, with nothing but the
+standard library: three formant resonators walking between one letter's targets and the next over a
+glottal pulse train, pitch falling across each sentence, then band-limited to 300-3000 Hz at an
+8 kHz sample rate, clipped, hissed, dropped out and wrapped in squelch. You do not make out the
+words - the console prints those - you make out that a person is reading a report at you, and on
+the last two nights that the person is wrong. The script is `comms/log.json`: edit it, re-run the
+tool, and the story changes without a line of code. See [docs/COMMS.md](docs/COMMS.md).
 
 ## Rotation
 
@@ -156,6 +183,12 @@ scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruste
 scripts/item.gd        the flashlight and the repair tools (built in code): hand / belt / loose, zero-G drift
 scripts/tool_belt.gd   four holsters at the waist that follow the body's heading
 scripts/holo_panel.gd  the crew terminal: tasks and stats as a hologram from the left wrist (Y / TAB)
+scripts/ps1.gd         PS1 mode: the vertex-lit, snapped, affine, one-texture-page look that holds 72 Hz
+scripts/comms.gd       autoload: the uplink - when Earth calls, what is due back, the night carriers
+scripts/comms_station.gd  the comms console: prints the message as it is spoken, hold to transmit
+comms/log.json         the whole story: seven messages from Earth, seven replies, two night carriers
+audio/voice/*.wav      one rendered transmission per entry (tools/gen_voice.py)
+tools/gen_voice.py     the radio voice: formant speech + the radio channel, standard library only
 scripts/orbit.gd       where the sun is: orbit clock tied to day and night, eclipse, sky shader uniforms, exterior sunlight
 scripts/window_sun.gd  sunlight through outside windows: per-window light patch and shaft, shaded by other modules
 sky/                   orbit_sky.gdshader and the baked textures: Earth day, night population, stars, tiling detail
@@ -196,8 +229,11 @@ tools/build_creature.py builds kit/creature_rig.json and kit/chupacabra_rig.json
 tools/riglib.py        shared rig machinery: bones, parts, fur, poses, the floor solver
 tools/build_apparition.py builds kit/apparition_corridor.json + its renders in docs/
 docs/APPARITIONS.md    the apparitions: the jinn/vulto basis, the corridor one, what comes next
+docs/PERFORMANCE.md    the frame budget: how it is measured, where it went, what to try next
+docs/COMMS.md          the uplink: the shift loop, the seven days, and how the voice is built
 docs/CREATURE.md       the night stalker: anatomy, poses, how to change it
-audio/*.wav            all synthesised by tools/gen_audio.py (numpy) - no third-party assets
+audio/*.wav            all synthesised by tools/gen_audio.py (numpy), tools/gen_flicker_audio.py and
+                       tools/gen_voice.py (standard library only) - no third-party assets
 build/web/             the exported WebXR build (index.html)
 ```
 
@@ -246,21 +282,59 @@ Smoke test the whole loop without a headset (day -> tasks -> night -> stalker ->
 DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000
 ```
 
-## Quest 3 performance notes
+## PS1 mode, and holding 72 Hz on a Quest 3
 
-- Compatibility renderer, no glow/SSAO, light depth fog, MSAA 2x. The hull is merged per 20 m chunk into one mesh
-  per material *group* (plating, grating, flat metals via vertex colours, self-lit screens, hazard, glass), so a
-  deck is roughly 80-100 hull draw calls; terminals and name plates cull beyond 16-20 m.
-- In a headset: no flashlight shadow map (the single biggest cost), eye buffers at 85 % scale, at most 3 sunlit
-  windows, one corridor light per two cells. Low graphics (phones) also drops the shadow and goes to 2 windows.
+The headset is the tightest machine this runs on: a browser, one wasm thread, every frame drawn twice, 13.8 ms
+each. **PS1 mode** is how it keeps up, and it is not a filter over the top - the look *is* the optimisation. Every
+trick in `scripts/ps1.gd` is one a 1996 console used, for the same reason it helps here:
+
+| | why it is cheap | why it looks like 1996 |
+|---|---|---|
+| vertex lighting | a corridor lit by four lamps costs four sums per vertex, not four per pixel | Gouraud shading |
+| one texture page | plating, grating, hazard stripes and painted metal share one image, so the static hull is one draw call per chunk | texture pages are exactly what the hardware had |
+| 0.6 render scale per eye | 36 % of the pixels of a native eye buffer | the console drew about 320x240 |
+| point-sampled 128 px art, no normal maps, no triplanar | one texture read a pixel instead of three or four, and no tangents on the bus | chunky texels, flat painted metal |
+| vertex snapping, affine texture mapping | free - it happens in the vertex shader | the wobble, and textures that swim across a floor |
+
+It is on by default in a headset and on phones, off on a desktop, and it is the first checkbox on the title
+screen either way (`?ps1=1` / `?ps1=0` in the URL forces it). Nothing about it changes the game: same deck, same
+rooms, same props, same fittings to grab, same lights, same stalker.
+
+Measured on one deck (`DERELICT_SEED=4242`), 44 viewpoints by day and night:
+
+| | worst frame | mean | texture memory |
+|---|---|---|---|
+| before | 563 draws | 242 | 51.8 MB |
+| now, modern look | 401 draws | 167 | 52.8 MB |
+| now, PS1 mode | 213 draws | 88 | 41.8 MB |
+
+And draw calls are only half of it: PS1 mode also draws 36 % of the pixels per eye, lights per
+vertex instead of per pixel, and reads one texture per pixel instead of three or four.
+
+One of the wins lands in both modes: **bolted wall fittings merge into the chunk mesh of the wall they hang on**
+(about two hundred draw calls of extinguishers, handholds and lockers, now free - and they keep their own
+forgiving grab boxes, so a hand still catches a rail the way it did). PS1 mode also drops the flashlight's shadow map (the single most expensive
+thing in a frame), MSAA, and two thirds of the dust, and culls dust at 12 m and loose props at 26 m.
+It does not touch the sunlit windows: light through a window is most of what a shift looks like,
+and it costs a sum per vertex now.
+
+Run the probe on any machine - draw calls and memory do not depend on the GPU measuring them:
+
+```
+DERELICT_SEED=4242 DERELICT_PS1=1 DERELICT_PERF=1 xvfb-run -a godot --path . --quit-after 2400
+```
+
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for what it prints, where the time went, and what to try next if a
+headset is still short.
+
 - The loading stage after "ENTER VR" / "Play" walks the camera through every room behind the black fade so all
   shaders compile before you can see anything.
-- Shadow atlas is 1024 on mobile (`project.godot`).
-- Physics runs at 72 Hz to match the headset's default refresh.
+- Shadow atlas is 1024 on mobile (`project.godot`). Physics runs at 72 Hz to match the headset's refresh.
 
 ## Ideas for next iterations
 
 - Hand-tracked grab-and-pull along rails (the brake-on-grip is a stand-in for that).
-- Audio logs on the terminals telling the previous crew's story.
+- Audio logs on the maintenance terminals: the crew that rotated home, in their own words, now that
+  the uplink has a voice to read them (`tools/gen_voice.py`).
 - Doors that actually close (the bulkhead rings are open frames).
 - Let the stalker leave marks: handprints on the portholes, a pod lid left open.

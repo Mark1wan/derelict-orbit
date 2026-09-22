@@ -1,0 +1,202 @@
+{
+  "_readme": "The story of a run, told over the uplink. tools/gen_voice.py reads this file and renders audio/voice/<id>.wav for every entry with a voice; scripts/comms.gd reads it at load. Keep lines short - they are printed on a 3D console screen and spoken at the same time.",
+  "station": "KESTREL-9",
+  "ground": "GATEWAY CONTROL",
+  "entries": [
+    {
+      "id": "d1_in", "day": 1, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Morning, Vasquez.",
+        "Board is green down here. Relief shuttle is",
+        "still booked for day eight, so it is you and",
+        "the deck for one more week.",
+        "Send us your shift report when you close out."
+      ]
+    },
+    {
+      "id": "d1_out", "day": 1, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. Shift report follows.",
+        "Maintenance complete. Deck is quiet.",
+        "Solo crew, one of one. Nothing to log.",
+        "Vasquez out."
+      ]
+    },
+
+    {
+      "id": "d2_in", "day": 2, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Report received, thank you.",
+        "Flight has a question on your power trace.",
+        "Deck lighting drew current for nine minutes",
+        "at zero three hundred station time. You were",
+        "asleep. Log what you find. No rush on it."
+      ]
+    },
+    {
+      "id": "d2_out", "day": 2, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. Shift report follows.",
+        "Tasks closed. Checked the lighting bus.",
+        "No fault, no log entry, breakers cold.",
+        "Something switched them on. Vasquez out."
+      ]
+    },
+
+    {
+      "id": "d3_in", "day": 3, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Copy your lighting note.",
+        "Life support is scrubbing carbon dioxide for",
+        "two people. It has been for six days.",
+        "We are not saying anything by that.",
+        "Confirm your crew count on the next pass."
+      ]
+    },
+    {
+      "id": "d3_out", "day": 3, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. Crew count is one.",
+        "One of one. I walked the whole deck to say it.",
+        "Scrubber is running hot, I swapped the filter.",
+        "Ask flight what else breathes. Vasquez out."
+      ]
+    },
+
+    {
+      "id": "d4_in", "day": 4, "kind": "inbound", "voice": "earth", "early": true,
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Understood, one of one.",
+        "And no, we do not know what else breathes.",
+        "Vasquez, we are answering a report you have",
+        "not sent yet. Round trip to you is four",
+        "minutes. Check your clock against ours."
+      ]
+    },
+    {
+      "id": "d4_out", "day": 4, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. My clock says what yours",
+        "says. Your answer landed before I keyed up.",
+        "I am reading the words back off my own screen.",
+        "Tasks are closed. I would like the shuttle early."
+      ]
+    },
+
+    {
+      "id": "d5_in", "day": 5, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Stop transmitting at night.",
+        "We logged eleven minutes of carrier from your",
+        "airlock at zero two forty. Voice traffic.",
+        "We ran it against your file, Vasquez.",
+        "It is your voice. It is asking to be let in."
+      ]
+    },
+    {
+      "id": "d5_out", "day": 5, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. I was in my pod at zero",
+        "two forty. The airlock panel was dark.",
+        "Do not answer it. Whatever keys that mic,",
+        "do not answer it. Vasquez out."
+      ]
+    },
+
+    {
+      "id": "d6_in", "day": 6, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Relief shuttle is away,",
+        "docking in your day eight. Good news.",
+        "On the hail, your station answered ours",
+        "with a crew manifest. It reported two souls",
+        "aboard. Vasquez, confirm that you are alone."
+      ]
+    },
+    {
+      "id": "d6_out", "day": 6, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. I am alone.",
+        "I am alone and I am not the one",
+        "sending you a manifest.",
+        "Tell the shuttle to come in lit. Vasquez out."
+      ]
+    },
+
+    {
+      "id": "d7_in", "day": 7, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. Last night, then home.",
+        "Shuttle is on approach. Listen to this part.",
+        "Do not open the inner hatch until they have",
+        "hard dock and they say your name.",
+        "Whatever answers before that, do not open it."
+      ]
+    },
+    {
+      "id": "d7_out", "day": 7, "kind": "reply", "voice": "self",
+      "from": "KESTREL-9, VASQUEZ",
+      "text": [
+        "Gateway, Kestrel-9. Copy, hatch stays shut.",
+        "Last shift is closed out. Deck is secure.",
+        "I will be at the window with the light on.",
+        "One of one. Vasquez out."
+      ]
+    },
+
+    {
+      "id": "n4", "day": 4, "kind": "night", "voice": "other",
+      "from": "CARRIER - SOURCE UNKNOWN",
+      "text": [
+        "Kestrel-9, Gateway. Morning, Vasquez.",
+        "Kestrel-9, Gateway. Morning, Vasquez.",
+        "Crew count is one. One of one.",
+        "I walked the whole deck to say it."
+      ]
+    },
+    {
+      "id": "n6", "day": 6, "kind": "night", "voice": "other",
+      "from": "CARRIER - SOURCE UNKNOWN",
+      "text": [
+        "Gateway, Kestrel-9. Manifest follows.",
+        "Two souls aboard. Two of two.",
+        "One is in the power plant with a light.",
+        "One is behind him. Kestrel-9 out."
+      ]
+    },
+
+    {
+      "id": "silence", "day": 0, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. We did not get a report",
+        "off you last shift. The uplink says you were",
+        "at the console. Key up and talk to us.",
+        "Somebody has to know you are still there."
+      ]
+    },
+    {
+      "id": "won", "day": 8, "kind": "inbound", "voice": "earth",
+      "from": "GATEWAY CONTROL, HOUSTON",
+      "text": [
+        "Kestrel-9, Gateway. We have hard dock.",
+        "They have your hatch. They are saying your",
+        "name, Vasquez. Open it and come home.",
+        "Gateway out. It was good working with you."
+      ]
+    }
+  ]
+}
