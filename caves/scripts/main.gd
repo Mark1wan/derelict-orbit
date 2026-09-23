@@ -857,6 +857,15 @@ func _autotest_route() -> void:
 			var arrived := false
 			for i in budget:
 				await get_tree().physics_frame
+				# Steer. A player faces where they are going and keeps facing it; pointing the
+				# body once at the start of a 1.5 m step and letting it run is how you crawl
+				# into the outer wall of a bend and slide along it for forty-five seconds, which
+				# is a flaw in the test rather than in the cave.
+				if i % 12 == 0:
+					var aim: Vector3 = want - caver.global_position
+					aim.y = 0.0
+					if aim.length_squared() > 0.04:
+						caver.debug_look(aim.normalized())
 				# Breathe out when it gets tight, which is what a player does and what the
 				# cave is designed around. Without it the walker reaches the Devil's Pinch,
 				# meets a slot narrower than a relaxed chest, and reports the game's central

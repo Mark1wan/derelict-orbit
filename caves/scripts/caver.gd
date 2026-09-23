@@ -770,6 +770,15 @@ func debug_brake(v: float) -> void:
 func debug_face(dir: Vector3) -> void:
 	teleport(global_position, dir)
 
+## Turn without the rest of what teleport does. `debug_face` re-fits the body and zeroes the
+## velocity, which is right when placing it and wrong when steering it mid-crawl.
+func debug_look(dir: Vector3) -> void:
+	scripted = true
+	if dir.length_squared() < 0.0001:
+		return
+	yaw = atan2(-dir.x, -dir.z)
+	origin.rotation.y = yaw
+
 func debug_state() -> Dictionary:
 	return {
 		"posture": body.name_of(),

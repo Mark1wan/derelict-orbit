@@ -274,12 +274,17 @@ func _build_rubble(b: Bore) -> void:
 
 		# How far out it has to sit to leave the route alone. A chunk is jittered outward by up
 		# to a third of its own size, so its real reach is wider than it was asked for, and the
-		# body still has to get past on the centreline. Everything here is measured from the
-		# block's INNER face for that reason.
+		# body still has to get past. Everything here is measured from the block's INNER face.
 		var reach: float = wide * 0.5 * (1.0 + Geo.CHUNK_JITTER)
 		var room: float = half - reach
 		var side: float = room * rng.randf_range(0.55, 0.98)
-		if absf(side) - reach < RUBBLE_KEEP:
+		# In anything you crawl through, a block is ALWAYS a slab. Keeping clear of the
+		# centreline is not enough there, because a crawling body does not travel down the
+		# centreline - it wanders a good half metre either side of it, which is most of the
+		# passage - and a block it meets at 64 degrees is a wall. This is the third time rubble
+		# has been the thing stopping the route walker, and the first two fixes were both "keep
+		# it further out". There is no further out in a ninety-centimetre tube.
+		if hi - lo < RUBBLE_STAND or absf(side) - reach < RUBBLE_KEEP:
 			# No room beside the route. Lay it down instead: a slab you crawl OVER is rubble
 			# too, and it is the only kind a fifty-centimetre crawl can have. One that stands up
 			# in there is a wall, and a wall in a tunnel is the bug this cave keeps being told
@@ -349,8 +354,11 @@ func _build_lights() -> void:
 ## cannot. Half a pair of shoulders is 23 cm; this is that plus a hand's width of margin.
 var _decor_debug := OS.has_environment("CAVE_DECOR")
 
-const RUBBLE_KEEP := 0.30
-const RUBBLE_SLAB := 0.07
+const RUBBLE_KEEP := 0.45
+const RUBBLE_SLAB := 0.05
+## Clear height below which a passage is somewhere you crawl, and rubble in it can only ever be
+## something you crawl over rather than something standing in it.
+const RUBBLE_STAND := 1.60
 
 const FILL_SPACING := 7.5
 const FILL_SPACING_LOW := 12.0

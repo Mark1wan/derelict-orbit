@@ -379,15 +379,21 @@ Blocks are `Geo.chunk`: six faces with all eight corners pushed about, so no two
 parallel. `Geo.box` was the obvious thing to reach for and it reads as a crate the moment there
 is more than one of them on a floor.
 
-**A block has to stay out of the route, or lie down.** Rubble goes on the `decor` body, which
-`CAVE_AUTOTEST=clear` skips - it has to, or every stalactite fails the clearance test as rock in
-the passage - so nothing in the geometry check can see a boulder in a crawl. The placement rule
-is therefore the guard: a block is pushed out until its *inner* face (its nominal half-width
-plus the third of it that `chunk` may jitter outward) clears the centreline by 30 cm, and if the
-passage is too small for that, it is flattened to a 7 cm slab and laid anywhere across the
-floor. Rubble you crawl over is rubble; rubble you cannot get past is a wall, and a wall in a
-tunnel is the bug this cave keeps being told about. The route walker is what caught the first
-version putting a boulder halfway down the Gullet.
+**In anything you crawl through, a block is always a slab.** Rubble goes on the `decor` body,
+which `CAVE_AUTOTEST=clear` skips - it has to, or every stalactite fails the clearance test as
+rock in the passage - so nothing in the geometry check can see a boulder in a crawl. The
+placement rule is the only guard, and it took three goes.
+
+The first two were both "keep it further from the centreline": a block is pushed out until its
+inner face (its nominal half-width plus the third of it that `chunk` may jitter outward) clears
+the line by 45 cm. That is right for a room and useless for a tunnel, because **a crawling body
+does not travel down the centreline.** It wanders a good half metre either side of it, which in
+a ninety-centimetre passage is most of the passage, and there is no further out to go. So below
+1.6 m of clear height - anything you are not walking in - `tall` is capped at 5 cm and the block
+is laid flat across the floor wherever it likes. Rubble you crawl over is rubble; rubble you
+cannot get past is a wall, and a wall in a tunnel is the bug this cave keeps being told about.
+
+All three were caught by the route walker and none of them by anything else.
 
 One formation in six is a column - the stalactite met the stalagmite growing under it and the
 two joined, which takes long enough that a cave with a few of them reads as an old one.
