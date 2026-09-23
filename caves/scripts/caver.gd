@@ -406,7 +406,16 @@ func _shape_body() -> void:
 	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
 	if prone:
 		_capsule.radius = clampf(b.y * 0.5 - CAPSULE_SKIN, 0.07, 0.30)
-		_capsule.height = maxf(PRONE_LENGTH, _capsule.radius * 2.0 + 0.02)
+		# Never longer than it can turn in, and never longer than it needs to be.
+		#
+		# A metre of capsule lying in an eighty-centimetre tube cannot rotate: asked to face a
+		# few degrees off the passage - on any bend, which is every bend - both ends bind on the
+		# walls. And length is what makes a long collider dig in at a break in slope, because a
+		# capsule pitched to the floor it is ON has its nose out over the floor AHEAD: the deeper
+		# that nose goes, the harder Godot shoves it back, and a body moving forward at a third
+		# of a metre a second covers half a metre in forty-five seconds. Half the length is half
+		# the dig.
+		_capsule.height = clampf(body.width * 0.92, _capsule.radius * 2.0 + 0.02, PRONE_LENGTH)
 		var up := _floor_up()
 		body_shape.basis = _prone_basis(up)
 		# Offset along the FLOOR NORMAL, not along world up. The capsule turns about its own
