@@ -29,6 +29,14 @@ const CENTRING := 0.55         ## how hard the body feels for the middle of a ti
 ## for gross collision. Without the skin the two disagree at exactly the margin the whole cave
 ## is built around, and the physics wins an argument it should not be having.
 const CAPSULE_SKIN := 0.015
+## How long the capsule is when you are flat out. A metre is a torso and a bit; the old 1.30 m
+## was a whole body, and the longer the capsule the more of a passage's curve it has to span at
+## once.
+const PRONE_LENGTH := 1.05
+## Steeper than this and the surface is not a floor to lie on, it is a wall, and the capsule
+## goes back to level rather than trying to stand on end.
+const PRONE_UPRIGHT := 0.60   ## cos of about 53 degrees
+const PRONE_SNAP := 0.10      ## how far a crawling body reaches down for the floor it left
 const GRAB_REACH_XR := 0.20    ## sphere around the controller that counts as touching rock
 const GRAB_REACH_FLAT := 1.9   ## how far in front of your eye the virtual hand can find rock
 const GRAB_PULL := 3.2         ## how hard a hand can haul the body toward its anchor
@@ -125,6 +133,8 @@ var _last_pos := Vector3.ZERO
 var _ground := Vector3.ZERO    ## the last place you were stood on something
 var _falling := 0.0
 var _floor_limit := -1e9       ## below this you are out of the cave; set from the cave data
+var _said := ""                ## the advice currently on the HUD, and when to repeat it
+var _say_again := 0.0
 var rescues := 0               ## times the safety net has had to put you back. Asserted zero
                                ## by the route test: trimming too much punches a hole to the
                                ## void, and this is how that gets noticed.
@@ -280,6 +290,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	_track_progress()
+	_advise(delta)
 	_safety_net(delta)
 	if rope:
 		rope.caver_moved(self, intent, delta)
@@ -309,6 +320,35 @@ func _safety_net(delta: float) -> void:
 	rescues += 1
 	_falling = 0.0
 	Cave.say("you came off - back on your feet" if not below else "out of the cave - back you go", 3.0)
+
+## Put the body's advice where the player is looking.
+##
+## It was on the survey slate and nowhere else, and the slate is an object on your wrist that
+## you have to decide to look at. So a player met the Devil's Pinch with a full chest, got held
+## by 1.5 cm of rock, saw the view close in and nothing else, and reported an impassable dead
+## end in a tunnel - which from inside the game is exactly what it was. The cave's whole central
+## mechanic was invisible at the one moment it mattered.
+##
+## Repeated rather than fired once, because being stuck is a state and not an event: the HUD
+## clears itself after a few seconds and the rock does not.
+const ADVICE_REPEAT := 2.5
+const ADVICE_CRAWL := 0.03   ## moving slower than this counts as being stopped
+
+func _advise(delta: float) -> void:
+	var say := body.advice()
+	# "Tight - try breathing out" is true for most of the Flatiron and saying so for twenty-five
+	# metres is nagging, not advice. On the HUD it waits until the rock has actually stopped you;
+	# the slate keeps showing it the whole time, which is what a slate is for.
+	if say != "" and not body.wedged and not body.air_locked \
+			and Vector3(velocity.x, 0.0, velocity.z).length() > ADVICE_CRAWL:
+		say = ""
+	_say_again -= delta
+	if say == _said and (say == "" or _say_again > 0.0):
+		return
+	_said = say
+	_say_again = ADVICE_REPEAT
+	if say != "":
+		Cave.say(say, ADVICE_REPEAT + 0.6)
 
 func _read_input(delta: float) -> void:
 	if scripted:
@@ -354,19 +394,61 @@ func chest_point() -> Vector3:
 ## Resize the capsule to whatever shape we currently are. Prone postures lie it down along the
 ## direction of travel, because a standing capsule in a 34 cm bedding crawl is a sphere that
 ## cannot get anywhere.
+##
+## And prone postures lie it down along the FLOOR, not along the horizon. A body flat out is a
+## metre of capsule pointing where you are going; leave it level in a passage that is dropping
+## at thirty degrees and its nose is a third of a metre higher than the roof in front of it, so
+## it jams - on nothing, in a tunnel with plenty of room, exactly like an invisible wall. The
+## whole reason for a passage with real climbs and drops in it is that you feel the ground
+## tilt, and that is worth nothing if the collider refuses to tilt with it.
 func _shape_body() -> void:
 	var b := body.box()
 	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
 	if prone:
 		_capsule.radius = clampf(b.y * 0.5 - CAPSULE_SKIN, 0.07, 0.30)
-		_capsule.height = maxf(1.30, _capsule.radius * 2.0 + 0.02)
-		body_shape.rotation = Vector3(PI * 0.5, origin.rotation.y, 0.0)
-		body_shape.position = Vector3(0, _capsule.radius + 0.01, 0)
+		_capsule.height = maxf(PRONE_LENGTH, _capsule.radius * 2.0 + 0.02)
+		var up := _floor_up()
+		body_shape.basis = _prone_basis(up)
+		# Offset along the FLOOR NORMAL, not along world up. The capsule turns about its own
+		# centre, so a body lying at thirty degrees with its centre a radius above the origin
+		# has its back end a quarter of a metre underneath the floor - and a trimesh with
+		# backface collision on is perfectly happy to keep it there, reading four centimetres of
+		# headroom in a passage 60 cm tall and folding the body down to superman inside the
+		# rock. Along the normal, the capsule sits on the slope however steep the slope is.
+		body_shape.position = up * (_capsule.radius + 0.01)
 	else:
-		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5 - CAPSULE_SKIN, 0.09, 0.28)
+		# In `commit` the width IS the mechanic, so the skin has to get out of its way. A
+		# centimetre and a half either side is three centimetres of slack, and the whole exhale
+		# is worth three and a half: at full skin a relaxed chest slides through the crux the
+		# body model says is shut, which is the one thing the Devil's Pinch must never do.
+		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() == "commit" else 1.0)
+		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5 - skin, 0.09, 0.28)
 		_capsule.height = maxf(b.y, _capsule.radius * 2.0 + 0.02)
-		body_shape.rotation = Vector3.ZERO
+		body_shape.basis = Basis.IDENTITY
 		body_shape.position = Vector3(0, _capsule.height * 0.5, 0)
+
+## The surface under the body, as an up vector, clamped to a tilt a body would actually lie at.
+## Only trusted while there IS a floor: in the air you lie level, which is both correct and what
+## this did before it could tilt at all.
+func _floor_up() -> Vector3:
+	var up := get_floor_normal() if is_on_floor() else Vector3.UP
+	if up.length_squared() < 0.001 or up.y < PRONE_UPRIGHT:
+		return Vector3.UP
+	return up.normalized()
+
+## The frame a lying-down capsule takes: long axis along the floor, pointing where you are going.
+func _prone_basis(up: Vector3) -> Basis:
+	var fwd := -origin.global_transform.basis.z
+	fwd.y = 0.0
+	if fwd.length_squared() < 0.001:
+		fwd = Vector3.FORWARD
+	fwd = fwd.normalized()
+	if absf(up.dot(fwd)) > 0.98:
+		return Basis(Vector3.UP.cross(fwd).normalized(), fwd, Vector3.UP)
+	# The capsule's long axis is its LOCAL Y.
+	var along := (fwd - up * fwd.dot(up)).normalized()
+	var side := up.cross(along).normalized()
+	return Basis(side, along, side.cross(along).normalized())
 
 # ---------------------------------------------------------------- moving
 
@@ -414,8 +496,28 @@ func _move(delta: float, frame: Basis) -> void:
 	velocity.z = flat.z
 
 	# Breakdown is a floor of loose blocks; without a step-up you catch on every one of them.
-	floor_max_angle = deg_to_rad(58.0 if body.posture <= CaverBody.KNEES else 40.0)
-	floor_snap_length = STEP_UP if is_on_floor() else 0.0
+	#
+	# One floor angle for every posture, and a steep one.
+	#
+	# Prone used to get 40 degrees and upright 58, which is backwards - flat out you have four
+	# points of contact and your weight spread along the rock - and the moment the passages had
+	# real gradients in them the crawls started coming off the floor on a thirty-degree ramp:
+	# airborne, the capsule stops tilting with the slope, gravity takes over, and the body
+	# slithers instead of crawling. Splitting the difference was worse than either, because 52
+	# turns the 57-degree lip at the Gullet's mouth from something you walk over into a wall.
+	#
+	# Snap is unconditional for the same reason the angle is generous. The usual reason to drop
+	# it while airborne is so a jump reads as a jump, and there is no jumping in a cave - there
+	# is rock you are on and rock you have briefly bounced off, and the second should end fast.
+	#
+	# But it is SHORT when you are flat out. 42 cm is the height of a breakdown block you step
+	# over in a room; in a 60 cm crawl it is most of the passage, and the cave is a shell one
+	# triangle thick with nothing behind it - so a body that leaves a thirty-degree floor for an
+	# instant snaps straight through it and ends up thirteen centimetres inside the rock,
+	# reporting four centimetres of headroom and folding itself down to superman. Enough to stay
+	# glued to a slope is all it needs.
+	floor_max_angle = deg_to_rad(58.0)
+	floor_snap_length = STEP_UP if body.posture <= CaverBody.KNEES else PRONE_SNAP
 
 ## Grip near rock and the hand is pinned to the world point it found; the body is then driven
 ## so that hand goes back to where it grabbed. Straight out of derelict-orbit's player.gd,
@@ -579,7 +681,7 @@ func _track_progress() -> void:
 	if Cave.cave and Cave.cave.has_method("passage_at"):
 		var p: Dictionary = Cave.cave.passage_at(global_position)
 		if not p.is_empty():
-			Cave.enter_passage(p["id"], p["label"])
+			Cave.enter_passage(p["id"], p["label"], bool(p.get("lead", false)))
 
 # ---------------------------------------------------------------- flat look
 
@@ -679,6 +781,10 @@ func debug_state() -> Dictionary:
 ## far a swept cast of that same capsule gets before it jams.
 func debug_contacts(heading: Vector3) -> Array[String]:
 	var out: Array[String] = []
+	out.append("  asked %s, facing %s, velocity %s, centring %+.2f, tightest %s, held %s/%s"
+		% [intent.move, _short(-origin.global_transform.basis.z), _short(velocity),
+			body.centring() * body.pressure * CENTRING, _short(body.tightest_dir),
+			_held[0], _held[1]])
 	out.append("capsule r %.3f h %.3f at %+.2f m, %s, on floor %s%s, vel %.3f m/s (y %+.2f)"
 		% [_capsule.radius, _capsule.height, body_shape.position.y,
 			"lying down" if absf(body_shape.rotation.x) > 0.1 else "upright",

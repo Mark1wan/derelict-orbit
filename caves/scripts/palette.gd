@@ -30,7 +30,7 @@ func _init() -> void:
 	# roughness map, low in the hollows and high on the ribs - so the multiplier is 1.0 and the
 	# texture decides. A single roughness for the whole wall is what makes wet rock look like
 	# wet plastic.
-	mats["rock_wet"] = textured(wet, Color(0.40, 0.40, 0.42), SCALE["rock"], 1.0, 0.0, 1.0)
+	mats["rock_wet"] = textured(wet, Color(0.40, 0.40, 0.42), SCALE["rock"], 1.0, 0.0, 1.25)
 
 	# Dry bedded limestone. Nothing in Sowbelly asks for it; it is the fallback `get_mat`
 	# returns for an unknown key, and the next cave may want somewhere that is not wet. The
@@ -42,7 +42,10 @@ func _init() -> void:
 	# its own KEY on purpose: Cave._commit routes "flow" onto the decor body, and the clearance
 	# test skips that body. Fold these into the wall material and every stalactite starts
 	# failing the test as rock standing in the passage.
-	mats["flow"] = textured(wet, Color(0.43, 0.43, 0.44), SCALE["rock"], 0.85, 0.0, 1.0)
+	# Calcite, and the blocks on the floor. Paler than the wall on purpose: a formation is
+	# a different mineral and a stalactite you cannot pick out of the roof is not doing
+	# its job. Not white - white lines on rock is the note this cave already took once.
+	mats["flow"] = textured(wet, Color(0.56, 0.55, 0.52), SCALE["rock"], 0.85, 0.0, 1.15)
 
 	# Seams: the lip of rock where one passage's tube crosses another's end face. Those faces
 	# have to stay - cutting them opens a hole to the void - but they belong to the tunnel and
@@ -50,7 +53,7 @@ func _init() -> void:
 	# Every other face in the cave is single-sided and that is correct; these are the handful
 	# that would otherwise be solid and invisible, which is the one thing this cave is not
 	# allowed to have. Drawn from both sides, a seam is a lip at the mouth, which is what it is.
-	var seam := textured(wet, Color(0.40, 0.40, 0.42), SCALE["rock"], 1.0, 0.0, 1.0)
+	var seam := textured(wet, Color(0.40, 0.40, 0.42), SCALE["rock"], 1.0, 0.0, 1.25)
 	seam.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mats["seam"] = seam
 

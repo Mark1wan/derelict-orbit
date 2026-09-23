@@ -29,39 +29,48 @@ rather than repeating what was written about it.
 
 | Passage | Length | Crux | Posture there | Spare | With a full chest |
 |---|---|---|---|---|---|
-| The Pitch | 16.8 m | 1.85 m high | standing | 10.4 cm | goes |
+| The Pitch | 16.8 m | 1.86 m high | standing | 10.8 cm | goes |
 | The Cellar | 9.5 m | 2.40 m high | standing | 65.0 cm | goes |
-| The Gullet | 15.5 m | 0.85 m high | hands and knees | 10.2 cm | goes |
+| The Gullet | 15.8 m | 0.41 m high | flat out | 10.7 cm | goes |
 | The Bone Box | 6.5 m | 2.12 m high | standing | 37.0 cm | goes |
-| The Flatiron | 24.1 m | 0.42 m high | flat out | 11.9 cm | goes |
-| The Devil's Pinch | 9.4 m | **0.46 m wide** | hands and knees | 0.2 cm | **shut at 4.4 m** |
-| The Drainpipe | 4.9 m | 0.34 m high | flat out | 3.1 cm | shut at 2.4 m |
+| The Flatiron | 25.2 m | 0.35 m high | flat out | 4.8 cm | goes |
+| The Devil's Pinch | 9.2 m | **0.46 m wide** | flat out | 0.1 cm | **shut at 4.1 m** |
+| The Drainpipe | 5.0 m | 0.32 m high | flat out | 1.1 cm | shut at 2.0 m |
 
 **Crux** here means the station with the least room to spare in the best posture available
-*there* - not the narrowest section, which for the Devil's Pinch is a 28.5 cm slot you pass
+*there* - not the narrowest section, which for the Devil's Pinch is a 28.8 cm slot you pass
 sideways and not the thing that stops you. That is why the Pinch's crux row says 0.46 m and
-hands and knees: 46 cm is exactly a pair of shoulders, so that is where you have to turn.
+flat out: 46 cm is exactly a pair of shoulders, so that is where you have to turn.
 
-Three of those rows moved this round and it was not the cave that changed. Standing, stooping
-and hands-and-knees now want 10 cm of clear headroom over the shape itself before the body will
-take them (`POSTURE_CLEAR` - see [MOVEMENT.md](MOVEMENT.md#the-postures)), so a crux is now the
-tightest place the game will *choose* a posture rather than the tightest one a body would
-physically pass. The Flatiron reads as flat out rather than hands and knees for the same reason,
-which is what it always was to play.
+Every posture in the tunnel rows is `flat out`. That is the rule and not a coincidence - see
+below.
 
-It also prints the tallest point of every tunnel, because "there is nowhere you can stand up"
-is a rule and rules here are gates:
+It also gates three rules that are easy to state, easy to lose, and were all lost at least once:
 
 ```
-  tunnel The Gullet           tallest 1.36 m at 0.0 m in   ok
-  tunnel The Flatiron         tallest 0.81 m at 0.0 m in   ok
-  tunnel The Devil's Pinch    tallest 1.30 m at 2.4 m in   ok
-  tunnel The Drainpipe        tallest 0.38 m at 0.0 m in   ok
+  tunnel The Gullet           tallest 1.09 m, narrowest 0.48 m at 13.2 m in, 3 pinches   ok
+  tunnel The Flatiron         tallest 0.76 m, narrowest 0.41 m at 21.9 m in, 3 pinches   ok
+  tunnel The Devil's Pinch    tallest 1.30 m, narrowest 0.29 m at  4.8 m in, 1 pinch   ok
+  tunnel The Drainpipe        tallest 0.50 m, narrowest 0.20 m at  5.0 m in, 0 pinches   ok
 ```
 
-Standing needs 1.75 m. The two rooms are allowed to be rooms and the Pitch is a hole you go
-down on a rope; everything between them is a bore, and if a profile keyframe ever creeps back
-over the line the build says so rather than somebody noticing in a screenshot.
+**Nothing you can stand up in**, and the number that is checked is the DRAWN height of the
+section - 1.35 m is the ceiling - rather than the clearance a pair of shoulders can find in it.
+That distinction is the whole reason this gate was rewritten. The old one asked whether the game
+would pick `stand`, and the Devil's Pinch passed it comfortably while standing 1.72 m tall,
+because at shoulder width a 28 cm slot has no gap at all. The rule was satisfied and a
+playtester still reported a tunnel they could stand up in - because they could see one. What you
+can see is the rule.
+
+**Pinches**, at least two per through-crawl: places where the bore closes to under two thirds of
+the passage either side of it and opens again. A tunnel that is merely small the whole way along
+is a pipe; what makes it a cave is having to work through something.
+
+**It keeps closing.** Each tunnel's narrowest gap is narrower than the one before it on the
+route - 48 cm, then 41, then 29, then 20. Measured on the tightest single dimension rather than
+on area, because a rift trades width for height: the Pinch's crux is 28.8 cm across and taller
+than the tube that fed into it, so by area it reads as relief while being the hardest thing in
+the cave.
 
 `check_fit.py` also prints the joins, because a cave whose passages are each passable can still
 be impassable where two of them meet. `end inside` means the first passage's last station falls
@@ -99,35 +108,39 @@ enough to be a decision.
 
 ### 2. The Cellar
 
-9 × 5 m and 3 m to the roof, with seven formations on the walls. The rope
-lands you here. It is one of two places in Sowbelly where you can stand up, and it exists to
-give you a scale that everything afterwards takes away - you get about eight metres of walking,
-and then the Gullet.
+9 × 5 m and 3 m to the roof, sixteen formations hanging off it and fourteen blocks of roof on
+the floor under them. The rope lands you here. It is one of two places in Sowbelly where you can
+stand up, and it exists to give you a scale that everything afterwards takes away - you get
+about eight metres of walking, and then the Gullet.
 
 ### 3. The Gullet
 
 A phreatic tube - dissolved when this part of the system was full of water, which is why it is
-round and why it bends the way it does. 1.70 × 1.50 m at the mouth, closing to 0.92 × 0.88 m
-over fifteen metres as it descends. It is the shape the rest of the cave is measured against: a
-bore, round, and narrower at every station than it was at the last.
+round and why it bends the way it does. 1.30 × 1.15 m at the mouth, closing to 0.88 × 0.66 m
+over sixteen metres, with three pinches on the way where it shuts to about half that and opens
+again.
 
-It is the passage that puts you on your hands and knees without asking, and it does it
-gradually: the ceiling comes down over ten metres rather than at a step, so you are already
-crawling by the time you notice you stopped walking. By the last few metres you are on your
-chest, and it has not done anything abrupt to get you there.
+It puts you on your belly in the first three metres and keeps you there. Twenty-two degrees of drop straight out of the Cellar, four metres of near-level crawl, then it
+climbs twelve degrees back up over a rib before dropping twenty-six into the Bone Box - so you
+are never on the flat for long, and you have gained and lost height with your face fifty
+centimetres from the rock.
+
+The verticality is not decoration. It is the reason the collision capsule now lies along the
+floor rather than along the horizon, and the reason a prone body is allowed a steeper floor
+angle than an upright one: both of those were bugs this passage exposed the day it stopped being
+a ramp. See [MOVEMENT.md](MOVEMENT.md).
 
 ### 4. The Bone Box
 
-7 × 4.5 m, roof at 2.8. The last place in the cave you stand up, and you can see the Flatiron
-from it: a hole in the far wall about knee high and no wider than your shoulders. It is a small
-room and it is meant to feel like one after the Cellar, because the cave is closing down the
-whole way.
+7 × 4.5 m, roof at 2.8, eleven formations and ten blocks. The last place in the cave you stand
+up, and you can see the Flatiron from it: a hole in the far wall about knee high and no wider
+than your shoulders. It is a small room and it is meant to feel like one after the Cellar,
+because the cave is closing down the whole way.
 
 ### 5. The Flatiron
 
-Twenty-four metres of the same bore, squashed. It keeps the Gullet's shape and loses its height:
-0.91 m across and 51 cm floor to ceiling at its worst, which is 47 cm of clear space once the
-keel is in.
+Twenty-five metres of the same bore, squashed. It keeps the Gullet's shape and loses its height:
+1.02 × 0.78 m at the mouth and 0.78 × 0.44 m at its worst, with three pinches of its own.
 
 It used to be a bedding plane - 3.2 m wide and 41 cm high, the parting between two beds of
 limestone. That is a real passage type and it was the wrong one for this cave: a slab that wide
@@ -140,31 +153,41 @@ your shoulders clear it, so the same 41 cm would be impassable and the tightest 
 to come up a little as the widths collapsed. Flat out, one arm ahead, helmet scraping, and the
 scrape loop never stops.
 
+It is not flat either. It drops fifteen degrees out of the Bone Box, runs level, climbs fourteen
+back up, and drops seventeen into the Pinch - which over twenty-five metres of belly crawl is
+most of what stops it being a corridor.
+
 ### 6. The Devil's Pinch
 
-A joint pulled open: two near-parallel faces of rock and, at the worst of it, **28.5 cm apart**.
+A joint pulled open: two near-parallel faces of rock and, at the worst of it, **28.8 cm apart**.
 The one thing in the cave that is not a bore, and the only place that shape earns itself.
 
-It arrives as a tube and turns into a slot, and it only gains height once it has already lost
-the width to fit a pair of shoulders - so it is 1.7 m tall where it is 28 cm wide, and nowhere
-in it can you stand. That is deliberate: the tall part being *also* wide is what made the old
-version a standing-height corridor, which is the one thing this cave does not have.
+It arrives as a tube and turns into a slot, 1.30 m tall where it is 28.8 cm wide. It used to be
+1.72 m tall there, which is the same crux and a completely different room to be in: at 27 cm of
+width a 28-sided polygon gives back only about three quarters of the height it is drawn with, so
+a committed body needed a slot well over head height to fit through the gap. The fix was not to
+open the crux, it was to stop pretending a committed body stands up straight - `commit` is 1.02 m
+now, which is what being sideways in a 28 cm slot actually looks like, and the slot came down
+with it. See [MOVEMENT.md](MOVEMENT.md#the-postures).
 
 You go through it turned sideways, and you do not go through it at all with a full chest. A
-relaxed chest plus the 5 mm of oversuit is 30.5 cm, and 4.4 m in - halfway - the passage stops
-being wide enough for that. Emptied it is 27.0 cm, which leaves 1.5 cm of rock either side of
-you.
+relaxed chest plus the 5 mm of oversuit is 30.5 cm, and 4.1 m in - just under halfway - the
+passage stops being wide enough for that. Emptied it is 27.0 cm, which leaves about 9 mm of rock
+either side of you.
 
 Push into it with a full chest and you get held: pressure goes to 1.00, forward does nothing,
-and the slate tells you what to do about it. Empty your chest and the rock lets go. That is the
-whole cave in one sentence, and everything else in Sowbelly exists to get you to it prepared.
+and **the screen tells you what to do about it**. That last part is new and it is the whole
+reason this passage was being reported as a bug - the advice was on the survey slate, which is
+an object on your wrist you have to decide to look at. Empty your chest and the rock lets go.
+That is the whole cave in one sentence, and everything else in Sowbelly exists to get you to it
+prepared.
 
 ### 7. The Drainpipe
 
-A lead, not a route. It leaves the bottom of the Pinch heading down, 62 cm at the mouth - it
-carries on from where the Pinch left off rather than starting again - and narrowing all the way,
-and 2.4 m in - 48 % of its length - it stops admitting anything human,
-in any posture, with any amount of air in your chest. It carries on getting smaller for another
+A lead, not a route. It leaves the bottom of the Pinch heading down at nearly thirty degrees,
+60 cm at the mouth - it carries on from where the Pinch left off rather than starting again -
+and narrowing all the way, and 2.7 m in, 54 % of its length, it stops admitting anything human
+in any posture with any amount of air in your chest. It carries on getting smaller for another
 two metres and then it is rock.
 
 The point of it is the committing. You can get far enough in to be sure, head down, before you
@@ -172,6 +195,12 @@ find out - and then you have to reverse out of it, because there is nowhere to t
 `check_fit.py` enforces both halves: a passage marked `dead_end` must close, *and* must not
 close in the first 45 % of its length, because a dead end you cannot enter is just a wall and
 teaches nothing.
+
+**And the cave now says so on the way in.** A passage that quietly stops being big enough for a
+person is indistinguishable from a broken game, and that is exactly how it was reported: "hit an
+impassable dead end in a tunnel". Entering a `dead_end` passage for the first time puts *a lead
+- it closes, and you reverse out* on the screen under its name. Everything the cave asks of you
+it has to tell you it is asking.
 
 ## Authoring another one
 
@@ -245,11 +274,18 @@ nominal height. `check_fit.py` measures the polygon rather than the ideal curve,
 it is the thing to tune against and arithmetic on `w` and `h` is not.
 
 **`rough` is a wall number.** Because displacement is radial and outward-only, on a floor it
-digs rather than piles, and a vertex facing straight down keeps only 18 % of it
+digs rather than piles, and a vertex facing straight down keeps only 9 % of it
 (`Geo.FLOOR_EASE`). That is both what a cave looks like - water leaves walls rough and fills
-floors flat, with silt and sand and cobbles settling - and what makes a room walkable. At full
-strength, 45 cm of roughness on the Cellar's floor cut ditches in it with fifty-degree sides,
-and the route walker stopped dead 93 % of the way across with no rock anywhere near its chest.
+floors flat, with silt and sand and cobbles settling - and what makes a passage crawlable. At
+full strength, 45 cm of roughness on the Cellar's floor cut ditches in it with fifty-degree
+sides, and the route walker stopped dead 93 % of the way across with no rock anywhere near its
+chest.
+
+It came down from 18 % to 9 % when the crawls got rugged. A crawling body has no step-up: it
+climbs what `floor_max_angle` lets it slide up and snags on anything steeper, and 11 cm of
+displacement keeping a fifth of itself makes faces well past that. The ruggedness you see is on
+the walls and the roof - where it can be as steep as it likes - and in the texture. Not
+underneath you.
 Sowbelly has one rock everywhere now - wet limestone, walls, roof and floor alike - so `keel`
 is doing the work a mud texture used to: it is what tells you which way is down.
 
@@ -316,6 +352,29 @@ is what it is - you can see it, you can climb over it, and caves have them. Sowb
 about 2,200 seam triangles out of 23,300, on their own `StaticBody3D` so the tests can name them
 when one of them is in the way. Everything else in the cave stays single-sided, which is both
 correct and cheaper.
+
+### Rubble and formations
+
+A dissolved tube is a smooth shell and nothing with a few thousand years of roof falling into it
+stays one. So passages carry `rubble` and rooms carry `speleothems`, both built in `cave.gd`
+riding the passage's own frames so they land where the section actually is however it bends.
+
+Blocks are `Geo.chunk`: six faces with all eight corners pushed about, so no two edges are
+parallel. `Geo.box` was the obvious thing to reach for and it reads as a crate the moment there
+is more than one of them on a floor.
+
+**A block has to stay out of the route, or lie down.** Rubble goes on the `decor` body, which
+`CAVE_AUTOTEST=clear` skips - it has to, or every stalactite fails the clearance test as rock in
+the passage - so nothing in the geometry check can see a boulder in a crawl. The placement rule
+is therefore the guard: a block is pushed out until its *inner* face (its nominal half-width
+plus the third of it that `chunk` may jitter outward) clears the centreline by 30 cm, and if the
+passage is too small for that, it is flattened to a 7 cm slab and laid anywhere across the
+floor. Rubble you crawl over is rubble; rubble you cannot get past is a wall, and a wall in a
+tunnel is the bug this cave keeps being told about. The route walker is what caught the first
+version putting a boulder halfway down the Gullet.
+
+One formation in six is a column - the stalactite met the stalagmite growing under it and the
+two joined, which takes long enough that a cave with a few of them reads as an old one.
 
 ### And the thing all of this replaced
 

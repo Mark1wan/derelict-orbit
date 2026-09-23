@@ -34,7 +34,7 @@ CI rather than a cave quietly broken.
 | `stoop` | 1.25 m | 0.46 m | 1.00 m/s | 1.12 m |
 | `knees` | 0.75 m | 0.46 m | 0.75 m/s | 0.58 m |
 | `belly` | **chest + 4 cm** | 0.46 m | 0.34 m/s | 0.19 m |
-| `commit` | 1.25 m | **chest + 0.5 cm** | 0.13 m/s | 1.10 m |
+| `commit` | 1.02 m | **chest + 0.5 cm** | 0.13 m/s | 0.88 m |
 | `superman` | **chest + 2 cm** | 0.32 m | 0.10 m/s | 0.17 m |
 
 The two bold columns are where the exhale lands. `belly` is prone, so your chest is the
@@ -46,10 +46,26 @@ shoulders from 46 cm to 32 cm and is the only way into a tube narrower than you 
 The 4 cm on `belly` is the helmet, the oversuit and whatever is on your back. `commit` gets
 only 5 mm because turned sideways in a slot there is nothing on you that is not squashed flat.
 
+`commit` is **1.02 m tall, not 1.25**, and that number is load-bearing. Nobody goes through a
+28 cm slot standing to attention - you are sideways, knees bent, head turned. It matters because
+the section is drawn as a polygon: at 27 cm of width a rift gives back barely three quarters of
+its drawn height, so a 1.25 m body needed a slot 1.7 m tall to fit, and a 1.7 m slot is a tunnel
+you can see yourself standing up in. A playtester found that in about a minute.
+
 **Posture is automatic.** Up-casts from your feet measure the ceiling, and you become the
 fastest shape that fits under it. In a real cave nobody decides to crouch - the rock decides,
 and taking that routine choice away leaves the interesting one, which is whether to go lower
 than you have to. That is what LOW is for.
+
+**Everything that looks a pace ahead walks the floor to get there.** Headroom, the second
+contact ring and the width probe all step forward along the *flattened* heading - they have to,
+or the body's frame twists every time the passage tips. So on an eighteen-degree climb a point
+projected 85 cm ahead lands a third of a metre nearer the floor than it started, which in a
+fifty-centimetre crawl is underneath it; casting sideways from inside rock reports no width at
+all, and the body folds down to its smallest shape and wedges in a passage it fits comfortably.
+`_along_floor` finds the floor under the projected point and restores the height it had. That is
+what a gradient does to a look-ahead that does not know about gradients, and this cave is full of
+gradients on purpose.
 
 **Casts, plural, and that matters.** Headroom is read at the centreline *and half a shoulder
 span either side of it*, and the tightest of the three wins. One ray up the middle reads the
@@ -208,6 +224,34 @@ cast from inside rock hits nothing and reports open space - and a body that ends
 embedded in a wall reads the cave as a cathedral and tries to stand up in a slot. Every
 collider here sets `backface_collision`, which makes the body model self-recovering: embedded
 means zero clearance, which folds you down immediately.
+
+**A prone body lies along the floor, not along the horizon.** Flat out, the collision capsule
+is a metre of capsule pointing where you are going. Leave it level in a passage dropping at
+thirty degrees and its nose sits a third of a metre higher than the roof in front of it, so it
+jams - on nothing, in a tunnel with room to spare, which from inside is indistinguishable from
+an invisible wall. It now takes its long axis from `get_floor_normal()`, clamped to about 46
+degrees, and it is a metre rather than 1.3 m, because the longer the capsule the more of a
+passage's curve it has to span at once. Passages with real climbs and drops in them are worth
+nothing if the collider refuses to tilt with them.
+
+**And the floor it reaches down for is short when you are flat out.** `floor_snap_length` keeps
+a body glued to a slope it would otherwise leave for an instant, and 42 cm of it is right for
+stepping over breakdown in a room. In a 60 cm crawl it is most of the passage, and this cave is
+a shell one triangle thick with nothing behind it - so a body that came off a thirty-degree
+floor snapped straight through it, ended up 13 cm inside the rock, read four centimetres of
+headroom and folded itself down to `superman`. Prone gets 10 cm, which is all it needs.
+
+One floor angle for every posture, and a generous one: **58 degrees**. Prone used to get 40 and
+upright 58, which is backwards - flat out you have four points of contact and your weight spread
+along the rock. Splitting the difference at 52 was worse than either, because it turns the
+57-degree lip at the Gullet's mouth from something you walk over into a wall.
+
+**The body says what is wrong where you are looking.** `Caver._advise` puts `CaverBody.advice()`
+on the HUD and repeats it every 2.5 s while it holds. It used to be on the survey slate and
+nowhere else - and the slate is an object on your wrist you have to decide to look at. So a
+player met the Devil's Pinch with a full chest, got held by 15 mm of rock, saw the view close in
+and nothing else, and reported an impassable dead end. The cave's central mechanic was invisible
+at the one moment it mattered.
 
 **A body arrives the right shape.** `teleport` probes and folds before the first physics step,
 in two passes, because where the chest sits depends on the posture and the posture depends on

@@ -92,6 +92,7 @@ func build() -> void:
 	for b in bores:
 		if b.kind == "room":
 			_build_speleothems(b)
+		_build_rubble(b)
 
 	_resolve_start()
 	_commit()
@@ -203,10 +204,7 @@ func _commit() -> void:
 ## placement rides the passage's own frames - hang them off the roof of each section rather than
 ## off a box, and they land where the section actually is however it bends.
 func _build_speleothems(b: Bore) -> void:
-	var count := 0
-	for p: Dictionary in data.get("passages", []):
-		if p.get("id", "") == b.id:
-			count = int(p.get("speleothems", 0))
+	var count := _count(b.id, "speleothems")
 	if count <= 0:
 		return
 	var rng := RandomNumberGenerator.new()
@@ -214,24 +212,104 @@ func _build_speleothems(b: Bore) -> void:
 	var g: Geo = _pick(b.points[b.points.size() / 2], "flow")
 	for i in count:
 		var at: int = rng.randi_range(1, maxi(b.points.size() - 2, 1))
+		if _borrowed(b, at):
+			continue
 		var sec: PackedVector2Array = b.sections[at]
 		var lo := INF
 		var hi := -INF
+		var half := 0.0
 		for q: Vector2 in sec:
 			lo = minf(lo, q.y)
 			hi = maxf(hi, q.y)
-		var half := 0.0
-		for q: Vector2 in sec:
 			half = maxf(half, absf(q.x))
 		var f: Basis = b.frames[at]
 		# Out towards the walls rather than down the middle of the room: the line you walk is
 		# the line you look along, and a stalagmite in it reads as a bug even when it is not.
-		var side: float = half * rng.randf_range(0.40, 0.80) * (1.0 if rng.randf() < 0.5 else -1.0)
-		var roof: Vector3 = b.points[at] + f.y * (hi - 0.05) + f.x * side
-		g.spike(roof, rng.randf_range(0.2, 0.7), rng.randf_range(0.04, 0.12), false, 6)
-		if rng.randf() < 0.5:
-			var floor_p: Vector3 = b.points[at] + f.y * (lo + 0.02) + f.x * side
-			g.spike(floor_p, rng.randf_range(0.15, 0.5), rng.randf_range(0.05, 0.14), true, 6)
+		var side: float = half * rng.randf_range(0.35, 0.86) * (1.0 if rng.randf() < 0.5 else -1.0)
+		var drop: float = rng.randf_range(0.25, 0.95)
+		var thick: float = rng.randf_range(0.05, 0.17)
+		var roof: Vector3 = b.points[at] + f.y * (hi - 0.04) + f.x * side
+		if _decor_debug:
+			print("[decor] %s spike side %+.2f half %.2f drop %.2f at %s"
+				% [b.id, side, half, drop, roof])
+		g.spike(roof, drop, thick, false, 7)
+		# One in six is a column: the stalactite met the stalagmite growing under it and the two
+		# joined, which takes long enough that a cave with a few of them reads as an old one.
+		var gap: float = (hi - lo) - drop
+		if rng.randf() < 0.17 and gap > 0.1:
+			g.spike(b.points[at] + f.y * (lo + 0.02) + f.x * side, gap, thick * 0.85, true, 7)
+		elif rng.randf() < 0.62:
+			g.spike(b.points[at] + f.y * (lo + 0.02) + f.x * side,
+				rng.randf_range(0.18, 0.62), thick * rng.randf_range(0.9, 1.6), true, 7)
+
+## Blocks on the floor. A dissolved tube is a smooth shell and nothing that has had a few
+## thousand years of roof falling into it stays one, so passages get loose rock in them - which
+## is also the difference between crawling along a pipe and crawling over something.
+##
+## They ride the section the same way the formations do, are kept off the centreline, and are
+## capped at a fraction of the passage's own height, because rubble you cannot get over in a
+## 45 cm crawl is a wall.
+func _build_rubble(b: Bore) -> void:
+	var count := _count(b.id, "rubble")
+	if count <= 0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = b.points.size() * 31 + count * 7
+	var g: Geo = _pick(b.points[b.points.size() / 2], "flow")
+	for i in count:
+		var at: int = rng.randi_range(1, maxi(b.points.size() - 2, 1))
+		if _borrowed(b, at):
+			continue
+		var sec: PackedVector2Array = b.sections[at]
+		var lo := INF
+		var hi := -INF
+		var half := 0.0
+		for q: Vector2 in sec:
+			lo = minf(lo, q.y)
+			hi = maxf(hi, q.y)
+			half = maxf(half, absf(q.x))
+		var f: Basis = b.frames[at]
+		var wide: float = clampf(half * rng.randf_range(0.16, 0.42), 0.06, 0.55)
+		var tall: float = clampf((hi - lo) * rng.randf_range(0.10, 0.26), 0.05, 0.42)
+
+		# How far out it has to sit to leave the route alone. A chunk is jittered outward by up
+		# to a third of its own size, so its real reach is wider than it was asked for, and the
+		# body still has to get past on the centreline. Everything here is measured from the
+		# block's INNER face for that reason.
+		var reach: float = wide * 0.5 * (1.0 + Geo.CHUNK_JITTER)
+		var room: float = half - reach
+		var side: float = room * rng.randf_range(0.55, 0.98)
+		if absf(side) - reach < RUBBLE_KEEP:
+			# No room beside the route. Lay it down instead: a slab you crawl OVER is rubble
+			# too, and it is the only kind a fifty-centimetre crawl can have. One that stands up
+			# in there is a wall, and a wall in a tunnel is the bug this cave keeps being told
+			# about.
+			tall = minf(tall, RUBBLE_SLAB)
+			side = room * rng.randf_range(-0.9, 0.9)
+		var at_p: Vector3 = b.points[at] + f.y * (lo + tall * 0.40) + f.x * side
+		if _decor_debug:
+			print("[decor] %s rubble side %+.2f reach %.2f half %.2f tall %.2f at %s"
+				% [b.id, side, reach, half, tall, at_p])
+		g.chunk(at_p, Vector3(wide, tall, wide * rng.randf_range(0.6, 1.5)), rng.randi())
+
+## Is this station somewhere another passage already is?
+##
+## Passages join by overlapping - the last stations of one sit inside the next - so the last
+## couple of metres of a crawl are geometrically inside a room, and the crawl's own walls there
+## have been cut away. Decorate those stations and the blocks come out sized for a 90 cm tube
+## and standing loose in the middle of a chamber, on the line a player walks. That is how the
+## Gullet put a boulder in the Bone Box, and it is the same shape of mistake as the tube walls
+## that used to hang invisibly inside the rooms: geometry placed by one passage in a place
+## another passage owns.
+func _borrowed(b: Bore, at: int) -> bool:
+	var one := PackedVector3Array([b.points[at]])
+	return _inside_another(one, b, 1.0) != Bore.KEEP
+
+func _count(id: String, key: String) -> int:
+	for p: Dictionary in data.get("passages", []):
+		if p.get("id", "") == id:
+			return int(p.get(key, 0))
+	return 0
 
 # ---------------------------------------------------------------- fittings
 
@@ -267,6 +345,13 @@ func _build_lights() -> void:
 ## All unshadowed. The Compatibility renderer pays per light per pixel and shadow maps are the
 ## most expensive thing in either of these two games, so the fill is light and the one shadow
 ## budget stays on the headlamp.
+## How much of the centreline rubble has to leave alone, and how tall a block may be when it
+## cannot. Half a pair of shoulders is 23 cm; this is that plus a hand's width of margin.
+var _decor_debug := OS.has_environment("CAVE_DECOR")
+
+const RUBBLE_KEEP := 0.30
+const RUBBLE_SLAB := 0.07
+
 const FILL_SPACING := 7.5
 const FILL_SPACING_LOW := 12.0
 const FILL_ENERGY := 1.5
@@ -280,7 +365,10 @@ func _build_fill_lights() -> void:
 	var made := 0
 
 	for b in bores:
-		var step: int = maxi(int(round(spacing / Bore.STATION_STEP)), 1)
+		# A room needs more than a passage: one lamp in the middle of a nine-metre chamber is a
+		# bulb with a dark room around it, and that is what the Cellar looked like.
+		var reach: float = spacing * (0.5 if b.kind == "room" else 1.0)
+		var step: int = maxi(int(round(reach / Bore.STATION_STEP)), 1)
 		var i: int = step / 2
 		while i < b.points.size() and made < FILL_MAX:
 			var sec: PackedVector2Array = b.sections[i]
@@ -368,10 +456,20 @@ func passage_at(p: Vector3) -> Dictionary:
 		var n := b.nearest(p)
 		if n["dist"] < best_d:
 			best_d = n["dist"]
-			best = {"id": b.id, "label": b.label, "along": n["along"], "t": n["t"], "dist": n["dist"]}
+			best = {"id": b.id, "label": b.label, "along": n["along"], "t": n["t"],
+				"dist": n["dist"], "lead": _is_lead(b.id)}
 	if best_d > 6.0:
 		return {}
 	return best
+
+## A lead is a passage that pinches out. The player has to be told, once, on the way in: a
+## passage that stops being big enough for a human is indistinguishable from a bug unless the
+## cave says it meant it, and "I hit an impassable dead end" is what that looks like reported.
+func _is_lead(id: String) -> bool:
+	for p: Dictionary in data.get("passages", []):
+		if p.get("id", "") == id:
+			return bool(p.get("dead_end", false))
+	return false
 
 ## Below this there is no cave, only the void outside the shell. The caver's safety net uses it
 ## to notice it has fallen out of the world.

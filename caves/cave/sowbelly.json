@@ -1,148 +1,544 @@
 {
-  "name": "Sowbelly Cave",
-  "note": "Fictional. The geology, the passage types and the squeeze dimensions are drawn from real caving; the cave and everything in it is invented. Metres, Y up, the shaft head at y = 1.",
-  "note2": "EVERYTHING here is a passage, including the rooms - a room is just a short one with a big section. There is exactly one kind of object and one junction rule, which is why nothing can be left hanging invisibly inside anything else. Passages join by overlapping: the last stations of one sit inside the next, and cave.gd trims each one's faces out of the other's open space.",
-
-  "body_gear": 0.04,
-  "floor_limit": -40.0,
-
-  "passages": [
+ "name": "Sowbelly Cave",
+ "note": "Fictional. The geology, the passage types and the squeeze dimensions are drawn from real caving; the cave and everything in it is invented. Metres, Y up, the shaft head at y = 1.",
+ "note2": "EVERYTHING here is a passage, including the rooms - a room is just a short one with a big section. There is exactly one kind of object and one junction rule, which is why nothing can be left hanging invisibly inside anything else. Passages join by overlapping: the last stations of one sit inside the next, and cave.gd trims each one's faces out of the other's open space.",
+ "body_gear": 0.04,
+ "floor_limit": -40.0,
+ "passages": [
+  {
+   "id": "pitch",
+   "label": "The Pitch",
+   "kind": "shaft",
+   "seed": 3301,
+   "rough": 0.22,
+   "wall": "rock_wet",
+   "path": [
+    [
+     0,
+     1.0,
+     0
+    ],
+    [
+     0,
+     -4,
+     0
+    ],
+    [
+     0.35,
+     -9,
+     0.25
+    ],
+    [
+     0,
+     -13,
+     0
+    ],
+    [
+     0,
+     -15.8,
+     0
+    ]
+   ],
+   "profile": [
     {
-      "id": "pitch",
-      "label": "The Pitch",
-      "kind": "shaft",
-      "seed": 3301,
-      "rough": 0.22,
-      "wall": "rock_wet",
-      "path": [[0, 1.0, 0], [0, -4, 0], [0.35, -9, 0.25], [0, -13, 0], [0, -15.8, 0]],
-      "profile": [
-        {"t": 0.00, "w": 2.30, "h": 2.30, "shape": "tube"},
-        {"t": 0.20, "w": 2.00, "h": 2.00, "shape": "tube"},
-        {"t": 0.65, "w": 1.85, "h": 1.85, "shape": "tube"},
-        {"t": 1.00, "w": 1.70, "h": 1.70, "shape": "tube"}
-      ]
+     "t": 0.0,
+     "w": 2.3,
+     "h": 2.3,
+     "shape": "tube"
     },
     {
-      "id": "cellar",
-      "label": "The Cellar",
-      "kind": "room",
-      "seed": 8100,
-      "rough": 0.30,
-      "wall": "rock_wet",
-      "speleothems": 7,
-      "path": [[-2.2, -16.47, -0.95], [3.0, -16.55, 0.5], [7.0, -16.6, 1.5]],
-      "profile": [
-        {"t": 0.00, "w": 5.00, "h": 2.60, "shape": "letterbox", "keel": 0.20},
-        {"t": 0.40, "w": 8.00, "h": 3.00, "shape": "letterbox", "keel": 0.20},
-        {"t": 1.00, "w": 6.00, "h": 2.70, "shape": "letterbox", "keel": 0.20}
-      ]
+     "t": 0.2,
+     "w": 2.0,
+     "h": 2.0,
+     "shape": "tube"
     },
     {
-      "id": "gullet",
-      "label": "The Gullet",
-      "kind": "crawl",
-      "seed": 4410,
-      "rough": 0.07,
-      "wall": "rock_wet",
-      "path": [[6.0, -17.1, 1.3], [11, -18.0, 2.2], [16, -19.4, 4.0], [20, -20.6, 6.5]],
-      "profile": [
-        {"t": 0.00, "w": 1.70, "h": 1.50, "shape": "tube", "keel": 0.10},
-        {"t": 0.30, "w": 1.30, "h": 1.20, "shape": "tube", "keel": 0.08},
-        {"t": 0.65, "w": 1.05, "h": 1.00, "shape": "tube", "keel": 0.08},
-        {"t": 1.00, "w": 0.92, "h": 0.88, "shape": "tube", "keel": 0.08}
-      ]
+     "t": 0.65,
+     "w": 1.85,
+     "h": 1.85,
+     "shape": "tube"
     },
     {
-      "id": "bonebox",
-      "label": "The Bone Box",
-      "kind": "room",
-      "seed": 8200,
-      "rough": 0.28,
-      "wall": "rock_wet",
-      "speleothems": 5,
-      "path": [[19.0, -19.83, 6.0], [22.0, -19.86, 7.2], [25.0, -19.90, 8.5]],
-      "profile": [
-        {"t": 0.00, "w": 5.00, "h": 2.40, "shape": "letterbox", "keel": 0.18},
-        {"t": 0.45, "w": 7.00, "h": 2.80, "shape": "letterbox", "keel": 0.18},
-        {"t": 1.00, "w": 4.50, "h": 2.30, "shape": "letterbox", "keel": 0.18}
-      ]
-    },
-    {
-      "id": "flatiron",
-      "label": "The Flatiron",
-      "kind": "crawl",
-      "seed": 5512,
-      "rough": 0.05,
-      "wall": "rock_wet",
-      "path": [[24.5, -20.6, 8.2], [27, -21.0, 14], [28, -21.4, 20], [26.5, -21.8, 26], [24.5, -22.0, 31]],
-      "profile": [
-        {"t": 0.00, "w": 1.00, "h": 0.95, "shape": "tube", "keel": 0.08},
-        {"t": 0.18, "w": 0.96, "h": 0.64, "shape": "tube", "keel": 0.05},
-        {"t": 0.45, "w": 0.93, "h": 0.54, "shape": "tube", "keel": 0.04},
-        {"t": 0.62, "w": 0.91, "h": 0.51, "shape": "tube", "keel": 0.04},
-        {"t": 0.82, "w": 0.95, "h": 0.64, "shape": "tube", "keel": 0.05},
-        {"t": 1.00, "w": 0.92, "h": 0.88, "shape": "tube", "keel": 0.05}
-      ]
-    },
-    {
-      "id": "pinch",
-      "label": "The Devil's Pinch",
-      "kind": "rift",
-      "needs_exhale": true,
-      "seed": 6603,
-      "rough": 0.04,
-      "wall": "rock_wet",
-      "path": [[24.5, -22.0, 31], [23.6, -22.6, 33.5], [22.8, -23.5, 35.8], [22.0, -24.5, 37.6], [21.4, -25.2, 39.2]],
-      "profile": [
-        {"t": 0.00, "w": 0.92, "h": 0.88, "shape": "tube"},
-        {"t": 0.25, "w": 0.55, "h": 1.35, "shape": "rift"},
-        {"t": 0.50, "w": 0.285, "h": 1.72, "shape": "rift"},
-        {"t": 0.72, "w": 0.46, "h": 1.66, "shape": "rift"},
-        {"t": 1.00, "w": 0.62, "h": 1.10, "shape": "rift"}
-      ]
-    },
-    {
-      "id": "drainpipe",
-      "label": "The Drainpipe",
-      "kind": "lead",
-      "seed": 7704,
-      "rough": 0.07,
-      "wall": "rock_wet",
-      "dead_end": true,
-      "path": [[21.4, -25.45, 39.2], [21.8, -26.2, 41.0], [22.3, -27.0, 42.4], [22.7, -27.6, 43.4]],
-      "profile": [
-        {"t": 0.00, "w": 0.62, "h": 0.58, "shape": "tube"},
-        {"t": 0.35, "w": 0.48, "h": 0.45, "shape": "tube"},
-        {"t": 0.70, "w": 0.36, "h": 0.34, "shape": "tube"},
-        {"t": 1.00, "w": 0.24, "h": 0.23, "shape": "tube"}
-      ]
+     "t": 1.0,
+     "w": 1.7,
+     "h": 1.7,
+     "shape": "tube"
     }
-  ],
-
-  "route": ["pitch", "cellar", "gullet", "bonebox", "flatiron", "pinch", "drainpipe"],
-
-  "rig": [
+   ]
+  },
+  {
+   "id": "cellar",
+   "label": "The Cellar",
+   "kind": "room",
+   "seed": 8100,
+   "rough": 0.3,
+   "wall": "rock_wet",
+   "speleothems": 16,
+   "path": [
+    [
+     -2.2,
+     -16.47,
+     -0.95
+    ],
+    [
+     3.0,
+     -16.55,
+     0.5
+    ],
+    [
+     7.0,
+     -16.6,
+     1.5
+    ]
+   ],
+   "profile": [
     {
-      "id": "pitch_rope",
-      "label": "The Pitch",
-      "top": [0, 0.5, 0],
-      "bottom": [0, -17.5, 0],
-      "anchor": [0.85, 0.7, 0.3]
-    }
-  ],
-
-  "lights": [
+     "t": 0.0,
+     "w": 5.0,
+     "h": 2.6,
+     "shape": "letterbox",
+     "keel": 0.2
+    },
     {
-      "id": "daylight",
-      "kind": "surface",
-      "at": [0, 0.9, 0],
-      "aim": [0, -1, 0],
-      "colour": [0.62, 0.72, 0.92],
-      "energy": 2.2,
-      "range": 14.0,
-      "angle": 40.0
+     "t": 0.4,
+     "w": 8.0,
+     "h": 3.0,
+     "shape": "letterbox",
+     "keel": 0.2
+    },
+    {
+     "t": 1.0,
+     "w": 6.0,
+     "h": 2.7,
+     "shape": "letterbox",
+     "keel": 0.2
     }
-  ],
-
-  "start": {"on": "pitch_rope", "down": 3.0, "look": [0, -0.45, -1]}
+   ],
+   "rubble": 14
+  },
+  {
+   "id": "gullet",
+   "label": "The Gullet",
+   "kind": "crawl",
+   "seed": 4410,
+   "rough": 0.13,
+   "wall": "rock_wet",
+   "path": [
+    [
+     6.0,
+     -17.3,
+     1.3
+    ],
+    [
+     9.4,
+     -18.75,
+     2.3
+    ],
+    [
+     12.8,
+     -19.35,
+     3.4
+    ],
+    [
+     15.6,
+     -18.7,
+     4.7
+    ],
+    [
+     17.8,
+     -19.45,
+     5.6
+    ],
+    [
+     20.0,
+     -20.6,
+     6.45
+    ]
+   ],
+   "profile": [
+    {
+     "t": 0.0,
+     "w": 1.3,
+     "h": 1.15,
+     "shape": "tube",
+     "keel": 0.06
+    },
+    {
+     "t": 0.15,
+     "w": 0.88,
+     "h": 0.62,
+     "shape": "tube",
+     "keel": 0.05
+    },
+    {
+     "t": 0.32,
+     "w": 1.06,
+     "h": 0.92,
+     "shape": "tube",
+     "keel": 0.05
+    },
+    {
+     "t": 0.48,
+     "w": 0.8,
+     "h": 0.54,
+     "shape": "tube",
+     "keel": 0.04
+    },
+    {
+     "t": 0.64,
+     "w": 0.98,
+     "h": 0.8,
+     "shape": "tube",
+     "keel": 0.04
+    },
+    {
+     "t": 0.82,
+     "w": 0.76,
+     "h": 0.52,
+     "shape": "tube",
+     "keel": 0.04
+    },
+    {
+     "t": 1.0,
+     "w": 0.88,
+     "h": 0.66,
+     "shape": "tube",
+     "keel": 0.04
+    }
+   ],
+   "rubble": 22
+  },
+  {
+   "id": "bonebox",
+   "label": "The Bone Box",
+   "kind": "room",
+   "seed": 8200,
+   "rough": 0.28,
+   "wall": "rock_wet",
+   "speleothems": 11,
+   "path": [
+    [
+     19.0,
+     -19.83,
+     6.0
+    ],
+    [
+     22.0,
+     -19.86,
+     7.2
+    ],
+    [
+     25.0,
+     -19.9,
+     8.5
+    ]
+   ],
+   "profile": [
+    {
+     "t": 0.0,
+     "w": 5.0,
+     "h": 2.4,
+     "shape": "letterbox",
+     "keel": 0.18
+    },
+    {
+     "t": 0.45,
+     "w": 7.0,
+     "h": 2.8,
+     "shape": "letterbox",
+     "keel": 0.18
+    },
+    {
+     "t": 1.0,
+     "w": 4.5,
+     "h": 2.3,
+     "shape": "letterbox",
+     "keel": 0.18
+    }
+   ],
+   "rubble": 10
+  },
+  {
+   "id": "flatiron",
+   "label": "The Flatiron",
+   "kind": "crawl",
+   "seed": 5512,
+   "rough": 0.11,
+   "wall": "rock_wet",
+   "path": [
+    [
+     24.5,
+     -20.75,
+     8.2
+    ],
+    [
+     27.0,
+     -22.3,
+     13.5
+    ],
+    [
+     28.2,
+     -22.55,
+     18.6
+    ],
+    [
+     27.6,
+     -21.35,
+     23.4
+    ],
+    [
+     26.0,
+     -21.95,
+     27.8
+    ],
+    [
+     24.5,
+     -23.15,
+     31.4
+    ]
+   ],
+   "profile": [
+    {
+     "t": 0.0,
+     "w": 1.02,
+     "h": 0.8,
+     "shape": "tube",
+     "keel": 0.04
+    },
+    {
+     "t": 0.15,
+     "w": 0.8,
+     "h": 0.46,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 0.33,
+     "w": 0.96,
+     "h": 0.72,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 0.52,
+     "w": 0.79,
+     "h": 0.45,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 0.7,
+     "w": 0.92,
+     "h": 0.64,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 0.86,
+     "w": 0.78,
+     "h": 0.44,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 1.0,
+     "w": 0.86,
+     "h": 0.54,
+     "shape": "tube",
+     "keel": 0.03
+    }
+   ],
+   "rubble": 26
+  },
+  {
+   "id": "pinch",
+   "label": "The Devil's Pinch",
+   "kind": "rift",
+   "needs_exhale": true,
+   "seed": 6603,
+   "rough": 0.07,
+   "wall": "rock_wet",
+   "path": [
+    [
+     24.5,
+     -23.15,
+     31.4
+    ],
+    [
+     23.6,
+     -23.55,
+     33.6
+    ],
+    [
+     22.8,
+     -24.6,
+     35.9
+    ],
+    [
+     22.2,
+     -25.1,
+     37.7
+    ],
+    [
+     21.4,
+     -26.3,
+     39.3
+    ]
+   ],
+   "profile": [
+    {
+     "t": 0.0,
+     "w": 0.86,
+     "h": 0.54,
+     "shape": "tube",
+     "keel": 0.03
+    },
+    {
+     "t": 0.24,
+     "w": 0.54,
+     "h": 1.06,
+     "shape": "rift"
+    },
+    {
+     "t": 0.5,
+     "w": 0.285,
+     "h": 1.3,
+     "shape": "rift"
+    },
+    {
+     "t": 0.74,
+     "w": 0.44,
+     "h": 1.22,
+     "shape": "rift"
+    },
+    {
+     "t": 1.0,
+     "w": 0.6,
+     "h": 0.94,
+     "shape": "rift"
+    }
+   ],
+   "rubble": 6
+  },
+  {
+   "id": "drainpipe",
+   "label": "The Drainpipe",
+   "kind": "lead",
+   "seed": 7704,
+   "rough": 0.09,
+   "wall": "rock_wet",
+   "dead_end": true,
+   "path": [
+    [
+     21.4,
+     -26.55,
+     39.3
+    ],
+    [
+     21.8,
+     -27.45,
+     41.0
+    ],
+    [
+     22.3,
+     -28.35,
+     42.4
+    ],
+    [
+     22.7,
+     -29.05,
+     43.4
+    ]
+   ],
+   "profile": [
+    {
+     "t": 0.0,
+     "w": 0.6,
+     "h": 0.5,
+     "shape": "tube"
+    },
+    {
+     "t": 0.45,
+     "w": 0.48,
+     "h": 0.42,
+     "shape": "tube"
+    },
+    {
+     "t": 0.75,
+     "w": 0.34,
+     "h": 0.3,
+     "shape": "tube"
+    },
+    {
+     "t": 1.0,
+     "w": 0.22,
+     "h": 0.2,
+     "shape": "tube"
+    }
+   ]
+  }
+ ],
+ "route": [
+  "pitch",
+  "cellar",
+  "gullet",
+  "bonebox",
+  "flatiron",
+  "pinch",
+  "drainpipe"
+ ],
+ "rig": [
+  {
+   "id": "pitch_rope",
+   "label": "The Pitch",
+   "top": [
+    0,
+    0.5,
+    0
+   ],
+   "bottom": [
+    0,
+    -17.5,
+    0
+   ],
+   "anchor": [
+    0.85,
+    0.7,
+    0.3
+   ]
+  }
+ ],
+ "lights": [
+  {
+   "id": "daylight",
+   "kind": "surface",
+   "at": [
+    0,
+    0.9,
+    0
+   ],
+   "aim": [
+    0,
+    -1,
+    0
+   ],
+   "colour": [
+    0.62,
+    0.72,
+    0.92
+   ],
+   "energy": 2.2,
+   "range": 14.0,
+   "angle": 40.0
+  }
+ ],
+ "start": {
+  "on": "pitch_rope",
+  "down": 3.0,
+  "look": [
+   0,
+   -0.45,
+   -1
+  ]
+ }
 }

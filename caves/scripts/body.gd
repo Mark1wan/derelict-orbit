@@ -29,12 +29,18 @@ const SHOULDER := 0.46        ## shoulder span, both arms at your sides
 ## ends up. Nothing outside this table decides how big you are - tools/check_fit.py reads it
 ## out of this file with a regex and checks the whole cave against it, so a number changed
 ## here is a cave re-verified in CI rather than a cave quietly broken.
+##
+## `commit` is 1.02 m and not 1.25. Nobody goes through a 28 cm slot standing to attention -
+## you are sideways, knees bent, head turned, and the reason the number matters is that the
+## Devil's Pinch had to be 1.72 m tall to give a 1.25 m body its gap at 27 cm of width. A
+## 1.72 m slot is a tunnel you can see yourself standing up in, which is the one thing this
+## cave is not allowed to have, and a playtester found it immediately.
 const POSTURES := [
 	{"name": "stand", "h": 1.75, "w": 0.46, "chest": "none", "gear": 0.04, "speed": 1.40, "eye": 1.62},
 	{"name": "stoop", "h": 1.25, "w": 0.46, "chest": "none", "gear": 0.04, "speed": 1.00, "eye": 1.12},
 	{"name": "knees", "h": 0.75, "w": 0.46, "chest": "none", "gear": 0.04, "speed": 0.75, "eye": 0.58},
 	{"name": "belly", "h": 0.00, "w": 0.46, "chest": "h", "gear": 0.04, "speed": 0.34, "eye": 0.19},
-	{"name": "commit", "h": 1.25, "w": 0.00, "chest": "w", "gear": 0.005, "speed": 0.13, "eye": 1.10},
+	{"name": "commit", "h": 1.02, "w": 0.00, "chest": "w", "gear": 0.005, "speed": 0.13, "eye": 0.88},
 	{"name": "superman", "h": 0.00, "w": 0.32, "chest": "h", "gear": 0.02, "speed": 0.10, "eye": 0.17},
 ]
 
@@ -64,6 +70,7 @@ const AIR_REARM := 0.22     ## below this you cannot start another one
 const RING := 12            ## rays around the chest, in the plane across the passage
 const RING_REACH := 1.30    ## how far out to look before calling it open space
 const HEAD_REACH := 2.60
+const FLOOR_REACH := 2.20   ## how far down a probe looks for the floor it should follow
 const SHOULDER_HALF := 0.23 ## half a shoulder span - how far off the centreline headroom is read
 const POSTURE_STEPS := 3    ## samples taken along the pace ahead, so a mouth cannot hide between
 const WORLD_MASK := 1
@@ -243,7 +250,8 @@ func probe(space: PhysicsDirectSpaceState3D, centre: Vector3, basis: Basis, foot
 	# at their chest yet - which is the one moment the number most needs to be right.
 	var fwd: Vector3 = -basis.z
 	var near := _ring(space, centre, basis, hw, hh, true)
-	var ahead := _ring(space, centre + fwd * LOOKAHEAD, basis, hw, hh, false)
+	var ahead := _ring(space, _along_floor(space, centre, fwd * LOOKAHEAD, basis.y),
+		basis, hw, hh, false)
 	pressure = clampf((maxf(near, ahead) - CONTACT_FLOOR) / CONTACT_SPAN, 0.0, 1.0)
 
 	# Headroom is measured from the floor, not from the chest, because that is the number that
@@ -275,7 +283,7 @@ func probe(space: PhysicsDirectSpaceState3D, centre: Vector3, basis: Basis, foot
 			step -= basis.y * (drop - 0.04)
 		headroom = minf(headroom, _head_over(space, step, basis.y, basis.x) + 0.04)
 
-	var ahead_c: Vector3 = centre + fwd * POSTURE_AHEAD
+	var ahead_c: Vector3 = _along_floor(space, centre, fwd * POSTURE_AHEAD, basis.y)
 	gap_left = _cast(space, centre, -basis.x, RING_REACH)
 	gap_right = _cast(space, centre, basis.x, RING_REACH)
 	width = minf(gap_left + gap_right,
@@ -336,6 +344,28 @@ func _head_over(space: PhysicsDirectSpaceState3D, at: Vector3, up: Vector3, acro
 	var h := _cast(space, at, up, HEAD_REACH)
 	h = minf(h, _cast(space, at + across * off, up, HEAD_REACH))
 	return minf(h, _cast(space, at - across * off, up, HEAD_REACH))
+
+## Step forward along the FLOOR rather than along the horizon, keeping the same height above it.
+##
+## `fwd` is flattened - it has to be, or the frame twists every time the passage tips - so a
+## point projected a pace ahead in a passage that climbs eighteen degrees lands a third of a
+## metre nearer the floor than it started, and in a fifty-centimetre crawl that is underneath
+## it. Casting sideways from inside rock reports no width at all, so the body folds itself down
+## to its smallest shape and wedges in a passage it fits comfortably. That is what a gradient
+## does to a look-ahead that does not know about gradients, and this cave is full of gradients
+## on purpose.
+##
+## Same idea as the headroom samples, which have walked the floor since the round before this
+## one; these two were simply missed.
+func _along_floor(space: PhysicsDirectSpaceState3D, from: Vector3, step: Vector3, up: Vector3) -> Vector3:
+	var here := _cast(space, from, -up, FLOOR_REACH)
+	var to: Vector3 = from + step
+	var there := _cast(space, to, -up, FLOOR_REACH)
+	if here >= FLOOR_REACH or there >= FLOOR_REACH:
+		return to
+	# Raise it by as much as the floor rose, and never by more than the step: a pit in the floor
+	# must not throw the probe into the ceiling.
+	return to + up * clampf(here - there, -step.length(), step.length())
 
 func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, dir: Vector3, reach: float) -> float:
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach, WORLD_MASK)

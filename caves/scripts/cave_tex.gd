@@ -24,6 +24,11 @@ extends RefCounted
 
 static var _cache := {}
 
+## How many flat steps the hand-scale layer is quantised into. Smooth noise reads as a swell,
+## and a cave wall is not swelling - it is broken. This is the layer that stops the passages
+## looking like moulded pipe, which is what a playtester called them.
+const FACETS := 7.0
+
 ## How shiny wet limestone is in the hollows and on the ribs. A cave wall with water on it is
 ## not glossy all over: the film sits in the low ground and the high ground dries, and that
 ## difference is most of what makes rock look wet rather than varnished.
@@ -97,15 +102,20 @@ static func limestone(size := 256, tint := Color(0.50, 0.47, 0.42)) -> Dictionar
 		return _cache[key]
 	var bed := _noise(31, 0.011, size, size, 2)
 	var grain := _noise(32, 0.075, size, size, 4)
+	var chip := _noise(33, 0.155, size, size, 2)
 	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
 	var hgt := Image.create(size, size, false, Image.FORMAT_RGB8)
 	for y in size:
 		for x in size:
 			var b := bed.get_pixel(x, y).r
 			var g := grain.get_pixel(x, y).r
-			var v := 0.74 + (b - 0.5) * 0.40 + (g - 0.5) * 0.24
+			# Quantised, so the fine layer comes out as facets with edges between them rather
+			# than as a smooth swell. Rock that dissolved is round at passage scale and broken
+			# at hand scale, and the hand scale is the one you are crawling with your face in.
+			var k: float = floorf(chip.get_pixel(x, y).r * FACETS) / FACETS
+			var v := 0.74 + (b - 0.5) * 0.40 + (g - 0.5) * 0.24 + (k - 0.5) * 0.16
 			img.set_pixel(x, y, Color(tint.r * v, tint.g * v, tint.b * v))
-			var hv := 0.52 + (b - 0.5) * 0.30 + (g - 0.5) * 0.18
+			var hv := 0.52 + (b - 0.5) * 0.26 + (g - 0.5) * 0.16 + (k - 0.5) * 0.30
 			hgt.set_pixel(x, y, Color(hv, hv, hv))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 104
@@ -153,7 +163,7 @@ static func limestone(size := 256, tint := Color(0.50, 0.47, 0.42)) -> Dictionar
 			var r: float = lerpf(WET_ROUGH, DRY_ROUGH, smoothstep(0.34, 0.72, hv))
 			wet.set_pixel(x, y, Color(r, r, r))
 
-	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 3.6), "rough": _tex(wet)}
+	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 5.4), "rough": _tex(wet)}
 	_cache[key] = out
 	return out
 

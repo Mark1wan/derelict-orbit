@@ -71,13 +71,17 @@ func say(text: String, seconds := 3.5) -> void:
 	notice.emit(text, seconds)
 
 ## Called by the caver every station it passes. `id` is a passage id from sowbelly.json.
-func enter_passage(id: String, label: String) -> void:
+func enter_passage(id: String, label: String, lead := false) -> void:
 	if passage == label:
 		return
 	passage = label
 	if not visited.has(id):
 		visited[id] = true
-		say(label, 3.0)
+		# A lead says so on the way in. It pinches out and you have to reverse back down it, and
+		# a passage that quietly stops being big enough for a person reads as a broken game
+		# rather than as the point of a lead.
+		say(label + ("\na lead - it closes, and you reverse out" if lead else ""),
+			4.5 if lead else 3.0)
 	progress_changed.emit()
 
 func note_depth(y: float) -> void:

@@ -493,6 +493,30 @@ func spike(base: Vector3, height: float, radius: float, up := true, sides := 6) 
 		else:
 			tri(ring[j], ring[i], tip)
 
+## A broken block. `Geo.box` is axis-aligned and reads as a crate the moment there is more than
+## one of them on a floor; this is the same six faces with all eight corners pushed about, so
+## every face is a different size and no two edges are parallel. Twelve triangles, and that is
+## the whole difference between rubble and packing cases.
+const CHUNK_JITTER := 0.34
+
+func chunk(centre: Vector3, size: Vector3, seed_: int, jitter := CHUNK_JITTER) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_
+	var h := size * 0.5
+	var p: Array[Vector3] = []
+	for i in 8:
+		var c := Vector3(-h.x if i & 1 == 0 else h.x,
+			-h.y if i & 2 == 0 else h.y,
+			-h.z if i & 4 == 0 else h.z)
+		p.append(centre + c + Vector3(
+			rng.randf_range(-1.0, 1.0) * h.x * jitter,
+			rng.randf_range(-1.0, 1.0) * h.y * jitter,
+			rng.randf_range(-1.0, 1.0) * h.z * jitter))
+	# Corner order is the bit pattern above: x in bit 0, y in bit 1, z in bit 2.
+	for f: Array in [[1, 0, 2, 3], [4, 5, 7, 6], [0, 1, 5, 4],
+			[3, 2, 6, 7], [2, 0, 4, 6], [1, 3, 7, 5]]:
+		quad(p[f[0]], p[f[1]], p[f[2]], p[f[3]], 1.1)
+
 ## Build the MeshInstance3D. body != null -> also a trimesh collider on that StaticBody3D,
 ## from the same vertices, so what you see is exactly what you bump into.
 func commit(mat: Material, parent: Node, body: StaticBody3D = null, name_ := "") -> MeshInstance3D:

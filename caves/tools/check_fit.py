@@ -43,7 +43,7 @@ SHAPE_POWER = {
     "breakdown": 1.6,
 }
 
-SIDES = 22          # Bore.SIDES
+SIDES = 28          # Bore.SIDES
 STATION_STEP = 0.35 # Bore.STATION_STEP
 MAX_STEP = 0.40     # metres of floor mismatch a body can get over at a junction
 
@@ -323,33 +323,105 @@ def floor_at(stations, i):
     return pos[1] + min(q[1] for q in sec)
 
 
-def check_standing(cave, problems, rows, chest, gear, clear):
-    """No tunnel you can stand up in.
+# A tunnel is somewhere you crawl. Rooms are where you stand up, shafts are holes you go down
+# a rope, and everything between them is a bore no taller than this.
+#
+# The number is the DRAWN height of the section, not the clearance a pair of shoulders can find
+# in it, and that distinction is why this gate got rewritten. The old one asked "would the game
+# pick `stand` here", and the Devil's Pinch passed it comfortably while standing 1.72 m tall,
+# because at shoulder width a 28 cm slot has no gap at all. The rule was satisfied and the
+# player still reported a tunnel they could stand up in - because they could see one. What you
+# can see is the rule.
+TUNNEL_CEILING = 1.35
 
-    A room is allowed to be a room and a shaft is a hole you go down a rope, but everything
-    between them is supposed to be a bore. Left to prose this rots the first time somebody
-    nudges a profile keyframe, so it is a gate: if the posture the game would pick at any
-    station of any tunnel is `stand`, the cave is wrong and the build says so.
+# How far a section has to dip below its surroundings before it counts as a pinch rather than
+# just a narrow stretch, measured on clear area.
+PINCH_RATIO = 0.68
+PINCH_SPAN = 12       # stations either side that count as "its surroundings" - the profile
+                      # keyframes are about four metres apart and a shorter window cannot see
+                      # past the interpolation to the relief a pinch is measured against
+PINCH_MIN = 2         # per through-tunnel
+
+
+def tightest(p):
+    """The narrowest single dimension anywhere in a passage, and where.
+
+    NOT the area, and the difference is the Devil's Pinch. A rift trades width for height: the
+    crux is 28.8 cm across and taller than the tube that led into it, so by area it reads as
+    *relief* while being the hardest thing in the cave. What a body meets is the smallest gap,
+    whichever axis it is on.
+    """
+    best = (1e9, 0.0)
+    for dist, _, sec in sections_along(p):
+        gap = min(max(q[0] for q in sec) - min(q[0] for q in sec),
+                  max(q[1] for q in sec) - min(q[1] for q in sec))
+        if gap < best[0]:
+            best = (gap, dist)
+    return best
+
+
+def check_tunnels(cave, problems, rows, chest, gear, clear):
+    """Tunnels are for crawling, they pinch, and each one is tighter than the last.
+
+    Three gates, all of them things that were true once, rotted when a profile keyframe moved,
+    and were only noticed when somebody played it.
+
+    1. **Nothing you can stand up in.** No tunnel section taller than TUNNEL_CEILING, and no
+       station where the game would pick `stand` - the height cap makes that impossible, and it
+       is checked anyway because the posture table can move under this file.
+    2. **Pinches.** At least PINCH_MIN places in each through-tunnel where the bore closes to
+       under PINCH_RATIO of the passage either side and opens again. A passage that is merely
+       small all the way along is a pipe; what makes it a cave is having to work through
+       something.
+    3. **It gets harder.** Each through-tunnel's narrowest gap is narrower than the one before
+       it on the route, so the cave closes down from the rope to the dead end rather than
+       wandering.
     """
     print()
-    shoulders = body_box(rows[0], chest, gear)[0]
+    was = None
     for p in cave["passages"]:
         if p.get("kind") in ("room", "shaft"):
             continue
-        tallest = None
+        tallest = (0.0, 0.0)
+        areas = []
         for dist, _, sec in sections_along(p):
-            gap = clearance(sec, shoulders)
-            if tallest is None or gap > tallest[1]:
-                tallest = (dist, gap)
+            high = max(q[1] for q in sec) - min(q[1] for q in sec)
+            if high > tallest[1]:
+                tallest = (dist, high)
+            if high > TUNNEL_CEILING + 1e-6:
+                problems.append(f"{p['id']}: {high:.2f} m tall at {dist:.1f} m in - a tunnel is "
+                                f"for crawling, and {TUNNEL_CEILING:.2f} m is the ceiling")
             fit = best_posture(sec, rows, chest, gear, clear)
             if fit and fit[0] == "stand":
-                problems.append(f"{p['id']}: you can stand up at {dist:.1f} m in "
-                                f"- that is a room, not a tunnel")
-        if tallest is None:
-            continue
-        print("  tunnel %-20s tallest %.2f m at %.1f m in   %s"
-              % (p["label"], tallest[1], tallest[0],
-                 "STANDS UP" if tallest[1] >= 1.75 else "ok"))
+                problems.append(f"{p['id']}: you can stand up at {dist:.1f} m in")
+            areas.append((dist, polygon_area(sec)))
+
+        pinches = 0
+        for i in range(1, len(areas) - 1):
+            lo = areas[i][1]
+            near = max(a for _, a in areas[max(i - PINCH_SPAN, 0):i + PINCH_SPAN + 1])
+            if lo <= areas[i - 1][1] and lo < areas[i + 1][1] and lo < PINCH_RATIO * near:
+                pinches += 1
+        if pinches < PINCH_MIN and p.get("kind") == "crawl":
+            problems.append(f"{p['id']}: {pinches} pinch(es) - a tunnel that never closes down "
+                            f"and opens again is a pipe, not a passage")
+
+        gap, where = tightest(p)
+        if was is not None and gap >= was[0]:
+            problems.append(f"{p['id']}: narrowest gap {gap * 100:.1f} cm, no tighter than "
+                            f"{was[1]} at {was[0] * 100:.1f} cm - the cave has to keep closing")
+        was = (gap, p["id"])
+
+        print("  tunnel %-20s tallest %.2f m, narrowest %.2f m at %4.1f m in, %d pinch%s   %s"
+              % (p["label"], tallest[1], gap, where, pinches, "" if pinches == 1 else "es",
+                 "TOO TALL" if tallest[1] > TUNNEL_CEILING else "ok"))
+
+
+def polygon_area(sec):
+    """Clear cross-section area of a station, by the shoelace formula."""
+    n = len(sec)
+    return abs(sum(sec[i][0] * sec[(i + 1) % n][1] - sec[(i + 1) % n][0] * sec[i][1]
+                   for i in range(n))) * 0.5
 
 
 def check_route(cave, problems):
@@ -522,7 +594,7 @@ def main(path):
                 problems.append(f"{p['id']}: profile keyframes out of order at index {i}")
 
     print("-" * 100)
-    check_standing(cave, problems, rows, relaxed, gear, clear)
+    check_tunnels(cave, problems, rows, relaxed, gear, clear)
     check_route(cave, problems)
     print(f"\n{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
           f"deepest point {-deepest:.1f} m below the entrance")

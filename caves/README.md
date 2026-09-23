@@ -24,7 +24,7 @@ lights down every passage and the headlamp is not load-bearing. Twenty-eight met
 a rope, two small rooms, a hands-and-knees tube and twenty-four metres of flattened bore, the
 passage narrows to twenty-eight and a half centimetres, and you have to decide.
 
-**Most of it is too small to stand up in.** There are exactly two places in the cave where you
+**Almost none of it is big enough to stand up in.** There are exactly two places in the cave where you
 can, and neither is bigger than a garage. Everything between them is a bore that only ever
 narrows - and the only thing that is not round is the slot at the bottom, which is the point.
 
@@ -44,15 +44,28 @@ You begin already clipped on to the rope, three metres down the shaft, with rock
 |---|---|---|---|---|---|
 | 1 | **The Pitch** | 17 m shaft, tapering 2.3 → 1.7 m, rigged with one rope | 16.8 m | — | going down, and how far down that is |
 | 2 | **The Cellar** | a room at the foot of the rope, 9 × 5, roof 3.0 | 9.5 m | — | standing up, and turning round |
-| 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 15.5 m | 0.92 × 0.88 m | hands and knees, without being asked |
+| 3 | **The Gullet** | phreatic tube, dissolved round; drops 22°, climbs 12°, drops 26° | 15.8 m | 0.76 × 0.52 m | flat out inside three metres, and gradient |
 | 4 | **The Bone Box** | the other room, 7 × 4.5, roof 2.8 | 6.5 m | — | the last place you stand up |
-| 5 | **The Flatiron** | the same tube, flattened, 51 cm at its worst | 24.1 m | 0.91 × 0.51 m | flat out, and what contact feels like |
-| 6 | **The Devil's Pinch** | a joint pulled open: tall, and 28.5 cm wide | 9.4 m | **0.285 m** | turning sideways and emptying your chest |
-| 7 | **The Drainpipe** | a lead that pinches shut 48 % of the way in | 4.9 m | closes | committing, and backing out |
+| 5 | **The Flatiron** | the same tube, squashed, 44 cm at its worst | 25.2 m | 0.78 × 0.44 m | what twenty-five metres of contact feels like |
+| 6 | **The Devil's Pinch** | a joint pulled open: 1.30 m tall and 28.8 cm wide | 9.2 m | **0.288 m** | turning sideways and emptying your chest |
+| 7 | **The Drainpipe** | a lead that pinches shut 54 % of the way in | 5.0 m | closes | committing, and backing out |
 
-**The tunnels are bores, and they only ever get tighter.** Every passage between the two rooms
-is round, no wider than about twice its height, and narrower than the one before it. There is
-nowhere in any of them you can stand up — `check_fit.py` fails the build if there is.
+**The tunnels are for crawling, they pinch, and each one is tighter than the last.** Three gates
+in `check_fit.py`, all of which exist because the prose version of each rotted at least once:
+
+- **Nothing you can stand up in.** No tunnel section over **1.35 m** of drawn height. Measured on
+  what you can see, not on what a pair of shoulders can find - a 28 cm slot 1.7 m tall passes
+  every clearance test there is and still reads, correctly, as somewhere you could stand.
+- **At least two pinches** per through-crawl: the bore shuts to under two thirds of the passage
+  either side of it and opens again. A tunnel that is merely small all the way along is a pipe.
+- **It keeps closing**: 48 cm, then 41, then 29, then 20, measured on the narrowest single
+  dimension rather than on area, because a rift trades width for height.
+
+And they are not level. The Gullet drops twenty-two degrees out of the Cellar, crawls, climbs
+twelve over a rib and drops twenty-six into the Bone Box; the Flatiron loses and regains height
+twice across twenty-five metres of belly crawl. Gradient in a crawl is worth having and it is not free: it is
+why the collision capsule lies along the floor rather than along the horizon, and why a prone
+body is allowed a steeper floor angle than an upright one.
 
 The two rooms are the exception, and they are the only one: a room here is not a different kind
 of object either - it is a short passage with a big cross-section.
@@ -124,7 +137,7 @@ The whole game is this table. Nothing outside it decides how big you are.
 | Stooping | 1.25 m | 0.46 m | 1.00 m/s | 1.12 m |
 | Hands and knees | 0.75 m | 0.46 m | 0.75 m/s | 0.58 m |
 | Flat out | **chest + 4 cm** | 0.46 m | 0.34 m/s | 0.19 m |
-| Committed, sideways | 1.25 m | **chest + 0.5 cm** | 0.13 m/s | 1.10 m |
+| Committed, sideways | 1.02 m | **chest + 0.5 cm** | 0.13 m/s | 0.88 m |
 | Head first, one arm ahead | **chest + 2 cm** | 0.32 m | 0.10 m/s | 0.17 m |
 
 Chest depth is 30.0 cm relaxed and 26.5 cm fully exhaled. Where the table says *chest*, that
@@ -214,8 +227,11 @@ CAVE_AUTOTEST=shots xvfb-run -a godot --rendering-driver opengl3 \
     --path caves --resolution 1280x720 --quit-after 60000   # build/shots/*.png
 ```
 
-It stands the body in each passage, lets the rock decide what posture it takes, and photographs
-what it sees. Every rule this cave is built to that is not a number - round rather than
+`CAVE_DECOR=1` on any of these prints where every formation and every block was placed, which is
+how the Gullet was caught putting a boulder in the middle of the Bone Box.
+
+The shots mode stands the body in each passage, lets the rock decide what posture it takes, and
+photographs what it sees. Every rule this cave is built to that is not a number - round rather than
 slab-sided, only ever tighter, wet dark rock, cracks that read as cracks - is settled by looking
 and by nothing else. `check_fit.py` can prove the Flatiron is 42 cm high and has no opinion at
 all about whether it looks like a bedding plane or a drainpipe.
