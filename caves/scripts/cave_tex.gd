@@ -5,12 +5,17 @@ extends RefCounted
 ## parallel that `bump_map_to_normal_map` turns into a normal map for free - so the project
 ## still ships with no third-party assets of any kind.
 ##
-## Everything here is lit by one headlamp and nothing else, which changes what matters. Albedo
-## barely reads at all; the normal map is doing almost all the work, because a beam raking
-## across rock at a shallow angle is the only thing telling you what shape the passage is.
-## The normal scales below are therefore deliberately strong.
+## What matters down here is not the albedo. A cave is lit by a headlamp and, in this build, by
+## fill lights standing in for strung lamps; either way it is raking light at a shallow angle,
+## and what tells you the shape of the passage is the normal map and where the surface is wet.
+## Colour barely gets a vote.
 ##
-## Each function returns {albedo: ImageTexture, normal: ImageTexture} and caches on its args.
+## That is also the trap. A drawn line - a crack, a bedding plane - goes into the height field,
+## and the height field becomes the normal map, so a line drawn at the strength that looks right
+## in the texture comes out as a cord lying on the wall. The numbers here are deliberately
+## timid for that reason, and the comments say where they were walked back from.
+##
+## Each function returns {albedo, normal} and some add {rough}, and caches on its args.
 ##
 ## Sowbelly itself is built out of `limestone` alone, twice: once dry as the fallback, once wet
 ## as every surface you actually touch. `mud`, `flowstone` and `breakdown` are kept because this
@@ -18,6 +23,12 @@ extends RefCounted
 ## them today, so nothing pays for them at start-up.
 
 static var _cache := {}
+
+## How shiny wet limestone is in the hollows and on the ribs. A cave wall with water on it is
+## not glossy all over: the film sits in the low ground and the high ground dries, and that
+## difference is most of what makes rock look wet rather than varnished.
+const WET_ROUGH := 0.38
+const DRY_ROUGH := 0.82
 
 static func _noise(seed_: int, freq: float, w: int, h: int, octaves := 3) -> Image:
 	var n := FastNoiseLite.new()
@@ -98,11 +109,14 @@ static func limestone(size := 256, tint := Color(0.50, 0.47, 0.42)) -> Dictionar
 			hgt.set_pixel(x, y, Color(hv, hv, hv))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 104
-	# Bedding planes: near-horizontal partings where one layer of rock meets the next.
-	for i in 5:
+	# Bedding planes: near-horizontal partings where one layer of rock meets the next. They are
+	# the one drawn line that has a job - they tell you which way is up when the passage has
+	# rolled and your only light is on your head - so they are the darkest thing here, and still
+	# not very dark.
+	for i in 4:
 		var y0 := rng.randi_range(0, size - 1)
 		var slope := rng.randf_range(-0.07, 0.07)
-		_streak(img, hgt, 0, y0, 1.0, slope, size, Color(0.22, 0.20, 0.18), 0.62, -0.20,
+		_streak(img, hgt, 0, y0, 1.0, slope, size, Color(0.20, 0.19, 0.18), 0.80, -0.075,
 			maxi(2, size / 110))
 	# Solution pockets - water taking the rock away wherever it found it soft.
 	for i in 26:
@@ -111,17 +125,35 @@ static func limestone(size := 256, tint := Color(0.50, 0.47, 0.42)) -> Dictionar
 		var cy := rng.randi_range(0, size - 1)
 		_dimple(hgt, cx, cy, r, rng.randf_range(0.10, 0.26))
 		_disc(img, cx, cy, r, Color(tint.r * 0.62, tint.g * 0.60, tint.b * 0.58), 0.35)
-	# Joints: thin cracks running across the bedding rather than along it. Dark and RECESSED,
-	# not bright and raised. A pale line standing proud of the rock reads as something painted
-	# on it, which is what these used to look like; a dark line sitting in a groove reads as a
-	# crack, and down here the normal map is doing most of the work anyway.
-	for i in 7:
+	# Joints: hairline cracks running across the bedding rather than along it.
+	#
+	# There are three, they are barely darker than the rock, and they are pressed 4 cm into the
+	# height map rather than 18. Every one of those numbers is a retreat. Drawn at full strength
+	# a joint is not a crack, it is a cord: the normal map is built from the height field, so a
+	# steep step one pixel wide becomes a rope lying on the wall, and a tile carrying seven of
+	# them repeats every couple of metres until the whole cave is scribbled over. What a crack
+	# actually does is catch the beam at one angle and vanish at every other, which is what a
+	# shallow groove in a wet surface does and what a drawn line never will.
+	for i in 3:
 		var sx := rng.randi_range(0, size - 1)
 		var sy := rng.randi_range(0, size - 1)
-		var ang := rng.randf_range(-1.4, 1.4) + PI * 0.5
+		var ang := rng.randf_range(-1.1, 1.1) + PI * 0.5
 		_streak(img, hgt, sx, sy, cos(ang), sin(ang), rng.randi_range(size / 3, size),
-			Color(0.04, 0.04, 0.05), 0.40, -0.18, 1)
-	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 6.0)}
+			Color(0.10, 0.10, 0.11), 0.74, -0.040, 1)
+
+	# Where the water is. Wet rock is not uniformly shiny - it is shiny in the hollows, where
+	# the film collects, and duller on the ribs the drips run off. So roughness is read straight
+	# off the height field: low is wet, high is dry, and the beam picks out the shape of the
+	# rock instead of flaring off all of it at once. Without this, low roughness everywhere
+	# turns a limestone passage into wet plastic, which is what it looked like.
+	var wet := Image.create(size, size, false, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var hv: float = hgt.get_pixel(x, y).r
+			var r: float = lerpf(WET_ROUGH, DRY_ROUGH, smoothstep(0.34, 0.72, hv))
+			wet.set_pixel(x, y, Color(r, r, r))
+
+	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 3.6), "rough": _tex(wet)}
 	_cache[key] = out
 	return out
 

@@ -207,6 +207,19 @@ python3 caves/tools/bundle_single.py                    # one standalone HTML, n
 python3 caves/tools/browser_check.py                    # open that in a real browser
 ```
 
+And the one that is not a test at all:
+
+```
+CAVE_AUTOTEST=shots xvfb-run -a godot --rendering-driver opengl3 \
+    --path caves --resolution 1280x720 --quit-after 60000   # build/shots/*.png
+```
+
+It stands the body in each passage, lets the rock decide what posture it takes, and photographs
+what it sees. Every rule this cave is built to that is not a number - round rather than
+slab-sided, only ever tighter, wet dark rock, cracks that read as cracks - is settled by looking
+and by nothing else. `check_fit.py` can prove the Flatiron is 42 cm high and has no opinion at
+all about whether it looks like a bedding plane or a drainpipe.
+
 `CAVE_AUTOTEST=1` is the real test and it is not a smoke test: it walks into the Devil's Pinch
 with a full chest, asserts it gets held, empties the chest, asserts it comes free, and rides
 the rope down and back. It runs in CI **without** `|| true`, so it can fail a build.

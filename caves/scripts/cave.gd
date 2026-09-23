@@ -293,7 +293,13 @@ func _build_fill_lights() -> void:
 				wide = maxf(wide, absf(q.x))
 			# Just under the ceiling, the way anything you actually hang in a cave ends up.
 			var at: Vector3 = b.points[i] + b.frames[i].y * (hi * 0.55)
-			_fill_light(at, clampf(maxf(hi - lo, wide * 2.0) * 2.6 + 3.0, 4.0, 16.0))
+			var size: float = maxf(hi - lo, wide * 2.0)
+			# Energy scales with the passage, not just range. A lamp bright enough to reach the
+			# far wall of a nine-metre room is thirty centimetres from the wall of a one-metre
+			# tube, and burns it white - which is how a crawl in wet limestone ended up looking
+			# like a lit porcelain pipe. Small passage, small lamp: the wall is closer anyway.
+			_fill_light(at, clampf(size * 2.6 + 3.0, 4.0, 16.0),
+				FILL_ENERGY * clampf(size / 2.6, 0.30, 1.0))
 			made += 1
 			i += step
 

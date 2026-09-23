@@ -63,6 +63,8 @@ func _ready() -> void:
 		_autotest_clear()
 	elif mode == "route":
 		_autotest_route()
+	elif mode == "shots":
+		_autotest_shots()
 	elif mode != "":
 		_autotest()
 
@@ -915,6 +917,61 @@ func _autotest_route() -> void:
 		print("[autotest] BLOCKED: " + ", ".join(blocked))
 	assert(blocked.is_empty(), "a player cannot get through: %s" % ", ".join(blocked))
 	print("[autotest] PASS - the whole route walks")
+	get_tree().quit()
+
+## CAVE_AUTOTEST=shots - stand in each passage and photograph it.
+##
+## The rules this cave is built to are visual ones - round rather than slab-sided, only ever
+## tighter, wet dark rock, cracks that read as cracks - and not one of them is something an
+## assertion can settle. check_fit can prove the Flatiron is 51 cm high and has nothing at all
+## to say about whether it looks like a bedding plane or a drainpipe.
+##
+## So this puts the body where a player would be, lets it take the posture the rock gives it,
+## and saves what it sees. Needs a real framebuffer:
+##
+##     xvfb-run -a godot --rendering-driver opengl3 --path caves --resolution 1280x720
+##
+func _autotest_shots() -> void:
+	print("[autotest] Sowbelly, photographing it")
+	_start_desktop()
+	await get_tree().create_timer(1.5).timeout
+	var dir: String = OS.get_environment("CAVE_SHOTS")
+	if dir == "":
+		dir = "res://build/shots"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+
+	# Where to stand, and which way to look. A passage is photographed from far enough in that
+	# the mouth is behind you - standing in a doorway shows you the doorway, not the passage.
+	var views: Array = [
+		["cellar", 0.30, "the cellar, from the foot of the rope"],
+		["cellar", 0.66, "the cellar, looking at the gullet"],
+		["gullet", 0.10, "the gullet, at its mouth"],
+		["gullet", 0.55, "the gullet, halfway"],
+		["gullet", 0.82, "the gullet, where it closes down"],
+		["bonebox", 0.55, "the bone box"],
+		["flatiron", 0.30, "the flatiron"],
+		["flatiron", 0.62, "the flatiron, at its worst"],
+		["pinch", 0.25, "the devil's pinch, on the way in"],
+		["pinch", 0.47, "the devil's pinch, at the crux"],
+		["drainpipe", 0.20, "the drainpipe"],
+	]
+	var n := 0
+	for v: Array in views:
+		var id: String = v[0]
+		var t: float = v[1]
+		caver.teleport(cave.point_in(id, t) + Vector3(0, 0.12, 0), cave.heading_in(id, t))
+		# Long enough for the body to fall to the floor, measure, fold, and for the eye height
+		# to finish easing - a shot taken mid-fold is a photograph of a bug that is not there.
+		for i in 90:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		n += 1
+		var path := "%s/%02d-%s.png" % [dir, n, id]
+		img.save_png(path)
+		print("[autotest]   %-40s %s, head %.2f m  ->  %s"
+			% [v[2], caver.body.name_of(), caver.body.headroom, path])
+	print("[autotest] PASS - %d shots" % n)
 	get_tree().quit()
 
 ## Cast forward at four heights and say what is there. Called when the route walker gives up:
