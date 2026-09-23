@@ -101,6 +101,12 @@ def chest_depths():
     return relaxed, relaxed - squeeze
 
 
+def posture_clear():
+    """CaverBody.POSTURE_CLEAR: room over your head before the game picks a posture at all."""
+    m = re.search(r"const POSTURE_CLEAR\s*:=\s*([\d.]+)", source("body.gd"))
+    return float(m.group(1)) if m else 0.10
+
+
 def body_box(posture, chest, gear_default):
     """The (width, height) box this posture has to push through the rock."""
     gear = posture.get("gear", gear_default)
@@ -317,7 +323,7 @@ def floor_at(stations, i):
     return pos[1] + min(q[1] for q in sec)
 
 
-def check_standing(cave, problems, rows, chest, gear):
+def check_standing(cave, problems, rows, chest, gear, clear):
     """No tunnel you can stand up in.
 
     A room is allowed to be a room and a shaft is a hole you go down a rope, but everything
@@ -335,7 +341,7 @@ def check_standing(cave, problems, rows, chest, gear):
             gap = clearance(sec, shoulders)
             if tallest is None or gap > tallest[1]:
                 tallest = (dist, gap)
-            fit = best_posture(sec, rows, chest, gear)
+            fit = best_posture(sec, rows, chest, gear, clear)
             if fit and fit[0] == "stand":
                 problems.append(f"{p['id']}: you can stand up at {dist:.1f} m in "
                                 f"- that is a room, not a tunnel")
@@ -405,18 +411,26 @@ def check_route(cave, problems):
 
 # ---------------------------------------------------------------- the check
 
-def best_posture(sec, rows, chest, gear):
+def best_posture(sec, rows, chest, gear, clear=0.0):
     """The posture the game would actually pick here - the fastest one that fits - or None.
 
     This mirrors CaverBody.choose_posture: nobody crawls where they could walk. It is the
     pass/fail test, because if this returns None then no shape you can make gets through.
+
+    `clear` is CaverBody.POSTURE_CLEAR, and it is why a passage can be passable at a posture the
+    game will not choose: a body fits under 1.26 m of roof at 1.25 m tall and will not walk
+    there, because a shape with a centimetre to spare reads as full contact and wedges. The
+    SLACK reported is still measured against the real body, not against the threshold - what the
+    crux table is for is how close the rock came, not how the chooser felt about it.
     """
     width = max(p[0] for p in sec) - min(p[0] for p in sec)
     best = None
     for row in rows:
         bw, bh = body_box(row, chest, gear)
         gap = clearance(sec, bw)
-        if gap < bh:
+        # Only where there is no chest in the box: flat out and committed are the bottom of the
+        # table and breathing out gets you out of them, so they take the rock as they find it.
+        if gap < bh + (clear if row.get("chest", "none") == "none" else 0.0):
             continue
         # Slack is the SMALLER of the two margins, across the shoulders and through the
         # chest. A passage you clear vertically by half a metre and horizontally by nothing
@@ -435,11 +449,13 @@ def main(path):
         cave = json.load(f)
     rows = postures()
     relaxed, exhaled = chest_depths()
+    clear = posture_clear()
     gear = cave.get("body_gear", 0.04)
     problems = []
 
     print(f"{cave['name']} - posture table from scripts/body.gd, "
-          f"chest {relaxed * 100:.1f} cm relaxed / {exhaled * 100:.1f} cm exhaled\n")
+          f"chest {relaxed * 100:.1f} cm relaxed / {exhaled * 100:.1f} cm exhaled, "
+          f"{clear * 100:.0f} cm of headroom before a posture is worth taking\n")
     print(f"{'passage':<19}{'len':>7}{'at':>7}  {'crux':<14}{'posture there':<24}"
           f"{'slack':>8}  {'relaxed':<20}")
     print("-" * 100)
@@ -462,10 +478,10 @@ def main(path):
                            for i in range(SIDES))) * 0.5
             if area <= 1e-6:
                 problems.append(f"{p['id']}: degenerate section at {dist:.1f} m")
-            fit = best_posture(sec, rows, exhaled, gear)
+            fit = best_posture(sec, rows, exhaled, gear, clear)
             if fit and (crux is None or fit[1] < crux[2]):
                 crux = (dist, fit[0], fit[1], fit[2])
-            if best_posture(sec, rows, relaxed, gear) is None:
+            if best_posture(sec, rows, relaxed, gear, clear) is None:
                 blocked_relaxed.append(dist)
             if fit is None:
                 blocked_exhaled.append(dist)
@@ -506,7 +522,7 @@ def main(path):
                 problems.append(f"{p['id']}: profile keyframes out of order at index {i}")
 
     print("-" * 100)
-    check_standing(cave, problems, rows, relaxed, gear)
+    check_standing(cave, problems, rows, relaxed, gear, clear)
     check_route(cave, problems)
     print(f"\n{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
           f"deepest point {-deepest:.1f} m below the entrance")

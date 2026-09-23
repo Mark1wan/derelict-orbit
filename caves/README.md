@@ -132,9 +132,12 @@ is the dimension the exhale acts on - and the reason the Devil's Pinch, at 28.5 
 relaxed body and admits an emptied one with 2 cm to spare.
 
 Posture is chosen for you, from the ceiling. In a real cave nobody decides to crouch; the rock
-decides, and the only interesting choice left is whether to go lower still. Standing back up
-waits for 9 cm of clear extra headroom, or a passage hovering around 75 cm has you bobbing on
-and off your knees twice a second.
+decides, and the only interesting choice left is whether to go lower still. Standing, stooping
+and hands-and-knees each wait for **10 cm of clear headroom over the shape itself** before the
+body will take them, because a shape that fits by a centimetre is not one anybody walks fifteen
+metres in - you drop onto your knees a pace before the low bit, and so does this. Standing back
+up waits for 9 cm more again, or a passage hovering around 75 cm has you bobbing on and off your
+knees twice a second.
 
 See [docs/MOVEMENT.md](docs/MOVEMENT.md) for how contact pressure, wedging and the squeeze
 solver work, and what VR in a 28 cm slot costs.

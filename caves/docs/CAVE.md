@@ -29,13 +29,25 @@ rather than repeating what was written about it.
 
 | Passage | Length | Crux | Posture there | Spare | With a full chest |
 |---|---|---|---|---|---|
-| The Pitch | 16.8 m | 1.76 m high | standing | 0.6 cm | goes |
+| The Pitch | 16.8 m | 1.85 m high | standing | 10.4 cm | goes |
 | The Cellar | 9.5 m | 2.40 m high | standing | 65.0 cm | goes |
-| The Gullet | 15.5 m | 0.76 m high | hands and knees | 0.9 cm | goes |
+| The Gullet | 15.5 m | 0.85 m high | hands and knees | 10.2 cm | goes |
 | The Bone Box | 6.5 m | 2.12 m high | standing | 37.0 cm | goes |
-| The Flatiron | 24.1 m | 0.75 m high | hands and knees | 0.5 cm | goes |
-| The Devil's Pinch | 9.4 m | **0.285 m wide** | committed, sideways | 0.2 cm | **shut at 4.4 m** |
+| The Flatiron | 24.1 m | 0.42 m high | flat out | 11.9 cm | goes |
+| The Devil's Pinch | 9.4 m | **0.46 m wide** | hands and knees | 0.2 cm | **shut at 4.4 m** |
 | The Drainpipe | 4.9 m | 0.34 m high | flat out | 3.1 cm | shut at 2.4 m |
+
+**Crux** here means the station with the least room to spare in the best posture available
+*there* - not the narrowest section, which for the Devil's Pinch is a 28.5 cm slot you pass
+sideways and not the thing that stops you. That is why the Pinch's crux row says 0.46 m and
+hands and knees: 46 cm is exactly a pair of shoulders, so that is where you have to turn.
+
+Three of those rows moved this round and it was not the cave that changed. Standing, stooping
+and hands-and-knees now want 10 cm of clear headroom over the shape itself before the body will
+take them (`POSTURE_CLEAR` - see [MOVEMENT.md](MOVEMENT.md#the-postures)), so a crux is now the
+tightest place the game will *choose* a posture rather than the tightest one a body would
+physically pass. The Flatiron reads as flat out rather than hands and knees for the same reason,
+which is what it always was to play.
 
 It also prints the tallest point of every tunnel, because "there is nowhere you can stand up"
 is a rule and rules here are gates:
@@ -101,7 +113,8 @@ bore, round, and narrower at every station than it was at the last.
 
 It is the passage that puts you on your hands and knees without asking, and it does it
 gradually: the ceiling comes down over ten metres rather than at a step, so you are already
-crawling by the time you notice you stopped walking.
+crawling by the time you notice you stopped walking. By the last few metres you are on your
+chest, and it has not done anything abrupt to get you there.
 
 ### 4. The Bone Box
 
@@ -325,6 +338,16 @@ each of the 22 section directions, and since displacement only ever pushes rock 
 anything that comes back early is in the lumen. *None where there should be rock:* 32 rays over
 a sphere, and since a cave is a closed shell, any that reaches eighty metres has left the
 world. It covers the whole cave rather than one line through it, and it fails the build.
+
+**It is made of rays, and there is a thing rays cannot see.** A ray is a line; what stops a
+player is a capsule 43 cm across, and a capsule catches rock a line misses. The route walker
+stalled 3.6 m into the Gullet with four forward probes all reporting two clear metres, because
+the body's head was against the lintel over the mouth - a face pointing down and backwards,
+horizontally clear, impossible to slide along without descending into the floor. Nothing about
+the geometry was wrong; the body had chosen a posture with a centimetre to spare and walked it
+under an overhang. So when the route walker gives up it now asks the *collider* what it is
+touching rather than asking the passage what is there - see
+[MOVEMENT.md](MOVEMENT.md#when-it-stops-and-you-cannot-see-why). Reach for that first.
 
 ### Then check it
 

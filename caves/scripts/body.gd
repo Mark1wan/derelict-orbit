@@ -104,6 +104,24 @@ const WEDGE_SHRANK := 0.012 ## how much smaller you have to get for the rock to 
 ## like that: once you are down, you stay down until it is clearly worth getting up.
 const POSTURE_HYSTERESIS := 0.09
 
+## Room over your head before you will CHOOSE to be that tall.
+##
+## A posture is a decision, not a measurement, and a shape that fits by a centimetre is not one
+## anybody walks fifteen metres in. Without this the body took the roomiest posture that fitted
+## at all: 1.25 m of stoop under 1.26 m of Gullet, walking into the mouth of a tunnel whose
+## lintel comes down to meet it. Its head caught the overhang - and a body that catches an
+## overhang is not blocked, it is worse than blocked, because the only way to slide along a
+## surface that faces downwards is to slide DOWN it, and the floor is there. Forward went
+## nowhere, backward went nowhere, and every ray fired from the eye reported two clear metres of
+## tunnel, which is exactly what an invisible wall is.
+##
+## HEIGHT only, and only for the postures with no chest in their box at all - standing, stooping,
+## hands and knees. Those are the ones where being that tall is a free choice rather than the
+## last shape you have; flat out and committed are the bottom of the table already, and they
+## take the rock as they find it. Width never gets a margin anywhere: the Devil's Pinch is
+## 28.5 cm and a committed chest is 27, and that two centimetres is the game.
+const POSTURE_CLEAR := 0.10
+
 var posture := STAND
 var posture_blend := 0.0    ## 0..1 eased height between the last posture and this one
 var forced_low := false     ## the player asked to be lower than the ceiling requires
@@ -157,11 +175,15 @@ func label() -> String:
 func name_of() -> String:
 	return POSTURES[posture]["name"]
 
-## Would this posture fit the space we have just measured? `margin` is the extra room a
-## roomier posture has to find before it is worth standing back up - see choose_posture.
+## Would this posture fit the space we have just measured, with enough room to be worth taking?
+## `margin` is the extra a roomier posture has to find before it is worth standing back up - see
+## choose_posture - and POSTURE_CLEAR is the room over your head you want before you choose to
+## be that tall at all.
 func fits(i: int, margin := 0.0) -> bool:
-	var b := box_of(POSTURES[i], chest)
-	return b.y + margin <= headroom + 0.02 and b.x + margin <= width + 0.02
+	var p: Dictionary = POSTURES[i]
+	var b := box_of(p, chest)
+	var clear: float = POSTURE_CLEAR if p.get("chest", "none") == "none" else 0.0
+	return b.y + clear + margin <= headroom + 0.02 and b.x + margin <= width + 0.02
 
 # ---------------------------------------------------------------- breath
 

@@ -933,6 +933,9 @@ func _what_is_in_the_way(from: Vector3, heading: Vector3) -> void:
 		var who: Object = hit["collider"]
 		print("[autotest]       +%.2f m: %s at %.2f m, %s" % [h, who.name if who else "?",
 			o.distance_to(hit["position"]), hit["position"]])
+	# The rays are the passage; this is the body. When the two disagree the body is right.
+	for line: String in caver.debug_contacts(dir):
+		print("[autotest]       " + line)
 
 # ---------------------------------------------------------------- test helpers
 

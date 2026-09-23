@@ -56,15 +56,35 @@ span either side of it*, and the tightest of the three wins. One ray up the midd
 apex of the arch, which in a round passage is nowhere near what a body 46 cm across can get
 under - the roof has already started coming down by the time it reaches your shoulder. That was
 honest while the cave's crawls were flat-roofed bedding planes, and became a lie the moment they
-became tubes: the body read 1.26 m in the Gullet, chose to stoop, did not fit, and wedged solid
-in a passage `check_fit.py` calls a comfortable hands-and-knees crawl. The offset is capped by
-the room actually available, because in the Devil's Pinch the walls are 14 cm away and a probe
-fired from 23 cm out would report no headroom at all.
+became tubes. The offset is capped by the room actually available, because in the Devil's Pinch
+the walls are 14 cm away and a probe fired from 23 cm out would report no headroom at all.
 
-Standing back up requires **9 cm of clear extra headroom** (`POSTURE_HYSTERESIS`). Dropping is
-instant, because the ceiling is right there; getting up waits. Without that, a passage hovering
-around 75 cm has you bobbing onto your knees and back twice a second, and nobody caves like
-that.
+**A fit is not a choice.** Standing, stooping and hands-and-knees each need **10 cm of clear
+headroom over the shape itself** (`POSTURE_CLEAR`) before the body will take them. The gap a
+posture *needs* is in the table above; the gap it *waits for* is 10 cm more than that.
+
+This is the rule that took longest to find, and it was found the hard way. The body walked into
+the Gullet with 1.26 m of headroom, at 1.25 m of stoop, and stopped dead 3.6 m in. Every ray
+fired forward from the eye reported two clear metres of tunnel - and they were right. What had
+happened was that its head had caught the lintel of the mouth, the rock that comes down over a
+tunnel where it leaves a room. A body that catches an overhang is worse off than one that is
+blocked, because the only way to slide along a surface facing downwards is to slide *down* it,
+and the floor is already there. Forward went nowhere and backward went nowhere, which is exactly
+what an invisible wall is.
+
+Nobody walks fifteen metres stooped with their helmet grinding on the roof. They drop onto their
+knees a pace before the low bit, because they can see it coming - and the body reading headroom
+four times along the pace ahead (`POSTURE_STEPS`) is that pace, read properly.
+
+The 10 cm is **height only, and only for the three postures with no chest in their box**. Width
+never gets a margin anywhere: the Devil's Pinch is 28.5 cm and a committed chest is 27, and that
+two centimetres is the game. `belly` and `superman` do not get it either - lying flat is not a
+choice with room in it, it is the last shape you have.
+
+Standing back up requires **9 cm of clear extra headroom on top of that** (`POSTURE_HYSTERESIS`).
+Dropping is instant, because the ceiling is right there; getting up waits. Without that, a
+passage hovering around 75 cm has you bobbing onto your knees and back twice a second, and
+nobody caves like that.
 
 ## Breath
 
@@ -196,6 +216,25 @@ the width of the passage, and gets ejected through the wall - which a warm-up to
 respawn will do as readily as a test.
 
 Comfort snap turning is on the title screen for players who need it.
+
+## When it stops and you cannot see why
+
+`Caver.debug_contacts` exists because **rays lie about this cave, and every diagnosis made from
+them alone has been wrong.** A ray is a line fired from one point; what stops a CharacterBody3D
+is a capsule 43 cm across catching rock the line missed by a few centimetres. So when
+`CAVE_AUTOTEST=route` gives up it stops asking the passage what is there and asks the body:
+
+    capsule r 0.215 h 1.250 at +0.62 m, upright, on floor true, floor at 18 deg, vel 0.000 m/s
+      touching Rock (roof) at (7.06, -16.60, 1.24), normal (-0.65, -0.74, -0.16), pushes you back
+      capsule is INSIDE rock at (7.06, -16.60, 1.24), 0.000 m deep
+      sweep (0.98, 0.00, 0.18): 2.00 m of 2.00
+      sweep (0.94, -0.29, 0.17): 0.00 m of 2.00
+
+That is the shape, every contact `move_and_slide` made and which way it faced, whether the
+capsule is already overlapping anything, and how far a swept cast of that same capsule gets.
+The four lines above name a blockage four rays had just called two clear metres of tunnel: a
+face pointing down and backwards at head height, horizontally clear but impossible to slide
+along without descending into the floor. Reach for it first, not last.
 
 ## The files
 

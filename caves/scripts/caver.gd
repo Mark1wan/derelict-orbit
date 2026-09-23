@@ -668,3 +668,68 @@ func debug_state() -> Dictionary:
 		"air": body.air,
 		"depth": -global_position.y,
 	}
+
+## What the body is actually touching, and how far the actual capsule could actually go.
+##
+## Rays fired from a point say what is in front of your nose. They cannot see the thing that
+## stops a CharacterBody3D, which is the capsule catching on rock a ray missed by a few
+## centimetres - and every diagnosis made from rays alone in this cave has been wrong. So this
+## reports the collider, not a model of it: the shape, where the last move_and_slide hit rock
+## and which way that rock faced, whether the capsule is already overlapping something, and how
+## far a swept cast of that same capsule gets before it jams.
+func debug_contacts(heading: Vector3) -> Array[String]:
+	var out: Array[String] = []
+	out.append("capsule r %.3f h %.3f at %+.2f m, %s, on floor %s%s, vel %.3f m/s (y %+.2f)"
+		% [_capsule.radius, _capsule.height, body_shape.position.y,
+			"lying down" if absf(body_shape.rotation.x) > 0.1 else "upright",
+			is_on_floor(), ", floor at %.0f deg" % rad_to_deg(get_floor_angle())
+				if is_on_floor() else "",
+			Vector3(velocity.x, 0.0, velocity.z).length(), velocity.y])
+
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		# A normal pointing up is floor; one pointing along the passage is a wall across it.
+		var facing: String = "floor" if n.y > 0.7 else ("roof" if n.y < -0.7 else "wall")
+		out.append("  touching %s (%s) at %s, normal %s, %.0f deg off level, pushes %s"
+			% [c.get_collider().name if c.get_collider() else "?", facing,
+				_short(c.get_position()), _short(n), rad_to_deg(acos(clampf(n.y, -1.0, 1.0))),
+				"you on" if n.dot(heading) > 0.2 else
+					("you back" if n.dot(heading) < -0.2 else "sideways")])
+	if get_slide_collision_count() == 0:
+		out.append("  touching nothing at all")
+
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = _capsule
+	q.transform = body_shape.global_transform
+	q.collision_mask = 1
+	q.exclude = [get_rid()]
+	q.margin = 0.0
+
+	# Already inside the rock? Then nothing about the passage ahead matters. collide_shape hands
+	# back pairs of points - one on the capsule, one on the rock - and the gap between a pair is
+	# how deep it is in.
+	var rest := space.get_rest_info(q)
+	if rest.is_empty():
+		out.append("  capsule is clear of the rock where it stands")
+	else:
+		var deepest := 0.0
+		var pairs := space.collide_shape(q, 8)
+		for i in range(0, pairs.size() - 1, 2):
+			deepest = maxf(deepest, pairs[i].distance_to(pairs[i + 1]))
+		out.append("  capsule is INSIDE rock at %s, %.3f m deep, normal %s"
+			% [_short(rest["point"]), deepest, _short(rest["normal"])])
+
+	# And how far it can actually be swept, which is the number the rays were standing in for.
+	var dir := Vector3(heading.x, 0.0, heading.z).normalized()
+	for motion: Vector3 in [dir * 2.0, (dir + Vector3.DOWN * 0.3).normalized() * 2.0,
+			Vector3.DOWN * 0.6]:
+		q.motion = motion
+		var span := space.cast_motion(q)
+		out.append("  sweep %s: %.2f m of %.2f" % [_short(motion.normalized()),
+			span[0] * motion.length(), motion.length()])
+	return out
+
+func _short(v: Vector3) -> String:
+	return "(%.2f, %.2f, %.2f)" % [v.x, v.y, v.z]
