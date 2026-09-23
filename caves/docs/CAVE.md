@@ -147,7 +147,14 @@ because the cave is closing down the whole way.
 ### 5. The Flatiron
 
 Twenty-five metres of the same bore, squashed. It keeps the Gullet's shape and loses its height:
-1.02 × 0.78 m at the mouth and 0.78 × 0.44 m at its worst, with three pinches of its own.
+1.02 × 0.80 m at the mouth and 0.80 × 0.49 m at its worst, with three pinches of its own.
+
+Those worst heights came up three to five centimetres from where they were first drawn, and the
+reason is pace rather than fit. Five centimetres lower and the body picks `superman` - head
+first, one arm pushed ahead - which moves at ten centimetres a second. Twenty-five metres of that
+is four minutes in which nothing the player does makes any difference. Flat out is 34 cm a
+second and still slow enough to be work. The pinches kept their bite; the passage stopped being
+a corridor you wait in.
 
 It used to be a bedding plane - 3.2 m wide and 41 cm high, the parting between two beds of
 limestone. That is a real passage type and it was the wrong one for this cave: a slab that wide

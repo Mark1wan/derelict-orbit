@@ -838,10 +838,12 @@ func _autotest_route() -> void:
 			print("[autotest]   %-20s   -   a pitch: rigged, not walked" % bore.label)
 			continue
 		var length: float = bore.length()
-		var step_t: float = clampf(1.5 / maxf(length, 0.1), 0.02, 0.25)
-		# 45 s a step. A committed shuffle covers 4 cm a second and pressure takes a third of
-		# that off again, so a budget sized for walking condemns every squeeze in the cave.
-		var budget := int(45.0 * Engine.physics_ticks_per_second)
+		var step_t: float = clampf(1.0 / maxf(length, 0.1), 0.02, 0.25)
+		# 90 s a metre. `superman` moves at 10 cm a second before pressure takes a third of that
+		# off again, and a body flat out does not travel in a straight line down the centreline
+		# either - so a budget sized for walking condemns every squeeze in the cave, and a
+		# budget sized for a straight line condemns every bend.
+		var budget := int(90.0 * Engine.physics_ticks_per_second)
 		await _put_in(bore.id, 0.04)
 		var reached := 0.04
 		var stuck := 0.0
@@ -877,7 +879,11 @@ func _autotest_route() -> void:
 				# a body crosses it a metre to one side of the line and never comes within
 				# 80 cm of the station. That is not a blockage, that is a bedding crawl.
 				got = maxf(got, float(bore.nearest(caver.global_position)["along"]) / maxf(length, 0.001))
-				if got >= t - 0.01 or closest < 0.8:
+				# Arrival is progress ALONG the passage. The old test also accepted "within 80 cm
+				# of the station", which in a five-metre lead with 1.25 m steps means arriving
+				# without going anywhere - the Drainpipe reported itself walked, 99 % of a
+				# passage whose entire purpose is to pinch shut.
+				if got >= t - 0.01 or closest < 0.35:
 					arrived = true
 					break
 			caver.debug_exhale(0.0)
