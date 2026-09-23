@@ -120,10 +120,17 @@ round and why it bends the way it does. 1.30 × 1.15 m at the mouth, closing to 
 over sixteen metres, with three pinches on the way where it shuts to about half that and opens
 again.
 
-It puts you on your belly in the first three metres and keeps you there. Twenty-two degrees of drop straight out of the Cellar, four metres of near-level crawl, then it
-climbs twelve degrees back up over a rib before dropping twenty-six into the Bone Box - so you
-are never on the flat for long, and you have gained and lost height with your face fifty
-centimetres from the rock.
+It puts you on your belly in the first three metres and keeps you there. Eighteen degrees of drop straight out of the Cellar, easing to nine, then it climbs back over a
+rib before dropping twenty into the Bone Box - so you are never on the flat for long, and you
+have gained and lost height with your face fifty centimetres from the rock.
+
+The gradients are as steep as they are, and the BREAKS between them are gentler than they were,
+because the break is what a long collider cannot ride. A capsule pitched to the floor it is on
+has its nose out over the floor ahead; at a twenty-nine degree change of slope that nose ends up
+inside the rock, and the body moves forward at a third of a metre a second while being shoved
+back exactly as far. Sixteen degrees of change is what it can take, and the cave is authored to
+it. That is a limit of the collider rather than of the cave, and it is written down here so the
+next person to flatten a rib knows which of the two they are fighting.
 
 The verticality is not decoration. It is the reason the collision capsule now lies along the
 floor rather than along the horizon, and the reason a prone body is allowed a steeper floor

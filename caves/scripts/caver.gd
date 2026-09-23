@@ -426,11 +426,13 @@ func _shape_body() -> void:
 		# rock. Along the normal, the capsule sits on the slope however steep the slope is.
 		body_shape.position = up * (_capsule.radius + 0.01)
 	else:
-		# In `commit` the width IS the mechanic, so the skin has to get out of its way. A
+		# In `commit` and `superman` the width IS the mechanic, so the skin has to get out of
+		# its way - `superman` is the shape that decides whether a lead admits you at all, and
+		# at full skin the Drainpipe let a body through a hole the model says is shut. A
 		# centimetre and a half either side is three centimetres of slack, and the whole exhale
 		# is worth three and a half: at full skin a relaxed chest slides through the crux the
 		# body model says is shut, which is the one thing the Devil's Pinch must never do.
-		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() == "commit" else 1.0)
+		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() in ["commit", "superman"] else 1.0)
 		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5 - skin, 0.09, 0.28)
 		_capsule.height = maxf(b.y, _capsule.radius * 2.0 + 0.02)
 		body_shape.basis = Basis.IDENTITY
