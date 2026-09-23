@@ -79,12 +79,12 @@ and `drop` marks the one join you are not expected to walk across, which is what
 for:
 
 ```
-  join      pitch -> cellar     ends  2.49 m apart (end inside), floors 1.07 m apart  drop
-  join     cellar -> gullet     ends  1.14 m apart (end inside), floors 0.07 m apart  ok
-  join     gullet -> bonebox    ends  1.36 m apart (end inside), floors 0.07 m apart  ok
-  join    bonebox -> flatiron   ends  0.91 m apart (start inside), floors 0.08 m apart  ok
-  join   flatiron -> pinch      ends  0.00 m apart (end inside), floors 0.05 m apart  ok
-  join      pinch -> drainpipe  ends  0.25 m apart (end inside), floors 0.01 m apart  ok
+  join      pitch -> cellar     ends  2.49 m apart (end inside), floors 1.06 m apart  drop
+  join     cellar -> gullet     ends  1.24 m apart (start inside), floors 0.06 m apart  ok
+  join     gullet -> bonebox    ends  1.77 m apart (end inside), floors 0.07 m apart  ok
+  join    bonebox -> flatiron   ends  0.87 m apart (start inside), floors 0.00 m apart  ok
+  join   flatiron -> pinch      ends  0.00 m apart (end inside), floors 0.00 m apart  ok
+  join      pinch -> drainpipe  ends  0.25 m apart (end inside), floors 0.03 m apart  ok
 ```
 
 ### 1. The Pitch
@@ -335,6 +335,15 @@ which for the last station means half a metre past the end of the passage - so w
 bound, a neighbour's wall is trimmed away in a slab the passage does not enclose and nothing
 else covers. The Gullet lost its walls for the first half metre past the Cellar's end face
 exactly that way, which is a hole you can see through and fall out of.
+
+**A join's floors have to meet within 10 cm** (`check_fit.MAX_STEP`), and that number used to be
+40. Forty centimetres is the height of a breakdown block you step onto, and a `CharacterBody3D`
+cannot step onto anything: `floor_snap_length` only ever snaps DOWN. What a body can climb is
+whatever is shallower than `floor_max_angle`, and the lip at a junction - the double-sided seam
+face below - is exactly as steep as the mismatch makes it. Twelve centimetres at the Gullet's
+mouth came out at 59 degrees, one degree over the limit, and stopped a standing body dead in a
+room 2.4 metres tall with nothing else near it. Tightening the gate immediately found a second
+one, a 20 cm step into the Flatiron, which would have been the next thing a player hit.
 
 ### Seams
 

@@ -45,7 +45,15 @@ SHAPE_POWER = {
 
 SIDES = 28          # Bore.SIDES
 STATION_STEP = 0.35 # Bore.STATION_STEP
-MAX_STEP = 0.40     # metres of floor mismatch a body can get over at a junction
+# Metres of floor mismatch a body can get over at a junction.
+#
+# 0.40 was the height of a breakdown block you step onto, and it was far too generous, because
+# a CharacterBody3D has no step-up: `floor_snap_length` only ever snaps DOWN. What a body can
+# climb is whatever is shallower than `floor_max_angle`, and the lip at a junction - the
+# double-sided seam face where one passage's tube crosses another's end - is as steep as the
+# mismatch makes it. A 12 cm step at the Gullet's mouth came out at 59 degrees, one degree over
+# the limit, and stopped a standing body dead in a room 2.4 m tall with nothing else near it.
+MAX_STEP = 0.10
 
 # Must match CaverBody.POSTURE_LABEL in scripts/body.gd.
 POSTURE_TEXT = {
