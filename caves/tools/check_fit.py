@@ -37,7 +37,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Must match Geo.SHAPE_POWER in scripts/geo.gd.
 SHAPE_POWER = {
     "tube": 2.0,
-    "rift": 5.5,
+    "rift": 8.0,
     "letterbox": 4.2,
     "keyhole": 2.0,
     "breakdown": 1.6,
@@ -317,6 +317,35 @@ def floor_at(stations, i):
     return pos[1] + min(q[1] for q in sec)
 
 
+def check_standing(cave, problems, rows, chest, gear):
+    """No tunnel you can stand up in.
+
+    A room is allowed to be a room and a shaft is a hole you go down a rope, but everything
+    between them is supposed to be a bore. Left to prose this rots the first time somebody
+    nudges a profile keyframe, so it is a gate: if the posture the game would pick at any
+    station of any tunnel is `stand`, the cave is wrong and the build says so.
+    """
+    print()
+    shoulders = body_box(rows[0], chest, gear)[0]
+    for p in cave["passages"]:
+        if p.get("kind") in ("room", "shaft"):
+            continue
+        tallest = None
+        for dist, _, sec in sections_along(p):
+            gap = clearance(sec, shoulders)
+            if tallest is None or gap > tallest[1]:
+                tallest = (dist, gap)
+            fit = best_posture(sec, rows, chest, gear)
+            if fit and fit[0] == "stand":
+                problems.append(f"{p['id']}: you can stand up at {dist:.1f} m in "
+                                f"- that is a room, not a tunnel")
+        if tallest is None:
+            continue
+        print("  tunnel %-20s tallest %.2f m at %.1f m in   %s"
+              % (p["label"], tallest[1], tallest[0],
+                 "STANDS UP" if tallest[1] >= 1.75 else "ok"))
+
+
 def check_route(cave, problems):
     """Consecutive passages on the route must actually meet, and meet at the same floor.
 
@@ -477,6 +506,7 @@ def main(path):
                 problems.append(f"{p['id']}: profile keyframes out of order at index {i}")
 
     print("-" * 100)
+    check_standing(cave, problems, rows, relaxed, gear)
     check_route(cave, problems)
     print(f"\n{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
           f"deepest point {-deepest:.1f} m below the entrance")

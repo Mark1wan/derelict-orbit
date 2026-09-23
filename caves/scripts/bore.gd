@@ -47,7 +47,10 @@ func _init(data: Dictionary) -> void:
 	label = data.get("label", id)
 	kind = data.get("kind", "passage")
 	wall_mat = data.get("wall", "rock")
-	floor_mat = data.get("floor", "mud")
+	# The floor is the same rock as the walls unless a cave says otherwise. Where it is, Cave
+	# hands back the same batch for both and the split costs nothing; the capability stays for
+	# a cave that wants mud underfoot.
+	floor_mat = data.get("floor", wall_mat)
 	rough = float(data.get("rough", 0.10))
 
 	_noise = FastNoiseLite.new()

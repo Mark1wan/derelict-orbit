@@ -64,6 +64,8 @@ const AIR_REARM := 0.22     ## below this you cannot start another one
 const RING := 12            ## rays around the chest, in the plane across the passage
 const RING_REACH := 1.30    ## how far out to look before calling it open space
 const HEAD_REACH := 2.60
+const SHOULDER_HALF := 0.23 ## half a shoulder span - how far off the centreline headroom is read
+const POSTURE_STEPS := 3    ## samples taken along the pace ahead, so a mouth cannot hide between
 const WORLD_MASK := 1
 
 ## Contact pressure: how much of the space available to you, your body is currently taking up.
@@ -225,24 +227,31 @@ func probe(space: PhysicsDirectSpaceState3D, centre: Vector3, basis: Basis, foot
 	# Headroom is measured from the floor, not from the chest, because that is the number that
 	# decides whether you could stand up here if you wanted to.
 	#
-	# And it is measured HERE AND JUST AHEAD, taking whichever is tighter. Measuring only where
-	# the body already is means you walk up to a sixty-centimetre bedding crawl at full height,
-	# stay at full height because where you are standing is fine, and stop dead against the
-	# lip - which from the inside is indistinguishable from an invisible wall. Nobody caves
-	# like that either: you go down onto your knees a pace before the low bit, because you can
-	# see it coming. This is that pace.
-	var here_head := _cast(space, foot + basis.y * 0.04, basis.y, HEAD_REACH)
-	# The pace ahead is taken along the FLOOR, not along the horizon. `fwd` is flattened, so in
-	# a passage that descends - the Drainpipe drops a metre and a half over four - stepping
-	# forward horizontally walks into the ceiling, and the body reads six centimetres of
-	# headroom in a passage two thirds of a metre tall. So the lookahead finds the floor under
-	# it first, the way a foot does.
-	var step: Vector3 = foot + fwd * POSTURE_AHEAD + basis.y * 0.45
-	var drop := _cast(space, step, -basis.y, 1.6)
-	if drop < 1.6:
-		step -= basis.y * (drop - 0.04)
-	var next_head := _cast(space, step, basis.y, HEAD_REACH)
-	headroom = minf(here_head, next_head) + 0.04
+	# It is sampled at several points ALONG the pace ahead, not just at the two ends of it, and
+	# the tightest wins. Measuring only where the body already is means you walk up to a low
+	# passage at full height, stay at full height because where you are standing is fine, and
+	# stop dead against the lip - which from the inside is indistinguishable from an invisible
+	# wall. Measuring only the two ends is the same mistake made smaller: it misses anything
+	# thinner than the gap between the samples, and the tightest thing in this cave is a mouth,
+	# which is one station thick. The body walked up to the Gullet with three metres of Cellar
+	# over its head and 1.35 m of tunnel beyond, stayed stooped because both ends read fine,
+	# and put its head into the rim between them.
+	#
+	# Nobody caves like that either: you go down onto your knees a pace before the low bit,
+	# because you can see it coming. This is that pace, read properly.
+	headroom = _head_over(space, foot + basis.y * 0.04, basis.y, basis.x) + 0.04
+	for s in range(1, POSTURE_STEPS + 1):
+		# Each sample steps along the FLOOR, not along the horizon. `fwd` is flattened, so in a
+		# passage that descends - the Drainpipe drops a metre and a half over four - stepping
+		# forward horizontally walks into the ceiling, and the body reads six centimetres of
+		# headroom in a passage two thirds of a metre tall. So each one finds the floor under
+		# it first, the way a foot does.
+		var step: Vector3 = foot + fwd * (POSTURE_AHEAD * float(s) / float(POSTURE_STEPS)) \
+			+ basis.y * 0.45
+		var drop := _cast(space, step, -basis.y, 1.6)
+		if drop < 1.6:
+			step -= basis.y * (drop - 0.04)
+		headroom = minf(headroom, _head_over(space, step, basis.y, basis.x) + 0.04)
 
 	var ahead_c: Vector3 = centre + fwd * POSTURE_AHEAD
 	gap_left = _cast(space, centre, -basis.x, RING_REACH)
@@ -281,6 +290,30 @@ func _ring(space: PhysicsDirectSpaceState3D, centre: Vector3, basis: Basis,
 	for i in n:
 		sum += sorted[i]
 	return sum / float(maxi(n, 1))
+
+## Headroom across a pair of shoulders rather than over a single point.
+##
+## One ray up the centreline reads the apex of the arch, and in a round bore the apex is nowhere
+## near what a body 46 cm across can get under - the roof has already started coming down by the
+## time it reaches your shoulder. That was honest while the passages were flat-roofed bedding
+## planes and became a lie the moment they became tubes: the body read 1.26 m in the Gullet,
+## chose to stoop, did not fit, and wedged solid in a passage the fit checker calls a
+## comfortable hands-and-knees crawl.
+##
+## The offset is capped by how much room there actually is, because the probe must never start
+## inside rock. In the Devil's Pinch the walls are 14 cm away, and a ray fired from 23 cm out
+## would report no headroom at all - folding the body out of the one posture that fits through
+## the crux.
+##
+## This is the question `Geo.clearance` asks, and `tools/check_fit.py` gates the cave on it, so
+## the body and the checker now mean the same thing by "headroom".
+func _head_over(space: PhysicsDirectSpaceState3D, at: Vector3, up: Vector3, across: Vector3) -> float:
+	var room: float = minf(_cast(space, at, across, RING_REACH),
+		_cast(space, at, -across, RING_REACH))
+	var off: float = minf(SHOULDER_HALF, maxf(room - 0.03, 0.0))
+	var h := _cast(space, at, up, HEAD_REACH)
+	h = minf(h, _cast(space, at + across * off, up, HEAD_REACH))
+	return minf(h, _cast(space, at - across * off, up, HEAD_REACH))
 
 func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, dir: Vector3, reach: float) -> float:
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach, WORLD_MASK)

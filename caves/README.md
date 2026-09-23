@@ -21,12 +21,12 @@ your vision, and that is still in there - `Cave.lit = false` in `scripts/cave_ga
 it. But you cannot judge whether a squeeze reads, or whether a passage goes where you think it
 does, through a fifteen degree cone, so while the movement is being played with there are fill
 lights down every passage and the headlamp is not load-bearing. Twenty-eight metres down, past
-a rope, two small rooms, a hands-and-knees tube and twenty-four metres of bedding crawl, the
+a rope, two small rooms, a hands-and-knees tube and twenty-four metres of flattened bore, the
 passage narrows to twenty-eight and a half centimetres, and you have to decide.
 
 **Most of it is too small to stand up in.** There are exactly two places in the cave where you
-can, and neither is bigger than a garage. Everything between them is a tube, a bedding plane
-or a slot.
+can, and neither is bigger than a garage. Everything between them is a bore that only ever
+narrows - and the only thing that is not round is the slot at the bottom, which is the point.
 
 Nothing down here is hunting you. Nothing is counting down. Getting wedged is not a death, it
 is a puzzle: you got held at a particular shape, and the way out is to become a smaller one.
@@ -42,15 +42,20 @@ You begin already clipped on to the rope, three metres down the shaft, with rock
 
 | | Passage | What it is | Length | Tightest | What it teaches |
 |---|---|---|---|---|---|
-| 1 | **The Pitch** | 17 m shaft, 2.1 m bore, rigged with one rope | 16.8 m | — | going down, and how far down that is |
+| 1 | **The Pitch** | 17 m shaft, tapering 2.3 → 1.7 m, rigged with one rope | 16.8 m | — | going down, and how far down that is |
 | 2 | **The Cellar** | a room at the foot of the rope, 9 × 5, roof 3.0 | 9.5 m | — | standing up, and turning round |
-| 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 15.5 m | 1.10 × 0.95 m | hands and knees, without being asked |
+| 3 | **The Gullet** | phreatic tube, dissolved round, bending down | 15.5 m | 0.92 × 0.88 m | hands and knees, without being asked |
 | 4 | **The Bone Box** | the other room, 7 × 4.5, roof 2.8 | 6.5 m | — | the last place you stand up |
-| 5 | **The Flatiron** | bedding plane, ceiling down to 41 cm | 24.1 m | 0.41 m | flat out, and what contact feels like |
+| 5 | **The Flatiron** | the same tube, flattened, 51 cm at its worst | 24.1 m | 0.91 × 0.51 m | flat out, and what contact feels like |
 | 6 | **The Devil's Pinch** | a joint pulled open: tall, and 28.5 cm wide | 9.4 m | **0.285 m** | turning sideways and emptying your chest |
-| 7 | **The Drainpipe** | a lead that pinches shut 62 % of the way in | 4.9 m | closes | committing, and backing out |
+| 7 | **The Drainpipe** | a lead that pinches shut 48 % of the way in | 4.9 m | closes | committing, and backing out |
 
-A room here is not a different kind of object - it is a short passage with a big cross-section.
+**The tunnels are bores, and they only ever get tighter.** Every passage between the two rooms
+is round, no wider than about twice its height, and narrower than the one before it. There is
+nowhere in any of them you can stand up — `check_fit.py` fails the build if there is.
+
+The two rooms are the exception, and they are the only one: a room here is not a different kind
+of object either - it is a short passage with a big cross-section.
 That is the whole of the cave's structure, and it is deliberate: see
 [docs/CAVE.md](docs/CAVE.md) for why two kinds of object turned out to be one kind too many,
 and for the one rule that joins them.
@@ -156,7 +161,8 @@ scripts/cave.gd        reads cave/sowbelly.json, sweeps it, chunks it at 20 m, h
 scripts/bore.gd        one passage: centreline + profile keyframes -> stations -> geometry
 scripts/geo.gd         SurfaceTool batcher (from Derelict Orbit) + cross-sections, levelled
                        frames along a bending centreline, and the sweep that joins them
-scripts/cave_tex.gd    limestone, mud, flowstone and breakdown, with free normal maps
+scripts/cave_tex.gd    a library of rock, with free normal maps. Sowbelly uses one of them:
+                       wet limestone, on every surface from the roof to the floor
 scripts/palette.gd     the handful of materials the whole cave is drawn with, including
                        the double-sided one the junction lips use
 scripts/lamp.gd        the headlamp: a hot narrow beam, a dim wide flood, dust in both
@@ -207,6 +213,11 @@ teleport: it starts where you start and walks the centreline, and reports the fi
 cannot reach. It also asserts the safety net never fires, so a passage trimmed so hard it has
 a hole in its floor fails the build rather than dropping you into the void.
 
+`check_fit.py` also gates the two rules that are easy to state and easy to lose: no tunnel
+between the rooms may be tall enough to stand up in, and consecutive passages must overlap with
+their floors meeting within 40 cm. Both are the kind of thing that rots the first time somebody
+nudges a keyframe, so neither is left to prose.
+
 `CAVE_AUTOTEST=clear` is the direct test for the geometry, and unlike walking it cannot miss a
 fault by taking a different line through a room. It asks three questions at every station of
 every passage.
@@ -228,13 +239,13 @@ metres has left the world - and where it left is a hole you can fall out of. Thi
 that found the real damage: every passage in the cave was open to the void around the tunnel
 leaving it, because an end you declare open is an end with nothing across it.
 
-All three are zero. 5,852 clearance rays, the closest coming back at 83 % of the way to the
+All three are zero. 5,852 clearance rays, the closest coming back at 86 % of the way to the
 wall; every passage clear end to end; and not one of 8,400 sphere rays gets out.
 
 ## Performance
 
 A cave is cheap to draw, which is the whole reason the headlamp can afford a shadow. Sowbelly
-is about 24,800 triangles in 15 meshes, built in about half a second at startup, and the export is a
+is about 23,300 triangles in 11 meshes, built in about half a second at startup, and the export is a
 small pck - everything except the engine is generated on the spot. There is one light in the
 world that matters, fog swallows anything past about 14 m, and the chunks are 20 m so frustum
 culling does the rest.

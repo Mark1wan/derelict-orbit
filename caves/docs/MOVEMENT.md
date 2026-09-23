@@ -46,10 +46,20 @@ shoulders from 46 cm to 32 cm and is the only way into a tube narrower than you 
 The 4 cm on `belly` is the helmet, the oversuit and whatever is on your back. `commit` gets
 only 5 mm because turned sideways in a slot there is nothing on you that is not squashed flat.
 
-**Posture is automatic.** An up-cast from your feet measures the ceiling, and you become the
+**Posture is automatic.** Up-casts from your feet measure the ceiling, and you become the
 fastest shape that fits under it. In a real cave nobody decides to crouch - the rock decides,
 and taking that routine choice away leaves the interesting one, which is whether to go lower
 than you have to. That is what LOW is for.
+
+**Casts, plural, and that matters.** Headroom is read at the centreline *and half a shoulder
+span either side of it*, and the tightest of the three wins. One ray up the middle reads the
+apex of the arch, which in a round passage is nowhere near what a body 46 cm across can get
+under - the roof has already started coming down by the time it reaches your shoulder. That was
+honest while the cave's crawls were flat-roofed bedding planes, and became a lie the moment they
+became tubes: the body read 1.26 m in the Gullet, chose to stoop, did not fit, and wedged solid
+in a passage `check_fit.py` calls a comfortable hands-and-knees crawl. The offset is capped by
+the room actually available, because in the Devil's Pinch the walls are 14 cm away and a probe
+fired from 23 cm out would report no headroom at all.
 
 Standing back up requires **9 cm of clear extra headroom** (`POSTURE_HYSTERESIS`). Dropping is
 instant, because the ceiling is right there; getting up waits. Without that, a passage hovering
@@ -94,7 +104,7 @@ occupancy; pressure is occupancy mapped through `CONTACT_FLOOR` (0.42) and `CONT
 
 Two things about that are not obvious and both were bugs first.
 
-**Averaging raw distances is wrong.** A bedding crawl is three metres wide and thirty-eight
+**Averaging raw distances is wrong.** Picture a bedding crawl: three metres wide and thirty-eight
 centimetres tall. Average how far away the rock is and it reads as open space, because the two
 horizontal rays fly off into the dark - but nothing about that passage is open. What is
 pressing on you is the ceiling. Comparing each ray against your own extent along it fixes this:

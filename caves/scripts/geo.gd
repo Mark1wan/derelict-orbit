@@ -76,7 +76,7 @@ func box_faces(c: Vector3, s: Vector3, which: Array, inward := false, uv_scale :
 ## Superellipse exponent per shape. 2 is an ellipse; higher is squarer; lower is more pointed.
 const SHAPE_POWER := {
 	"tube": 2.0,        # phreatic - dissolved full of water, so round
-	"rift": 5.5,        # a joint pulled open: near-parallel walls, rounded ends
+	"rift": 8.0,        # a joint pulled open: near-parallel walls, rounded ends
 	"letterbox": 4.2,   # a bedding plane: wide, flat, square-ish corners
 	"keyhole": 2.0,     # handled specially below
 	"breakdown": 1.6,   # collapse: angular, pointed

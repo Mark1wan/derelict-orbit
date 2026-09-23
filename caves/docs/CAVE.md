@@ -10,8 +10,8 @@ cave. 7 passages, 87 m surveyed, 27.6 m below the entrance.*
 
 Sowbelly is invented. The geology is not: it is a limestone system of the kind that forms in
 bedded, jointed rock where water has had a long time and several ways down. The passage types
-are the real ones cavers name - a pitch, a phreatic tube, a bedding plane, a rift, a lead - and
-the dimensions are the real ones too, down to a squeeze that is narrower than a relaxed human
+are the real ones cavers name - a pitch, a phreatic tube, a rift, a lead - and the dimensions
+are the real ones too, down to a squeeze that is narrower than a relaxed human
 chest.
 
 It is a **tight** cave, and that is the design. There are two places in it where a person can
@@ -29,13 +29,27 @@ rather than repeating what was written about it.
 
 | Passage | Length | Crux | Posture there | Spare | With a full chest |
 |---|---|---|---|---|---|
-| The Pitch | 16.8 m | 2.03 m high | standing | 28.1 cm | goes |
+| The Pitch | 16.8 m | 1.76 m high | standing | 0.6 cm | goes |
 | The Cellar | 9.5 m | 2.40 m high | standing | 65.0 cm | goes |
-| The Gullet | 15.5 m | 1.26 m high | stooping | 1.3 cm | goes |
+| The Gullet | 15.5 m | 0.76 m high | hands and knees | 0.9 cm | goes |
 | The Bone Box | 6.5 m | 2.12 m high | standing | 37.0 cm | goes |
-| The Flatiron | 24.1 m | 0.75 m high | hands and knees | 0.3 cm | goes |
-| The Devil's Pinch | 9.4 m | **0.285 m wide** | committed, sideways | 0.6 cm | **shut at 4.7 m** |
-| The Drainpipe | 4.9 m | 0.36 m high | flat out | 5.4 cm | shut at 3.1 m |
+| The Flatiron | 24.1 m | 0.75 m high | hands and knees | 0.5 cm | goes |
+| The Devil's Pinch | 9.4 m | **0.285 m wide** | committed, sideways | 0.2 cm | **shut at 4.4 m** |
+| The Drainpipe | 4.9 m | 0.34 m high | flat out | 3.1 cm | shut at 2.4 m |
+
+It also prints the tallest point of every tunnel, because "there is nowhere you can stand up"
+is a rule and rules here are gates:
+
+```
+  tunnel The Gullet           tallest 1.36 m at 0.0 m in   ok
+  tunnel The Flatiron         tallest 0.81 m at 0.0 m in   ok
+  tunnel The Devil's Pinch    tallest 1.30 m at 2.4 m in   ok
+  tunnel The Drainpipe        tallest 0.38 m at 0.0 m in   ok
+```
+
+Standing needs 1.75 m. The two rooms are allowed to be rooms and the Pitch is a hole you go
+down on a rope; everything between them is a bore, and if a profile keyframe ever creeps back
+over the line the build says so rather than somebody noticing in a screenshot.
 
 `check_fit.py` also prints the joins, because a cave whose passages are each passable can still
 be impassable where two of them meet. `end inside` means the first passage's last station falls
@@ -44,18 +58,19 @@ and `drop` marks the one join you are not expected to walk across, which is what
 for:
 
 ```
-  join      pitch -> cellar     ends  2.49 m apart (end inside), floors 0.63 m apart  drop
-  join     cellar -> gullet     ends  1.14 m apart (end inside), floors 0.11 m apart  ok
-  join     gullet -> bonebox    ends  1.36 m apart (end inside), floors 0.16 m apart  ok
-  join    bonebox -> flatiron   ends  0.91 m apart (start inside), floors 0.14 m apart  ok
-  join   flatiron -> pinch      ends  0.00 m apart (end inside), floors 0.00 m apart  ok
+  join      pitch -> cellar     ends  2.49 m apart (end inside), floors 1.07 m apart  drop
+  join     cellar -> gullet     ends  1.14 m apart (end inside), floors 0.07 m apart  ok
+  join     gullet -> bonebox    ends  1.36 m apart (end inside), floors 0.07 m apart  ok
+  join    bonebox -> flatiron   ends  0.91 m apart (start inside), floors 0.08 m apart  ok
+  join   flatiron -> pinch      ends  0.00 m apart (end inside), floors 0.05 m apart  ok
   join      pinch -> drainpipe  ends  0.25 m apart (end inside), floors 0.01 m apart  ok
 ```
 
 ### 1. The Pitch
 
-A 17 m shaft, 2.4 m across at the head and never wider than 2.6, dropping through the roof of
-the Cellar. One rope, rigged from two bolts and a loop of tape at the top, hanging free the
+A 17 m shaft, 2.3 m across at the head and narrowing the whole way to 1.7 m where it drops
+through the roof of the Cellar. Nothing in this cave opens back up once it has closed, and the
+first thing you are in sets that expectation. One rope, rigged from two bolts and a loop of tape at the top, hanging free the
 whole way. There is daylight at the head of it and none at the bottom, and watching it go is
 the point of it.
 
@@ -72,7 +87,7 @@ enough to be a decision.
 
 ### 2. The Cellar
 
-9 × 5 m and 3 m to the roof, with a rubble floor and seven formations on the walls. The rope
+9 × 5 m and 3 m to the roof, with seven formations on the walls. The rope
 lands you here. It is one of two places in Sowbelly where you can stand up, and it exists to
 give you a scale that everything afterwards takes away - you get about eight metres of walking,
 and then the Gullet.
@@ -80,8 +95,9 @@ and then the Gullet.
 ### 3. The Gullet
 
 A phreatic tube - dissolved when this part of the system was full of water, which is why it is
-round and why it bends the way it does. 2.0 m at the mouth, closing to 1.10 × 0.95 m over
-fifteen metres as it descends. A mud floor, the first in the cave.
+round and why it bends the way it does. 1.70 × 1.50 m at the mouth, closing to 0.92 × 0.88 m
+over fifteen metres as it descends. It is the shape the rest of the cave is measured against: a
+bore, round, and narrower at every station than it was at the last.
 
 It is the passage that puts you on your hands and knees without asking, and it does it
 gradually: the ceiling comes down over ten metres rather than at a step, so you are already
@@ -90,29 +106,41 @@ crawling by the time you notice you stopped walking.
 ### 4. The Bone Box
 
 7 × 4.5 m, roof at 2.8. The last place in the cave you stand up, and you can see the Flatiron
-from it: a letterbox in the far wall about knee high. It is a small room and it is meant to
-feel like one after the Cellar, because the cave is closing down the whole way.
+from it: a hole in the far wall about knee high and no wider than your shoulders. It is a small
+room and it is meant to feel like one after the Cellar, because the cave is closing down the
+whole way.
 
 ### 5. The Flatiron
 
-Twenty-four metres of bedding plane: the parting between two beds of limestone, opened by water
-running along it. Wide - up to 3.2 m - and at its worst 41 cm from floor to ceiling, which
-after the mud keel is 37 cm of clear space.
+Twenty-four metres of the same bore, squashed. It keeps the Gullet's shape and loses its height:
+0.91 m across and 51 cm floor to ceiling at its worst, which is 47 cm of clear space once the
+keel is in.
 
-Flat out, one arm ahead, helmet scraping. Contact pressure sits at about 0.74 the whole way,
-which is high enough that the scrape loop never stops and low enough that you keep moving.
-This is the passage that teaches you what the game's one number feels like, well before it
-matters.
+It used to be a bedding plane - 3.2 m wide and 41 cm high, the parting between two beds of
+limestone. That is a real passage type and it was the wrong one for this cave: a slab that wide
+reads as a low room, not as something you are committed inside. The height it had was right, so
+the height is what stayed.
+
+The change is not free. A bedding plane passes a body on its belly *because* it is wide - your
+shoulders are somewhere the roof has not come down yet. In a bore the roof curves down before
+your shoulders clear it, so the same 41 cm would be impassable and the tightest heights here had
+to come up a little as the widths collapsed. Flat out, one arm ahead, helmet scraping, and the
+scrape loop never stops.
 
 ### 6. The Devil's Pinch
 
-A joint pulled open: two near-parallel faces of rock, nearly two metres tall and, at the worst
-of it, **28.5 cm apart**. Wet, because water is still using it.
+A joint pulled open: two near-parallel faces of rock and, at the worst of it, **28.5 cm apart**.
+The one thing in the cave that is not a bore, and the only place that shape earns itself.
 
-You go through it upright and turned sideways, and you do not go through it at all with a full
-chest. A relaxed chest plus the 5 mm of oversuit is 30.5 cm, and 4.7 m in - halfway - the
-passage stops being wide enough for that. Emptied it is 27.0 cm, which leaves 1.5 cm of rock
-either side of you.
+It arrives as a tube and turns into a slot, and it only gains height once it has already lost
+the width to fit a pair of shoulders - so it is 1.7 m tall where it is 28 cm wide, and nowhere
+in it can you stand. That is deliberate: the tall part being *also* wide is what made the old
+version a standing-height corridor, which is the one thing this cave does not have.
+
+You go through it turned sideways, and you do not go through it at all with a full chest. A
+relaxed chest plus the 5 mm of oversuit is 30.5 cm, and 4.4 m in - halfway - the passage stops
+being wide enough for that. Emptied it is 27.0 cm, which leaves 1.5 cm of rock either side of
+you.
 
 Push into it with a full chest and you get held: pressure goes to 1.00, forward does nothing,
 and the slate tells you what to do about it. Empty your chest and the rock lets go. That is the
@@ -120,8 +148,9 @@ whole cave in one sentence, and everything else in Sowbelly exists to get you to
 
 ### 7. The Drainpipe
 
-A lead, not a route. It leaves the bottom of the Pinch heading down, 1.2 m at the mouth and
-narrowing all the way, and 3.1 m in - 62 % of its length - it stops admitting anything human,
+A lead, not a route. It leaves the bottom of the Pinch heading down, 62 cm at the mouth - it
+carries on from where the Pinch left off rather than starting again - and narrowing all the way,
+and 2.4 m in - 48 % of its length - it stops admitting anything human,
 in any posture, with any amount of air in your chest. It carries on getting smaller for another
 two metres and then it is rock.
 
@@ -172,18 +201,35 @@ not spin around its own axis on the way down.
 
 `shape` picks a superellipse exponent, except `keyhole`, which is built specially.
 
-| `shape` | What it is | Reads as |
-|---|---|---|
-| `tube` | phreatic - dissolved full of water | round |
-| `rift` | a joint pulled open | tall, near-parallel walls |
-| `letterbox` | a bedding plane | wide, flat, square-ish corners |
-| `keyhole` | a tube that later cut down into a slot | round over a narrow bottom |
-| `breakdown` | collapse | angular, pointed |
+| `shape` | What it is | Reads as | Used by |
+|---|---|---|---|
+| `tube` | phreatic - dissolved full of water | round | every tunnel in the cave |
+| `rift` | a joint pulled open | tall, near-parallel walls | the Devil's Pinch, and only it |
+| `letterbox` | a bedding plane | wide, flat, square-ish corners | the two rooms |
+| `keyhole` | a tube that later cut down into a slot | round over a narrow bottom | nothing, currently |
+| `breakdown` | collapse | angular, pointed | nothing, currently |
+
+**Tunnels are `tube`.** A wide flat section reads as a low room rather than as a passage you
+are inside, so `letterbox` is for rooms and the tunnels between them are bores. `rift` earns
+its one use because the crux depends on being a slot you turn sideways into.
+
+`rift`'s exponent is 8, not the 4-ish a "rounded rectangle" suggests, and that is load-bearing
+rather than taste. The exponent decides how fast the section pinches in at the top and bottom,
+and the crux is passed by a body turned sideways that needs 1.25 m of gap *at its own width* -
+not at the centreline. A rounder rift throws that gap away and the crux has to be made taller
+to compensate, which is how the Pinch ended up as a standing-height corridor in the first
+place.
 
 `w` and `h` are the clear width and height. Nothing in the pipeline ever narrows them:
 displacement only pushes rock *away* from the centreline, which is what lets the numbers in
 this file be a promise rather than an aspiration. `keel` flattens the bottom into a sediment
 floor by adding a flat below the section rather than cutting into it.
+
+Beware of reading `h` as headroom. The section is a 22-gon and a body is not a point: what has
+to fit is a gap of the body's height across the body's *width*, and towards the edge of any
+section the roof has already started coming down. At the crux that costs about a quarter of the
+nominal height. `check_fit.py` measures the polygon rather than the ideal curve, which is why
+it is the thing to tune against and arithmetic on `w` and `h` is not.
 
 **`rough` is a wall number.** Because displacement is radial and outward-only, on a floor it
 digs rather than piles, and a vertex facing straight down keeps only 18 % of it
@@ -191,6 +237,8 @@ digs rather than piles, and a vertex facing straight down keeps only 18 % of it
 floors flat, with silt and sand and cobbles settling - and what makes a room walkable. At full
 strength, 45 cm of roughness on the Cellar's floor cut ditches in it with fifty-degree sides,
 and the route walker stopped dead 93 % of the way across with no rock anywhere near its chest.
+Sowbelly has one rock everywhere now - wet limestone, walls, roof and floor alike - so `keel`
+is doing the work a mud texture used to: it is what tells you which way is down.
 
 Where two keyframes name different shapes, both polygons are built at the blended size and the
 points are lerped - every shape passes through (±w/2, 0) and (0, ±h/2), so the width and height
@@ -252,7 +300,7 @@ reintroduced a few centimetres at a time at every junction in the cave.
 So they are kept and routed to their own material, which is the same limestone with
 `cull_mode = CULL_DISABLED`. Drawn from both sides, a seam is a lip of rock at the mouth, which
 is what it is - you can see it, you can climb over it, and caves have them. Sowbelly carries
-about 2,400 seam triangles out of 24,800, on their own `StaticBody3D` so the tests can name them
+about 2,200 seam triangles out of 23,300, on their own `StaticBody3D` so the tests can name them
 when one of them is in the way. Everything else in the cave stays single-sided, which is both
 correct and cheaper.
 

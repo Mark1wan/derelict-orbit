@@ -11,6 +11,11 @@ extends RefCounted
 ## The normal scales below are therefore deliberately strong.
 ##
 ## Each function returns {albedo: ImageTexture, normal: ImageTexture} and caches on its args.
+##
+## Sowbelly itself is built out of `limestone` alone, twice: once dry as the fallback, once wet
+## as every surface you actually touch. `mud`, `flowstone` and `breakdown` are kept because this
+## is a library of rock and the next cave may want a floor that is not the wall - nothing calls
+## them today, so nothing pays for them at start-up.
 
 static var _cache := {}
 
@@ -106,13 +111,16 @@ static func limestone(size := 256, tint := Color(0.50, 0.47, 0.42)) -> Dictionar
 		var cy := rng.randi_range(0, size - 1)
 		_dimple(hgt, cx, cy, r, rng.randf_range(0.10, 0.26))
 		_disc(img, cx, cy, r, Color(tint.r * 0.62, tint.g * 0.60, tint.b * 0.58), 0.35)
-	# Calcite: bright, raised, and running across the bedding rather than along it.
+	# Joints: thin cracks running across the bedding rather than along it. Dark and RECESSED,
+	# not bright and raised. A pale line standing proud of the rock reads as something painted
+	# on it, which is what these used to look like; a dark line sitting in a groove reads as a
+	# crack, and down here the normal map is doing most of the work anyway.
 	for i in 7:
 		var sx := rng.randi_range(0, size - 1)
 		var sy := rng.randi_range(0, size - 1)
 		var ang := rng.randf_range(-1.4, 1.4) + PI * 0.5
 		_streak(img, hgt, sx, sy, cos(ang), sin(ang), rng.randi_range(size / 3, size),
-			Color(0.88, 0.86, 0.80), 1.25, 0.12, 1)
+			Color(0.04, 0.04, 0.05), 0.40, -0.18, 1)
 	var out := {"albedo": _tex(img), "normal": _normal_from(hgt, 6.0)}
 	_cache[key] = out
 	return out
