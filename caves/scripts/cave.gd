@@ -83,6 +83,13 @@ func build() -> void:
 	# of them is trimmed against every other, and that needs all of them to exist.
 	for p: Dictionary in data.get("passages", []):
 		bores.append(Bore.new(p))
+	# Tube-to-tube joins, before anything is swept: the second half of each is built from the
+	# first half's last ring, and neither caps the end the other carries on from.
+	for a in bores:
+		for b in bores:
+			if b.continues == null and a.continued_by == null and b.continues_from(a):
+				b.continues = a
+				a.continued_by = b
 	for b in bores:
 		b.build(
 			func(mat: String) -> Geo: return _pick(b.points[b.points.size() / 2], mat),
@@ -160,7 +167,9 @@ func _pick(at: Vector3, mat: String) -> Geo:
 func _inside_another(corners: PackedVector3Array, self_bore: Bore, margin: float) -> int:
 	var worst: int = Bore.KEEP
 	for b in bores:
-		if b == self_bore:
+		# A passage that carries straight on from this one is the same tube. There is no mouth
+		# between them to cut, and asking would only find the join itself and call it a seam.
+		if b == self_bore or b == self_bore.continues or b == self_bore.continued_by:
 			continue
 		var say: int = b.swallows_face(corners, margin)
 		# CUT wins over SEAM: if any neighbour encloses the face outright it is not a wall,
@@ -243,8 +252,9 @@ func _build_speleothems(b: Bore) -> void:
 				rng.randf_range(0.18, 0.62), thick * rng.randf_range(0.9, 1.6), true, 7)
 
 ## Blocks on the floor. A dissolved tube is a smooth shell and nothing that has had a few
-## thousand years of roof falling into it stays one, so passages get loose rock in them - which
-## is also the difference between crawling along a pipe and crawling over something.
+## thousand years of roof falling into it stays one, so the rooms get loose rock in them. The
+## tunnels do not: in a passage you already fill, even a slab reads as something put there to
+## stop you. The rule below still covers a crawl, for a cave that asks for rubble in one.
 ##
 ## They ride the section the same way the formations do, are kept off the centreline, and are
 ## capped at a fraction of the passage's own height, because rubble you cannot get over in a

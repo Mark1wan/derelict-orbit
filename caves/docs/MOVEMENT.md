@@ -2,7 +2,7 @@
 
 ![The Sowbelly survey](survey.png)
 
-*The cave the body model was built against. The orange mark is the Devil's Pinch: 28.5 cm.*
+*The cave the body model was built against. The orange mark is the Devil's Pinch: 29.3 cm of roof, head first.*
 
 ## The idea
 
@@ -41,7 +41,13 @@ The two bold columns are where the exhale lands. `belly` is prone, so your chest
 *vertical* dimension and emptying it lowers the ceiling you need. `commit` is upright and
 turned sideways through a slot, so your chest is the *horizontal* dimension and emptying it
 narrows the gap you need. `superman` is head-first with one arm pushed ahead, which takes your
-shoulders from 46 cm to 32 cm and is the only way into a tube narrower than you are wide.
+shoulders from 46 cm to 32 cm and is the only way into a tube narrower than you are wide - and,
+lying flat, the chest is its height, so it is also the shape the Devil's Pinch is passed in.
+
+Head first, the collision capsule carries a quarter of the usual 1.5 cm skin, the same as
+`commit`. At full skin it is three centimetres smaller than the body it stands for, which is
+most of the exhale: a relaxed chest slid under the Pinch's roof, and the Drainpipe let a body to
+the end of a lead the model says shuts.
 
 The 4 cm on `belly` is the helmet, the oversuit and whatever is on your back. `commit` gets
 only 5 mm because turned sideways in a slot there is nothing on you that is not squashed flat.
@@ -72,8 +78,8 @@ span either side of it*, and the tightest of the three wins. One ray up the midd
 apex of the arch, which in a round passage is nowhere near what a body 46 cm across can get
 under - the roof has already started coming down by the time it reaches your shoulder. That was
 honest while the cave's crawls were flat-roofed bedding planes, and became a lie the moment they
-became tubes. The offset is capped by the room actually available, because in the Devil's Pinch
-the walls are 14 cm away and a probe fired from 23 cm out would report no headroom at all.
+became tubes. The offset is capped by the room actually available, because in a squeeze the
+walls can be 14 cm away and a probe fired from 23 cm out would report no headroom at all.
 
 **A fit is not a choice.** Standing, stooping and hands-and-knees each need **10 cm of clear
 headroom over the shape itself** (`POSTURE_CLEAR`) before the body will take them. The gap a
@@ -93,8 +99,8 @@ knees a pace before the low bit, because they can see it coming - and the body r
 four times along the pace ahead (`POSTURE_STEPS`) is that pace, read properly.
 
 The 10 cm is **height only, and only for the three postures with no chest in their box**. Width
-never gets a margin anywhere: the Devil's Pinch is 28.5 cm and a committed chest is 27, and that
-two centimetres is the game. `belly` and `superman` do not get it either - lying flat is not a
+never gets a margin anywhere, and neither does the chest: the Devil's Pinch gives a body lying
+head first 29.3 cm, an empty chest needs 28.5 and a full one 32, and that is the game. `belly` and `superman` do not get it either - lying flat is not a
 choice with room in it, it is the last shape you have.
 
 Standing back up requires **9 cm of clear extra headroom on top of that** (`POSTURE_HYSTERESIS`).

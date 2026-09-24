@@ -31,16 +31,16 @@ rather than repeating what was written about it.
 |---|---|---|---|---|---|
 | The Pitch | 16.8 m | 1.86 m high | standing | 10.8 cm | goes |
 | The Cellar | 9.5 m | 2.40 m high | standing | 65.0 cm | goes |
-| The Gullet | 15.8 m | 0.41 m high | flat out | 10.7 cm | goes |
+| The Gullet | 15.9 m | 0.41 m high | flat out | 10.7 cm | goes |
 | The Bone Box | 6.5 m | 2.12 m high | standing | 37.0 cm | goes |
-| The Flatiron | 25.2 m | 0.35 m high | flat out | 4.8 cm | goes |
-| The Devil's Pinch | 9.2 m | **0.46 m wide** | flat out | 0.1 cm | **shut at 4.1 m** |
+| The Flatiron | 24.8 m | 0.40 m high | flat out | 9.3 cm | goes |
+| The Devil's Pinch | 9.3 m | 0.31 m high | flat out | 0.0 cm | **shut at 4.4 m** |
 | The Drainpipe | 5.0 m | 0.32 m high | flat out | 1.1 cm | shut at 2.0 m |
 
 **Crux** here means the station with the least room to spare in the best posture available
-*there* - not the narrowest section, which for the Devil's Pinch is a 28.8 cm slot you pass
-sideways and not the thing that stops you. That is why the Pinch's crux row says 0.46 m and
-flat out: 46 cm is exactly a pair of shoulders, so that is where you have to turn.
+*there* - not the narrowest section. The Pinch's row is where flat out stops fitting even
+empty, half a metre before the worst of it; past that point you are head first, and the
+narrowest roof is 29.3 cm (see [the Pinch](#6-the-devils-pinch)).
 
 Every posture in the tunnel rows is `flat out`. That is the rule and not a coincidence - see
 below.
@@ -49,8 +49,8 @@ It also gates three rules that are easy to state, easy to lose, and were all los
 
 ```
   tunnel The Gullet           tallest 1.09 m, narrowest 0.48 m at 13.2 m in, 3 pinches   ok
-  tunnel The Flatiron         tallest 0.76 m, narrowest 0.41 m at 21.9 m in, 3 pinches   ok
-  tunnel The Devil's Pinch    tallest 1.30 m, narrowest 0.29 m at  4.8 m in, 1 pinch   ok
+  tunnel The Flatiron         tallest 0.76 m, narrowest 0.46 m at 21.5 m in, 3 pinches   ok
+  tunnel The Devil's Pinch    tallest 0.55 m, narrowest 0.30 m at  4.8 m in, 1 pinch   ok
   tunnel The Drainpipe        tallest 0.50 m, narrowest 0.20 m at  5.0 m in, 0 pinches   ok
 ```
 
@@ -67,10 +67,10 @@ the passage either side of it and opens again. A tunnel that is merely small the
 is a pipe; what makes it a cave is having to work through something.
 
 **It keeps closing.** Each tunnel's narrowest gap is narrower than the one before it on the
-route - 48 cm, then 41, then 29, then 20. Measured on the tightest single dimension rather than
-on area, because a rift trades width for height: the Pinch's crux is 28.8 cm across and taller
-than the tube that fed into it, so by area it reads as relief while being the hardest thing in
-the cave.
+route - 48 cm, then 46, then 30, then 20. Measured on the tightest single dimension rather than
+on area, because a flattened bore trades height for width: the Pinch's crux is a metre across
+and 30 cm high, so by area it reads as roomier than it is while being the hardest thing in the
+cave.
 
 `check_fit.py` also prints the joins, because a cave whose passages are each passable can still
 be impassable where two of them meet. `end inside` means the first passage's last station falls
@@ -173,21 +173,21 @@ most of what stops it being a corridor.
 
 ### 6. The Devil's Pinch
 
-A joint pulled open: two near-parallel faces of rock and, at the worst of it, **28.8 cm apart**.
-The one thing in the cave that is not a bore, and the only place that shape earns itself.
+The same tube as the Flatiron, carried straight on and pressed nearly flat: a metre wide and
+33 cm high at the worst of it, which is **29.3 cm** of roof across the 32 cm a body lying head
+first takes up.
 
-It arrives as a tube and turns into a slot, 1.30 m tall where it is 28.8 cm wide. It used to be
-1.72 m tall there, which is the same crux and a completely different room to be in: at 27 cm of
-width a 28-sided polygon gives back only about three quarters of the height it is drawn with, so
-a committed body needed a slot well over head height to fit through the gap. The fix was not to
-open the crux, it was to stop pretending a committed body stands up straight - `commit` is 1.02 m
-now, which is what being sideways in a 28 cm slot actually looks like, and the slot came down
-with it. See [MOVEMENT.md](MOVEMENT.md#the-postures).
+It used to be a rift - a joint pulled open into a slot 1.30 m tall and 28.8 cm wide, passed
+turned sideways. It was the one passage in the cave that was not round, and it read as a
+different cave: a tall corridor at the bottom of a crawl, with a slab of junction rock across the
+way in. Both went. The passage is a bore like every other tunnel, and it carries straight on from
+the Flatiron as one tube (see [joining two passages](#joining-two-passages-and-the-bug-that-made-it-the-only-rule)).
 
-You go through it turned sideways, and you do not go through it at all with a full chest. A
-relaxed chest plus the 5 mm of oversuit is 30.5 cm, and 4.1 m in - just under halfway - the
-passage stops being wide enough for that. Emptied it is 27.0 cm, which leaves about 9 mm of rock
-either side of you.
+You go through it head first, one arm ahead, and you do not go through it at all with a full
+chest. Head first, the chest is your height: 30 cm relaxed plus 2 cm of helmet and oversuit is
+32.0 cm, and 4.4 m in the passage stops being tall enough for that. Emptied, it is 28.5 cm,
+which leaves 8 mm. The stretch where only an empty chest goes is about half a metre, so it is
+two or three breaths rather than a minute of holding one.
 
 Push into it with a full chest and you get held: pressure goes to 1.00, forward does nothing,
 and **the screen tells you what to do about it**. That last part is new and it is the whole
@@ -199,7 +199,7 @@ prepared.
 ### 7. The Drainpipe
 
 A lead, not a route. It leaves the bottom of the Pinch heading down at nearly thirty degrees,
-60 cm at the mouth - it carries on from where the Pinch left off rather than starting again -
+60 cm at the mouth - it carries on from where the Pinch left off, as one tube -
 and narrowing all the way, and 2.7 m in, 54 % of its length, it stops admitting anything human
 in any posture with any amount of air in your chest. It carries on getting smaller for another
 two metres and then it is rock.
@@ -231,7 +231,7 @@ A passage is a centreline and a few cross-section keyframes:
 {
   "id": "flatiron",
   "label": "The Flatiron",
-  "kind": "crawl",              // shaft | room | crawl | rift | lead - the survey's colours,
+  "kind": "crawl",              // shaft | room | crawl | squeeze | lead - the survey's colours,
                                 //   and `room` is the one that gets formations
   "seed": 5512,                 // the noise that roughens the walls
   "rough": 0.05,                // metres of outward displacement; walls only ever move OUT
@@ -260,21 +260,20 @@ not spin around its own axis on the way down.
 | `shape` | What it is | Reads as | Used by |
 |---|---|---|---|
 | `tube` | phreatic - dissolved full of water | round | every tunnel in the cave |
-| `rift` | a joint pulled open | tall, near-parallel walls | the Devil's Pinch, and only it |
+| `rift` | a joint pulled open | tall, near-parallel walls | nothing, currently |
 | `letterbox` | a bedding plane | wide, flat, square-ish corners | the two rooms |
 | `keyhole` | a tube that later cut down into a slot | round over a narrow bottom | nothing, currently |
 | `breakdown` | collapse | angular, pointed | nothing, currently |
 
 **Tunnels are `tube`.** A wide flat section reads as a low room rather than as a passage you
-are inside, so `letterbox` is for rooms and the tunnels between them are bores. `rift` earns
-its one use because the crux depends on being a slot you turn sideways into.
+are inside, so `letterbox` is for rooms and the tunnels between them are bores - including the
+Pinch, which used to be the one `rift` and read as a corridor from another cave because of it.
+A squeeze in this cave is a bore pressed flat, never a slot.
 
-`rift`'s exponent is 8, not the 4-ish a "rounded rectangle" suggests, and that is load-bearing
-rather than taste. The exponent decides how fast the section pinches in at the top and bottom,
-and the crux is passed by a body turned sideways that needs 1.25 m of gap *at its own width* -
-not at the centreline. A rounder rift throws that gap away and the crux has to be made taller
-to compensate, which is how the Pinch ended up as a standing-height corridor in the first
-place.
+`rift`'s exponent is 8, not the 4-ish a "rounded rectangle" suggests: a slot is passed by a body
+turned sideways, which needs its gap *at its own width* rather than at the centreline, and a
+rounder rift throws that gap away until the slot has to be made taller than a person to
+compensate. That is how the Pinch ended up as a standing-height corridor before it was a tube.
 
 `w` and `h` are the clear width and height. Nothing in the pipeline ever narrows them:
 displacement only pushes rock *away* from the centreline, which is what lets the numbers in
@@ -309,9 +308,20 @@ survive the blend intact.
 
 ### Joining two passages, and the bug that made it the only rule
 
-Passages join by **overlapping**, and that is the whole protocol: you author the next one so
-its first control points sit inside the previous one's open space. There is nothing to declare
-and nothing to line up.
+Passages join by **overlapping**: you author the next one so its first control points sit
+inside the previous one's open space. There is nothing to declare and nothing to line up.
+
+**Except tube to tube, which carries straight on.** Overlap is right where a crawl meets a room:
+the crawl's end sits well inside something much bigger, and all of it is cut away. Two tubes the
+same size cannot overlap that way - neither is inside the other - and butting them end to end
+left each end face lying half across the other's mouth, which the rules below keep as a seam: a
+slab of stretched, double-sided rock across the passage, which is what stood between the
+Flatiron and the Pinch. So a passage whose first control point is **exactly** the last control
+point of another (within a centimetre) continues it instead (`Bore.continues_from`): it is
+swept from the other one's last ring, vertex for vertex, neither end is capped, and the two are
+not trimmed against each other. Give the two the same section at the join - same shape, size and
+keel - or the first 35 cm of the second will do the blending. The Flatiron, the Pinch and the
+Drainpipe are one tube with two name changes along it.
 
 **Both ends of every passage are capped.** There used to be an `open_end` flag that left an end
 uncapped where a tunnel arrived, and there is no correct way to write that down: the Cellar is
@@ -372,15 +382,20 @@ reintroduced a few centimetres at a time at every junction in the cave.
 So they are kept and routed to their own material, which is the same limestone with
 `cull_mode = CULL_DISABLED`. Drawn from both sides, a seam is a lip of rock at the mouth, which
 is what it is - you can see it, you can climb over it, and caves have them. Sowbelly carries
-about 2,200 seam triangles out of 23,300, on their own `StaticBody3D` so the tests can name them
+about 2,100 seam triangles out of 19,600, all at the room junctions, on their own `StaticBody3D` so the tests can name them
 when one of them is in the way. Everything else in the cave stays single-sided, which is both
 correct and cheaper.
 
 ### Rubble and formations
 
 A dissolved tube is a smooth shell and nothing with a few thousand years of roof falling into it
-stays one. So passages carry `rubble` and rooms carry `speleothems`, both built in `cave.gd`
-riding the passage's own frames so they land where the section actually is however it bends.
+stays one. So rooms carry `rubble` and `speleothems`, both built in `cave.gd` riding the
+passage's own frames so they land where the section actually is however it bends.
+
+**The tunnels carry none.** Even laid flat, a block in a crawl is something to catch on in a
+passage you are already filling, and players read them as obstacles put there to stop them -
+which is not what anything in this cave is for. `rubble` still works on any passage; nothing
+between the rooms asks for it.
 
 Blocks are `Geo.chunk`: six faces with all eight corners pushed about, so no two edges are
 parallel. `Geo.box` was the obvious thing to reach for and it reads as a crate the moment there

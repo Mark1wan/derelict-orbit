@@ -409,18 +409,21 @@ func _autotest() -> void:
 	assert(b.chest > CaverBody.CHEST_RELAXED - 0.010, "the chest did not open again")
 
 	# 5. The Devil's Pinch: the whole cave in one assertion. The crux admits an exhaled chest
-	# and refuses a relaxed one, and check_fit.py proves the same thing about the data.
+	# and refuses a relaxed one, and check_fit.py proves the same thing about the data. It is a
+	# flattened tube, so the gap that decides it is the one a body lying head first can find.
 	var pinch: Bore = cave.bore("pinch")
 	assert(pinch != null, "no Devil's Pinch in the cave")
-	var crux: Dictionary = pinch.tightest(CaverBody.CHEST_RELAXED)
-	var crux_wide := _section_width(pinch, crux["i"])
-	assert(crux_wide < CaverBody.CHEST_RELAXED,
-		"the crux is %.3f m wide - a relaxed chest walks it" % crux_wide)
-	assert(crux_wide > CaverBody.CHEST_RELAXED - CaverBody.CHEST_SQUEEZE,
-		"the crux is %.3f m wide - nobody gets through it" % crux_wide)
-	print("[autotest] pinch crux %.1f cm: relaxed %.1f cm no, exhaled %.1f cm yes"
-		% [crux_wide * 100.0, CaverBody.CHEST_RELAXED * 100.0,
-			(CaverBody.CHEST_RELAXED - CaverBody.CHEST_SQUEEZE) * 100.0])
+	var head_first: Dictionary = CaverBody.POSTURES[CaverBody.SUPERMAN]
+	var relaxed_box := CaverBody.box_of(head_first, CaverBody.CHEST_RELAXED)
+	var exhaled_box := CaverBody.box_of(head_first, CaverBody.CHEST_RELAXED - CaverBody.CHEST_SQUEEZE)
+	var crux: Dictionary = pinch.tightest(relaxed_box.x)
+	var crux_gap: float = crux["h"]
+	assert(crux_gap < relaxed_box.y,
+		"the crux is %.3f m high - a relaxed chest walks it" % crux_gap)
+	assert(crux_gap >= exhaled_box.y,
+		"the crux is %.3f m high - nobody gets through it" % crux_gap)
+	print("[autotest] pinch crux %.1f cm: relaxed needs %.1f cm no, exhaled %.1f cm yes"
+		% [crux_gap * 100.0, relaxed_box.y * 100.0, exhaled_box.y * 100.0])
 
 	# 6. Wedged, and out again. Push into the crux with a full chest until the rock stops you,
 	# then empty it and watch the same passage let you through. This is the whole game in one
@@ -444,7 +447,7 @@ func _autotest() -> void:
 	print("[autotest] pushing the crux with a full chest: pressure %.2f (peak %.2f), %s, %s"
 		% [b.pressure, held, "WEDGED" if b.wedged else "not wedged", b.advice()])
 	assert(held > 0.85, "the crux never pressed on you: peak pressure %.2f" % held)
-	assert(b.wedged, "a relaxed chest should not get through a %.1f cm slot" % (crux_wide * 100.0))
+	assert(b.wedged, "a relaxed chest should not get through a %.1f cm squeeze" % (crux_gap * 100.0))
 	assert(b.advice() != "", "wedged and the slate says nothing")
 
 	caver.debug_exhale(1.0)
@@ -844,6 +847,18 @@ func _autotest_route() -> void:
 		# either - so a budget sized for walking condemns every squeeze in the cave, and a
 		# budget sized for a straight line condemns every bend.
 		var budget := int(90.0 * Engine.physics_ticks_per_second)
+		# The passage after this one on the route. The last step of a passage aims at its last
+		# station, and in a room that is the middle of the end wall: a standing body cannot get
+		# its centre within the last one per cent of it, and the only way to "arrive" was to
+		# stumble into the mouth of the next passage on the way. Whether it stumbled depended on
+		# how the physics engine happened to order the collision chunks - the Bone Box passed or
+		# failed on a change forty metres away that left every triangle near it identical. What
+		# a player at the end of a room is doing is going into the next passage, so that counts.
+		var route: Array = cave.data.get("route", [])
+		var at_route: int = route.find(bore.id)
+		var next_bore: Bore = null
+		if at_route >= 0 and at_route + 1 < route.size():
+			next_bore = cave.bore(route[at_route + 1])
 		await _put_in(bore.id, 0.04)
 		var reached := 0.04
 		var stuck := 0.0
@@ -884,6 +899,10 @@ func _autotest_route() -> void:
 				# without going anywhere - the Drainpipe reported itself walked, 99 % of a
 				# passage whose entire purpose is to pinch shut.
 				if got >= t - 0.01 or closest < 0.35:
+					arrived = true
+					break
+				if t >= 0.99 and next_bore \
+						and next_bore.contains_point(caver.global_position + Vector3(0, 0.1, 0)):
 					arrived = true
 					break
 			caver.debug_exhale(0.0)

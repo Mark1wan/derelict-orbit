@@ -286,28 +286,28 @@ static func _catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: floa
 ## `verdict(corners) -> int` says what the junction makes of each face: 0 build it, 1 drop it,
 ## 2 it lands on the edge of a mouth, so quarter it and ask again (see `_patch`). That is how
 ## one passage opens into another without leaving a membrane of rock across the join.
+##
+## `first_ring`, when given, replaces the ring at station 0. A passage that carries straight on
+## from the end of another starts from that one's LAST ring, vertex for vertex, so the two are a
+## single tube with no end face between them - see Bore.continues. `run_from` is how far along
+## that one the join is, so the texture carries on across it rather than starting again.
 func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 		noise: FastNoiseLite = null, pick: Callable = Callable(),
-		verdict: Callable = Callable(), seam: Geo = null, uv_scale := 0.7) -> void:
+		verdict: Callable = Callable(), seam: Geo = null, uv_scale := 0.7,
+		first_ring := PackedVector3Array(), run_from := 0.0) -> void:
 	var n := path.size()
 	if n < 2 or sections.size() != n:
 		return
 	var fr := frames(path)
 	var rings: Array = []
 	var along := PackedFloat32Array()
-	var run := 0.0
+	var run := run_from
 	for i in n:
 		var sec: PackedVector2Array = sections[i]
-		var ring := PackedVector3Array()
-		for p: Vector2 in sec:
-			var world: Vector3 = path[i] + fr[i].x * p.x + fr[i].y * p.y
-			if rough > 0.0 and noise:
-				var radial := (world - path[i]).normalized()
-				# 0..1, never negative: rock is displaced outward only.
-				var d: float = (noise.get_noise_3dv(world * 1.6) * 0.5 + 0.5)
-				world += radial * d * rough * _floor_ease(p)
-			ring.append(world)
-		rings.append(ring)
+		if i == 0 and first_ring.size() == sec.size():
+			rings.append(first_ring)
+		else:
+			rings.append(ring(path[i], fr[i], sec, rough, noise))
 		if i > 0:
 			run += path[i].distance_to(path[i - 1])
 		along.append(run)
@@ -338,6 +338,20 @@ func sweep(path: PackedVector3Array, sections: Array, rough := 0.0,
 			_patch(r0[j], r0[k], r1[k], r1[j],
 				Vector2(u1, v0), Vector2(u0, v0), Vector2(u0, v1), Vector2(u1, v1),
 				g, verdict, seam, 0)
+
+## One ring of a swept passage: the section at a station, placed in the world and roughened.
+static func ring(centre: Vector3, frame: Basis, sec: PackedVector2Array, rough := 0.0,
+		noise: FastNoiseLite = null) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for p: Vector2 in sec:
+		var world: Vector3 = centre + frame.x * p.x + frame.y * p.y
+		if rough > 0.0 and noise:
+			var radial := (world - centre).normalized()
+			# 0..1, never negative: rock is displaced outward only.
+			var d: float = (noise.get_noise_3dv(world * 1.6) * 0.5 + 0.5)
+			world += radial * d * rough * _floor_ease(p)
+		out.append(world)
+	return out
 
 ## One quad of a passage wall, split where it lands on a junction. Same reasoning as
 ## `_cap_patch`: a face that is part inside a neighbour and part outside is a hole on one side

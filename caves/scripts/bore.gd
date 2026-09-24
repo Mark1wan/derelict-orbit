@@ -37,6 +37,13 @@ var along := PackedFloat32Array()     ## distance from the passage mouth, per st
 var bounds := AABB()                  ## everything this passage occupies, for coarse rejection
 var radius := 0.0                     ## the biggest section radius anywhere along it
 
+## The passage this one carries straight on from, and the one that carries on from it. Set by
+## Cave when one passage starts exactly where another ends (see `continues_from`). Two such
+## passages are one tube with a name change part way along: no end faces at the join, no
+## trimming of either against the other, and the second is swept from the first one's last ring.
+var continues: Bore = null
+var continued_by: Bore = null
+
 var _noise: FastNoiseLite
 var _floor_face := PackedByteArray()  ## per face index: is this one floor rather than wall?
 var _grid := {}                       ## Vector3i cell -> Array[int] of station indices
@@ -128,6 +135,27 @@ func contains_point(p: Vector3, scale := 1.0) -> bool:
 		if Geo.contains(sections[i], Vector2(off.dot(f.x), off.dot(f.y)) * scale):
 			return true
 	return false
+
+## Does this passage start where `other` ends? Within a centimetre, and with the same number of
+## points around the section, because the join is made by reusing the other one's last ring.
+##
+## This is the tube-to-tube join, and it exists because the overlap join does not work for two
+## tubes the same size. Overlap is right where a crawl opens into a room: the crawl's end sits
+## well inside something much bigger, and all of it is cut away. Butt two tubes end to end
+## instead and each end face lies across the other's mouth - half inside, half out - so the
+## junction keeps it, draws it both ways as a lip, and it is a slab of stretched rock across
+## the passage. That is what stood between the Flatiron and the Devil's Pinch.
+func continues_from(other: Bore) -> bool:
+	if other == self or other.points.is_empty() or points.is_empty():
+		return false
+	if points[0].distance_to(other.points[other.points.size() - 1]) > 0.01:
+		return false
+	return (sections[0] as PackedVector2Array).size() \
+		== (other.sections[other.sections.size() - 1] as PackedVector2Array).size()
+
+## The ring at station i, exactly as the sweep builds it.
+func ring(i: int) -> PackedVector3Array:
+	return Geo.ring(points[i], frames[i], sections[i], rough, _noise)
 
 ## Is this point past one of the passage's two end faces?
 ##
@@ -230,7 +258,8 @@ func _mark_floor_faces() -> void:
 ##     of somewhere you walk, invisible because a swept tube's faces are single-sided and solid
 ##     because its collider is not. The Pitch came down through the Cellar's roof and left four
 ##     metres of exactly that. Dropped.
-##   - An END face is a membrane across a mouth. Both ends of every passage are capped - there
+##   - An END face is a membrane across a mouth. Both ends of every passage are capped - bar
+##     the ends where one passage `continues` another, which are not mouths at all - there
 ##     is no "open end" flag any more, because there was no way to write one down correctly:
 ##     leaving an end uncapped left a room's whole cross-section open to the void around a
 ##     tunnel a fifth of its size, and every passage in the cave leaked that way. So the cap is
@@ -254,11 +283,20 @@ func build(pick: Callable, trim: Callable = Callable()) -> void:
 		return floors if _floor_face[k] == 1 else walls
 	var tube := func(corners: PackedVector3Array) -> int:
 		return trim.call(corners, TUBE_MARGIN) if trim.is_valid() else KEEP
-	walls.sweep(points, sections, rough, _noise, by_material, tube, seams)
+	# Carrying on from another passage: start from its last ring, and the texture from where it
+	# left off, so there is nothing at the join to see or to catch on.
+	var first := PackedVector3Array()
+	var run_from := 0.0
+	if continues:
+		first = continues.ring(continues.points.size() - 1)
+		run_from = continues.length()
+	walls.sweep(points, sections, rough, _noise, by_material, tube, seams, 0.7, first, run_from)
 	var end_face := func(corners: PackedVector3Array) -> int:
 		return trim.call(corners, CAP_MARGIN) if trim.is_valid() else KEEP
-	walls.cap(points, sections, false, rough, _noise, end_face)
-	walls.cap(points, sections, true, rough, _noise, end_face)
+	if continues == null:
+		walls.cap(points, sections, false, rough, _noise, end_face)
+	if continued_by == null:
+		walls.cap(points, sections, true, rough, _noise, end_face)
 
 # ---------------------------------------------------------------- queries
 

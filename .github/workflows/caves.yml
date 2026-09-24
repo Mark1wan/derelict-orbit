@@ -104,8 +104,12 @@ jobs:
       # Starts where a player starts and walks the centreline, so it fails on the things only
       # a player meets: an unlit lip between two passages, a spawn with no floor under it, a
       # posture that will not fold in time. Also asserts the safety net never fires.
+      #
+      # `--fixed-fps 72` (the project's physics rate) runs it as fast as the CPU allows instead
+      # of in real time. Real time is five to six minutes of crawling, which was already past the
+      # timeout: the run was being killed half way down the route, not failing on anything.
       - name: Walk it the way a player would
-        run: CAVE_AUTOTEST=route timeout 300 godot --headless --path caves --quit-after 90000
+        run: CAVE_AUTOTEST=route timeout 300 godot --headless --fixed-fps 72 --path caves --quit-after 90000
 
       - name: Reach every touch control headless
         run: CAVE_AUTOTEST=touch timeout 180 godot --headless --path caves --quit-after 3000

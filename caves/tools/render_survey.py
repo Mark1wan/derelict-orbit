@@ -40,6 +40,7 @@ PASSAGE_TINT = {
     "room": (52, 49, 44),
     "crawl": MUD,
     "rift": WET,
+    "squeeze": WET,
     "lead": (58, 40, 38),
 }
 
@@ -332,9 +333,12 @@ def main(out_path):
     # The crux, measured rather than quoted, so the plate and the checker cannot disagree.
     crux = None
     pinch = next((p for p in cave["passages"] if p["id"] == "pinch"), None)
-    if pinch:
+    # It is a flattened tube passed head first, so the number is the roof a body that shape finds.
+    head_first = next((r for r in rows if r["name"] == "superman"), None)
+    if pinch and head_first:
+        bw, _ = check_fit.body_box(head_first, relaxed, cave.get("body_gear", 0.04))
         for dist, _, sec in check_fit.sections_along(pinch):
-            w = max(q[0] for q in sec) - min(q[0] for q in sec)
+            w = check_fit.clearance(sec, bw)
             if crux is None or w < crux["width"]:
                 crux = {"along": dist, "width": w}
 
@@ -359,8 +363,11 @@ def main(out_path):
     c.text(W - 40 - c.text_width(note), 600, note, DIM)
 
     if crux:
-        note = ("THE DEVIL'S PINCH IS %.1f CM AT ITS WORST.  A RELAXED CHEST IS %.1f CM.  "
-                "FULLY EXHALED IT IS %.1f CM." % (crux["width"] * 100, relaxed * 100, exhaled * 100))
+        gear = cave.get("body_gear", 0.04)
+        _, full = check_fit.body_box(head_first, relaxed, gear)
+        _, empty = check_fit.body_box(head_first, exhaled, gear)
+        note = ("THE DEVIL'S PINCH IS %.1f CM AT ITS WORST.  HEAD FIRST, A RELAXED CHEST NEEDS %.1f CM.  "
+                "FULLY EXHALED IT NEEDS %.1f CM." % (crux["width"] * 100, full * 100, empty * 100))
         c.text(40, 940, note, HOT)
     c.text(40, 962, "FICTIONAL CAVE.  REAL CAVING DIMENSIONS.  "
                     "REGENERATE WITH: PYTHON3 CAVES/TOOLS/RENDER_SURVEY.PY", DIM)

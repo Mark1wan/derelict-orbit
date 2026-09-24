@@ -607,18 +607,22 @@ def main(path):
     print(f"\n{len(cave['passages'])} passages, {total_len:.0f} m of survey, "
           f"deepest point {-deepest:.1f} m below the entrance")
 
-    # The squeeze the whole cave is built around: name it, and say by how much.
+    # The squeeze the whole cave is built around: name it, and say by how much. It is a tube,
+    # so what decides it is the gap a body finds lying head first - the posture with the chest
+    # in its height - and that gap is measured the way the fit check above measures it.
     pinch = next((p for p in cave["passages"] if p["id"] == "pinch"), None)
-    if pinch:
-        narrow = min(max(q[0] for q in s[2]) - min(q[0] for q in s[2])
-                     for s in sections_along(pinch))
-        print(f"\n{pinch['label']}: {narrow * 100:.1f} cm at its worst. "
-              f"Chest {relaxed * 100:.1f} cm relaxed - no. "
-              f"{exhaled * 100:.1f} cm exhaled - {(narrow - exhaled) * 1000:+.0f} mm.")
-        if narrow >= relaxed:
+    head_first = next((r for r in rows if r["name"] == "superman"), None)
+    if pinch and head_first:
+        bw, need_relaxed = body_box(head_first, relaxed, gear)
+        _, need_exhaled = body_box(head_first, exhaled, gear)
+        narrow = min(clearance(s[2], bw) for s in sections_along(pinch))
+        print(f"\n{pinch['label']}: {narrow * 100:.1f} cm head first at its worst. "
+              f"Relaxed needs {need_relaxed * 100:.1f} cm - no. "
+              f"Exhaled needs {need_exhaled * 100:.1f} cm - {(narrow - need_exhaled) * 1000:+.0f} mm.")
+        if narrow >= need_relaxed:
             problems.append("pinch: a relaxed chest fits - the cave's one hard squeeze is free")
-        if narrow < exhaled:
-            problems.append(f"pinch: {narrow * 100:.1f} cm is narrower than an exhaled chest - nobody gets through")
+        if narrow < need_exhaled:
+            problems.append(f"pinch: {narrow * 100:.1f} cm is less than an exhaled chest needs - nobody gets through")
 
     if problems:
         print("\nFAIL")

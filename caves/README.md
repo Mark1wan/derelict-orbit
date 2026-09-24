@@ -22,11 +22,11 @@ it. But you cannot judge whether a squeeze reads, or whether a passage goes wher
 does, through a fifteen degree cone, so while the movement is being played with there are fill
 lights down every passage and the headlamp is not load-bearing. Twenty-eight metres down, past
 a rope, two small rooms, a hands-and-knees tube and twenty-four metres of flattened bore, the
-passage narrows to twenty-eight and a half centimetres, and you have to decide.
+roof comes down to twenty-nine centimetres, and you have to decide.
 
 **Almost none of it is big enough to stand up in.** There are exactly two places in the cave where you
-can, and neither is bigger than a garage. Everything between them is a bore that only ever
-narrows - and the only thing that is not round is the slot at the bottom, which is the point.
+can, and neither is bigger than a garage. Everything between them is a round bore that only
+ever narrows, pressed flatter and flatter until the last one shuts.
 
 Nothing down here is hunting you. Nothing is counting down. Getting wedged is not a death, it
 is a puzzle: you got held at a particular shape, and the way out is to become a smaller one.
@@ -34,7 +34,7 @@ is a puzzle: you got held at a particular shape, and the way out is to become a 
 ![The Sowbelly survey](docs/survey.png)
 
 *Plan and extended elevation, drawn by `tools/render_survey.py` from the same JSON the game
-loads. 7 passages, 87 m surveyed, 27.6 m deep.*
+loads. 7 passages, 88 m surveyed, 29.1 m deep.*
 
 ## The route
 
@@ -47,19 +47,20 @@ You begin already clipped on to the rope, three metres down the shaft, with rock
 | 3 | **The Gullet** | phreatic tube, dissolved round; drops 22°, climbs 12°, drops 26° | 15.8 m | 0.76 × 0.52 m | flat out inside three metres, and gradient |
 | 4 | **The Bone Box** | the other room, 7 × 4.5, roof 2.8 | 6.5 m | — | the last place you stand up |
 | 5 | **The Flatiron** | the same tube, squashed, 44 cm at its worst | 25.2 m | 0.78 × 0.44 m | what twenty-five metres of contact feels like |
-| 6 | **The Devil's Pinch** | a joint pulled open: 1.30 m tall and 28.8 cm wide | 9.2 m | **0.288 m** | turning sideways and emptying your chest |
+| 6 | **The Devil's Pinch** | the tube pressed nearly flat: a metre wide and 33 cm high | 9.3 m | **0.293 m** | going head first and emptying your chest |
 | 7 | **The Drainpipe** | a lead that pinches shut 54 % of the way in | 5.0 m | closes | committing, and backing out |
 
 **The tunnels are for crawling, they pinch, and each one is tighter than the last.** Three gates
 in `check_fit.py`, all of which exist because the prose version of each rotted at least once:
 
 - **Nothing you can stand up in.** No tunnel section over **1.35 m** of drawn height. Measured on
-  what you can see, not on what a pair of shoulders can find - a 28 cm slot 1.7 m tall passes
-  every clearance test there is and still reads, correctly, as somewhere you could stand.
+  what you can see, not on what a pair of shoulders can find - the Pinch was once a 28 cm slot
+  1.7 m tall, which passed every clearance test there is and still read, correctly, as
+  somewhere you could stand.
 - **At least two pinches** per through-crawl: the bore shuts to under two thirds of the passage
   either side of it and opens again. A tunnel that is merely small all the way along is a pipe.
-- **It keeps closing**: 48 cm, then 41, then 29, then 20, measured on the narrowest single
-  dimension rather than on area, because a rift trades width for height.
+- **It keeps closing**: 48 cm, then 46, then 30, then 20, measured on the narrowest single
+  dimension rather than on area, because a flattened bore trades height for width.
 
 And they are not level. The Gullet drops twenty-two degrees out of the Cellar, crawls, climbs
 twelve over a rib and drops twenty-six into the Bone Box; the Flatiron loses and regains height
@@ -141,8 +142,10 @@ The whole game is this table. Nothing outside it decides how big you are.
 | Head first, one arm ahead | **chest + 2 cm** | 0.32 m | 0.10 m/s | 0.17 m |
 
 Chest depth is 30.0 cm relaxed and 26.5 cm fully exhaled. Where the table says *chest*, that
-is the dimension the exhale acts on - and the reason the Devil's Pinch, at 28.5 cm, refuses a
-relaxed body and admits an emptied one with 2 cm to spare.
+is the dimension the exhale acts on - and the reason the Devil's Pinch refuses a relaxed body
+and admits an emptied one. Head first you need 32.0 cm of roof with a full chest and 28.5 cm with
+an empty one, and the Pinch gives you 29.3 cm: three centimetres short, or eight millimetres
+spare.
 
 Posture is chosen for you, from the ceiling. In a real cave nobody decides to crouch; the rock
 decides, and the only interesting choice left is whether to go lower still. Standing, stooping
@@ -215,7 +218,7 @@ python3 caves/tools/gen_audio.py                        # rebuild the sound bank
 
 ```
 CAVE_AUTOTEST=clear godot --headless --path caves --quit-after 2000    # anything in the way?
-CAVE_AUTOTEST=route godot --headless --path caves --quit-after 400000  # walk it like a player
+CAVE_AUTOTEST=route godot --headless --fixed-fps 72 --path caves --quit-after 400000  # walk it like a player
 python3 caves/tools/bundle_single.py                    # one standalone HTML, no server
 python3 caves/tools/browser_check.py                    # open that in a real browser
 ```

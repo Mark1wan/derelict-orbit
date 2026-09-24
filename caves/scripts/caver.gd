@@ -405,7 +405,11 @@ func _shape_body() -> void:
 	var b := body.box()
 	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
 	if prone:
-		_capsule.radius = clampf(b.y * 0.5 - CAPSULE_SKIN, 0.07, 0.30)
+		# Head first, the chest IS the height, and the height is the mechanic: the Devil's Pinch
+		# is a flattened tube, and at full skin a relaxed chest slides under a roof the body model
+		# says it cannot. Same quarter skin as the upright squeeze postures below.
+		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() == "superman" else 1.0)
+		_capsule.radius = clampf(b.y * 0.5 - skin, 0.07, 0.30)
 		# Never longer than it can turn in, and never longer than it needs to be.
 		#
 		# A metre of capsule lying in an eighty-centimetre tube cannot rotate: asked to face a
