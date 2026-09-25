@@ -3,8 +3,9 @@
 Zero-G VR horror aboard orbital station **Kestrel-9**. Godot 4.7, exported to HTML5 / WebXR, tuned for Meta Quest 3.
 
 **A different station every run.** The deck is generated from a modular kit when the game starts: a branching
-corridor network on a 4 m grid with five or six rooms hung off it (control room, power plant, life support,
-laboratory, observation deck, gym, server room, EVA airlock). Every piece is also rolled about the axis it attaches
+corridor network on a 4 m grid with six or seven rooms hung off it: the power plant, the EVA airlock, the comms
+room and the washroom on every deck, and two or three of the control room, life support, laboratory, observation
+deck, gym and server room. Every piece is also rolled about the axis it attaches
 along - the interior is a 3 m square, so a corridor's grating may be on your left, the next cell's on the ceiling, a
 junction upside down, and a room turned on its side into a tall hall behind a normal door. There is no floor: every
 surface is something to grab. Learn the layout by day; you will need it in the dark.
@@ -14,9 +15,10 @@ yourself along and let go with a flick to fly. The suit pack on the sticks is fo
 seconds of burn, then it refills slowly.
 
 Keep the station alive by day - three maintenance tasks per shift, done by pointing your right controller at a wall
-terminal and holding **trigger**. Every night the main power fails and you wake in the dark in the room farthest
-from the power plant. Find the plant and hold the MAIN POWER panel to bring the lights back. Something walks the
-station at night. Your flashlight freezes it while the beam is on it; the moment you look away it moves. Survive 7 nights.
+terminal and holding **trigger**. The nights are never the same twice: some nights the main power fails and you wake
+in the dark in the room farthest from the power plant, some nights you wake up needing the toilet, some nights both,
+some nights nothing at all. Something walks the station on some of them. Your flashlight freezes it while the beam is
+on it; the moment you look away it moves. Survive 7 nights. See [The nights](#the-nights).
 
 **Earth is on the radio.** Once a shift the comms console keys up and Gateway Control reads you a
 message - about the lights that come on at 03:00, about life support scrubbing for two - and then
@@ -47,13 +49,13 @@ The haunting escalates with the day counter (and with every shift you leave unfi
 | Hold B + left stick | rotation thrusters: forward / back pitches, left / right rolls - the spin keeps going, a grab stops it |
 | Hold B + right stick left / right | rotation thruster: yaw |
 | A / X | flashlight on / off, wherever it is (hand, belt or drifting) |
-| Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names, or at the comms console to send your shift report (no tool needed) |
+| Trigger | hold while pointing that hand at a terminal - holding the repair tool the terminal names, or at the comms console to send your shift report, or at the washroom stall door to swing it (no tool needed) |
 | Y (left hand) | crew terminal hologram on / off: tasks with the tool each needs, clock, thruster fuel, belt, where the tools are |
 
 **Desktop fallback (any browser / the Godot editor)**: **right mouse** on a surface within arm's reach grabs it, drag
 to pull, release to let go. WASD / Space / C fire the thrusters, Shift holds on to whatever is in front of you, **R + mouse** rolls and pitches the whole body, **Tab** shows or hides the crew terminal. **1-4** swap
 your hand with that belt holster, **Q** lets go of what you hold, **E or left click** picks up a loose item in reach, uses the
-held tool on a terminal, or sends your shift report on the comms console, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
+held tool on a terminal, or sends your shift report on the comms console, or swings the stall door, F flashlight, Esc releases the mouse. `Ctrl+Shift+N` ends the current shift immediately (dev shortcut).
 
 **Phones and tablets (held sideways)**: the title screen shows **PLAY** when the page is opened on a touch device
 (`scripts/touch_controls.gd`). Android Chrome goes fullscreen and locks to landscape; an iPhone keeps its browser bars.
@@ -66,7 +68,7 @@ held tool on a terminal, or sends your shift report on the comms console, F flas
 | Press and hold on a surface within reach | grab it (ring fills, phone buzzes) - then drag to pull yourself, lift to let go with momentum |
 | Two fingers: twist / slide up or down | roll / pitch the whole body |
 | Quick tap | pick up the loose item nearest the middle of the view |
-| USE (hold) | use the tool in your hand on the terminal in the middle of the view - or send your shift report on the comms console; hold it to restart after dying |
+| USE (hold) | use the tool in your hand on the terminal in the middle of the view - or send your shift report on the comms console, or swing the stall door; hold it to restart after dying |
 | BRACE (hold) | hold on to whatever is in front of you |
 | DROP, LIGHT, TASKS | let go of what you hold, flashlight, crew terminal |
 | Belt buttons 1-4 | swap your hand with that holster |
@@ -94,6 +96,39 @@ You start with the flashlight and the wrench. The multitool and the scanner are 
 two other rooms (seeded per deck). The wrist lists what is in your hands, on the belt, and where the rest was
 last seen. The MAIN POWER panel at night needs no tool.
 
+## The nights
+
+Every night rolls its own events, independently, so they can land together:
+
+| Event | Chance | What you do |
+|---|---|---|
+| **Power failure** | 1 in 3 | you wake in the dark; reach the MAIN POWER panel in the POWER PLANT and hold it |
+| **Toilet trip** | 1 in 4 | you wake needing the toilet: get into the working stall in the WASHROOM and shut the door (hold **trigger** / **USE** on it), look at the toilet - the screen goes black - then turn round and open the door. With the power on, that is half the night: go back to bed (the room you woke in) |
+| **Both** | 1 in 12 | the toilet comes first: the power panel will not take a hold until you have been |
+| **Neither** | 1 in 2 | a quiet night. The screen stays black and the next shift starts |
+
+On a night the power stays on, the deck runs its night cycle: every lamp at 30 %, dark enough for the flashlight to
+matter and light enough to see what is standing in a doorway.
+
+**The bundle.** On half the toilet trips, when you open the stall door, there is a bundle of sticks hanging in the
+air right outside it, at the height of your eyes - a dozen twigs bound with twine and a red thread, a strip of cloth
+knotted round it, a loop of cord at the top as though it had been hung from something. It is put there while the
+screen is black, so you never see it arrive, only find it on the way out.
+
+**The thing that walks** (the stalker) is never out on the first night. After that:
+
+| Tonight | Chance it is out |
+|---|---|
+| power failure | 80 % - it is out from the moment the lights die |
+| toilet trip, lights on | 20 % |
+| toilet trip and power failure | 45 % |
+| ...and the bundle was outside the door | +30 % on either (50 % / 75 %) |
+
+On a toilet night it is decided in the stall, in the black, and let go the moment you open the door - from the room
+farthest from you that is not the one you are heading for. All of these numbers are constants at the top of "the
+night" in `scripts/game.gd`. For playtesting, `?night=power,toilet,sticks` in the page URL (or
+`DERELICT_NIGHT=power,toilet,sticks,monster`, or `quiet`) pins every night of the run to exactly that.
+
 ## The uplink: messages from Earth
 
 The story is told over the radio. Twenty seconds into every shift the comms console keys up and
@@ -106,8 +141,9 @@ Answer it and the week is a conversation. Day 2 is flight asking why the deck li
 at 03:00 with you asleep. Day 3 is life support scrubbing carbon dioxide for two people. Day 4
 answers a report you have not sent yet. By day 6 the station is filing its own crew manifest, and
 it says two. Skip a report and Gateway opens the next shift asking why you went quiet, before it
-says anything else. On nights 4 and 6 the console has power when nothing else does - it runs off
-its own cell - and something keys the mic that is not Gateway and is not you.
+says anything else. On nights 4 and 6, if anything wakes you, the console keys up by itself - it runs
+off its own cell, so a power failure does not stop it - and something is on the mic that is not
+Gateway and is not you.
 
 The voice is synthesised like everything else here, by `tools/gen_voice.py`, with nothing but the
 standard library: three formant resonators walking between one letter's targets and the next over a
@@ -176,7 +212,7 @@ Quest 3 until measured on one.
 project.godot          GL Compatibility renderer (required for web), XR shaders on, gravity 0
 export_presets.cfg     Web preset: thread support OFF -> runs from any static HTTPS host, no COOP/COEP headers
 scenes/main.tscn       minimal skeleton; everything else is built in code
-scripts/game.gd        autoload: phases, day counter, tasks, intensity
+scripts/game.gd        autoload: phases, day counter, tasks, intensity, the night's rolls
 scripts/sfx.gd         autoload: sound bank
 scripts/main.gd        WebXR session, title UI, environment, autotest
 scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruster tank, flashlight, laser, wrist HUD
@@ -186,6 +222,8 @@ scripts/holo_panel.gd  the crew terminal: tasks and stats as a hologram from the
 scripts/ps1.gd         PS1 mode: the vertex-lit, snapped, affine, one-texture-page look that holds 72 Hz
 scripts/comms.gd       autoload: the uplink - when Earth calls, what is due back, the night carriers
 scripts/comms_station.gd  the comms console: prints the message as it is spoken, hold to transmit
+scripts/washroom.gd    the washroom's working stall: its door, and the night's toilet trip (black, the bundle)
+scripts/stick_bundle.gd  the bundle of sticks that hangs outside the stall door, built in code
 comms/log.json         the whole story: seven messages from Earth, seven replies, two night carriers
 audio/voice/*.wav      one rendered transmission per entry (tools/gen_voice.py)
 tools/gen_voice.py     the radio voice: formant speech + the radio channel, standard library only
@@ -201,14 +239,14 @@ scripts/palette.gd     the materials the kit's glTF names are remapped to (textu
 scripts/station.gd     builds a deck from the layout: hull, lights, terminals per room type, name plates, props,
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
-kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3) plus 22 props
+kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3: ten rooms) plus 22 props
                        (prop_*.glb), classed wall attachment / floating / room equipment. Every
                        wall fitting is a handhold - see kit/KIT_README.md
 scripts/geo.gd         SurfaceTool batcher: one mesh per material (+ trimesh collider); used by the classic map and small extras
 scripts/tex.gd         procedural textures: riveted plating + normal maps, grating, hazard stripes,
                        vents, telemetry screens, LED rows, starfield, planet, solar cells
 scripts/interactable.gd  wall terminal (hold-to-complete)
-scripts/haunt_manager.gd daytime events + night stalker spawning
+scripts/haunt_manager.gd daytime events + letting the night stalker go when the night says so
 scripts/shadow_figure.gd  the two daytime apparition events (crossing, watching)
 scripts/apparition.gd  the apparitions: smoke figures built from kit/apparition_*.json - the
                        corridor vulto (jinn crossed with the Brazilian shadow person) and the ghul
@@ -225,6 +263,7 @@ scripts/chupacabra.gd  the 1995 Puerto Rican one: waits round the edge of a side
                        wall over most of it, withdraws when noticed, sometimes bolts across the
                        opening at 7 m/s instead (docs/CHUPACABRA.md)
 tools/build_props.py   builds kit/prop_*.glb (pure Python glTF writer in tools/proplib.py, no Blender)
+tools/build_extra_rooms.py builds kit/room_comms.glb and kit/room_washroom.glb on the shell the other rooms share
 tools/build_creature.py builds kit/creature_rig.json and kit/chupacabra_rig.json + their renders
 tools/riglib.py        shared rig machinery: bones, parts, fur, poses, the floor solver
 tools/build_apparition.py builds kit/apparition_corridor.json + its renders in docs/
@@ -245,6 +284,9 @@ DERELICT_SHOTS=/tmp/kestrel-shots godot --path .
 
 Opens a window, starts desktop mode, jumps the camera through ~20 viewpoints (every room, the
 corridors, the skylight, the windows, then the same with the power off) and saves a PNG of each.
+`DERELICT_SHOTS_ONLY=washroom` shoots just the comms room and the washroom: the console, the stall
+from inside, the door shut, and the door opened on the bundle by the night cycle and in a power
+failure. `DERELICT_AUTOTEST=layouts` (headless) lists decks where both rooms are the right way up.
 
 ## Running on the Quest 3
 
@@ -276,10 +318,13 @@ godot --headless --path . --import
 godot --headless --path . --export-release "Web (WebXR, Quest 3)" build/web/index.html
 ```
 
-Smoke test the whole loop without a headset (day -> tasks -> night -> stalker -> power -> death -> restart):
+Smoke test the whole loop without a headset (day -> tasks -> a first night with no stalker -> power -> a power
+failure and a toilet trip at once, with the bundle and the stalker -> toilet, then power -> caught -> restart):
 
 ```
 DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000
+DERELICT_AUTOTEST=nights godot --headless --path .    # the odds, a quiet night, a toilet trip back to bed
+DERELICT_AUTOTEST=layouts godot --headless --path .   # 300 deck plans: every one has the rooms it needs
 ```
 
 ## PS1 mode, and holding 72 Hz on a Quest 3

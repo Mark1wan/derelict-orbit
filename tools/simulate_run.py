@@ -5,9 +5,10 @@
     python3 tools/simulate_run.py --nights 16 --seed 4 --quiet   # just the summary
 
 Every rule and every number here is read straight out of the GDScript at run time - the event
-table and its intensity gates from scripts/haunt_manager.gd, the shift length and the intensity
-curve from scripts/game.gd, the stalker's speed from scripts/stalker.gd - so this cannot quietly
-drift away from the game. It is the schedule that is being simulated, not the game: it knows
+table and its intensity gates from scripts/haunt_manager.gd, the shift length, the intensity
+curve and the night's odds (power failure, toilet trip, the bundle, the stalker) from
+scripts/game.gd, the stalker's speed from scripts/stalker.gd - so this cannot quietly drift away
+from the game. It is the schedule that is being simulated, not the game: it knows
 nothing about geometry, so an event that would fail for want of a spot is assumed to find one.
 """
 
@@ -30,6 +31,14 @@ def num(text, pattern, default):
     return float(m.group(1)) if m else default
 
 
+def const(text, name, default):
+    """A numeric const, written plainly or as a fraction (`1.0 / 3.0`)."""
+    m = re.search(r"const %s := ([\d.]+)(?:\s*/\s*([\d.]+))?" % name, text)
+    if not m:
+        return default
+    return float(m.group(1)) / (float(m.group(2)) if m.group(2) else 1.0)
+
+
 HAUNT = source("haunt_manager.gd")
 GAME = source("game.gd")
 STALKER = source("stalker.gd")
@@ -46,6 +55,16 @@ FAULT_BREATH = num(HAUNT, r"const FAULT_BREATH := ([\d.]+)", 0.07)
 SEEN_CHANCE = num(FAE, r"const SEEN_CHANCE := ([\d.]+)", 0.45)
 BOLT_CHANCE = num(CHUPA, r"const BOLT_CHANCE := ([\d.]+)", 0.25)
 RITUAL_DAY = int(num(HAUNT, r"if Game\.day < (\d+)", 6))
+# the night's rolls (scripts/game.gd, "the night")
+POWER_FAILURE = const(GAME, "POWER_FAILURE_CHANCE", 1.0 / 3.0)
+TOILET = const(GAME, "TOILET_CHANCE", 0.25)
+MONSTER_POWER = const(GAME, "MONSTER_POWER", 0.8)
+MONSTER_TOILET = const(GAME, "MONSTER_TOILET", 0.2)
+MONSTER_COMBO = const(GAME, "MONSTER_COMBO", 0.45)
+STICKS = const(GAME, "STICKS_CHANCE", 0.5)
+STICKS_MONSTER = const(GAME, "STICKS_MONSTER", 0.3)
+FIRST_MONSTER_NIGHT = int(const(GAME, "FIRST_MONSTER_NIGHT", 2))
+QUIET_NIGHT = const(GAME, "QUIET_NIGHT", 7.0)
 
 # the event table, lifted from _fire_day_event so the gates cannot drift
 GATES = []
@@ -126,7 +145,29 @@ def run(nights, seed, skill=0.72):
         if done < TASKS_PER_DAY:
             penalty += 1
         night_I = day + penalty
+        # tonight's rolls, the way Game._begin_night and the washroom's blackout make them
+        power = rng.random() < POWER_FAILURE
+        toilet = rng.random() < TOILET
+        sticks = toilet and rng.random() < STICKS
+        chance = 0.0
+        if day >= FIRST_MONSTER_NIGHT:
+            if toilet:
+                chance = MONSTER_COMBO if power else MONSTER_TOILET
+            elif power:
+                chance = MONSTER_POWER
+            if sticks:
+                chance += STICKS_MONSTER
+        stalker = rng.random() < min(1.0, chance)
+        kind = "combo" if power and toilet else ("power" if power else ("toilet" if toilet else "quiet"))
+        for k, on in (("night_" + kind, True), ("stalker_nights", stalker), ("bundles", sticks)):
+            if on:
+                tally[k] = tally.get(k, 0) + 1
         night = {
+            "kind": kind,
+            "power": power,
+            "toilet": toilet,
+            "sticks": sticks,
+            "stalker": stalker,
             "speed": 0.45 + 0.12 * night_I,
             "lit": 0.0 if night_I < 5.0 else 0.3,
             "teleport": night_I >= 4.0,
@@ -135,7 +176,16 @@ def run(nights, seed, skill=0.72):
             "beats": [],
         }
         nt = rng.uniform(12.0, 25.0)
-        walk = rng.uniform(70.0, 190.0) + 9.0 * night_I      # how long to find the power room
+        walk = 0.0
+        if power:
+            walk += rng.uniform(70.0, 190.0) + 9.0 * night_I     # how long to find the power room
+        if toilet:
+            walk += rng.uniform(50.0, 120.0)                       # to the washroom, and in the stall
+            if not power:
+                walk += rng.uniform(40.0, 110.0)                   # ...and back to bed
+        if kind == "quiet":
+            walk = QUIET_NIGHT                                     # slept through: nothing to hear
+            nt = walk
         while nt < walk:
             night["beats"].append((nt, "bang" if rng.random() < 0.5 else "whisper"))
             nt += rng.uniform(9.0, 22.0)
@@ -169,11 +219,19 @@ def report(log, tally, quiet=False):
                 if e.get("under"):
                     bits.append("*** something under the buzz ***")
                 out.append("  %s  %s" % (clock(e["t"]), "  ".join(bits)))
-            out.append("  NIGHT %-2d  power out, %.0fs in the dark   stalker %.2f m/s%s%s%s"
-                       % (d["day"], n["length"], n["speed"],
-                          ", eyes lit" if n["eyes"] else ", unseen in the dark",
-                          ", pushes through your torch" if n["lit"] else "",
-                          ", closes distance while you look away" if n["teleport"] else ""))
+            what = {"quiet": "quiet - slept through", "power": "power out",
+                    "toilet": "toilet trip, lights on", "combo": "power out AND a toilet trip"}[n["kind"]]
+            if n["sticks"]:
+                what += ", the bundle outside the stall door"
+            if n["stalker"]:
+                out.append("  NIGHT %-2d  %s, %.0fs up   stalker %.2f m/s%s%s%s"
+                           % (d["day"], what, n["length"], n["speed"],
+                              ", eyes lit" if n["eyes"] else ", unseen in the dark",
+                              ", pushes through your torch" if n["lit"] else "",
+                              ", closes distance while you look away" if n["teleport"] else ""))
+            else:
+                out.append("  NIGHT %-2d  %s%s" % (d["day"], what, "" if n["kind"] == "quiet" else
+                                                   ", %.0fs up   nothing walking" % n["length"]))
             if n["ritual"]:
                 out.append("           ** one doorway is warm: somebody is sitting in a circle of candles **")
             for t, k in n["beats"]:
@@ -184,10 +242,16 @@ def report(log, tally, quiet=False):
     out.append("=" * 74)
     total_app = sum(v for k, v in tally.items() if k in APPARITIONS)
     for k in sorted(tally, key=lambda k: -tally[k]):
-        if k in ("fault", "fault_under"):
+        if k in ("fault", "fault_under", "stalker_nights", "bundles") or k.startswith("night_"):
             continue
         out.append("  %-14s %3d %s" % (k, tally[k], "apparition" if k in APPARITIONS else ""))
     out.append("  %-14s %3d" % ("apparitions", total_app))
+    out.append("")
+    out.append("  nights: %d quiet, %d power failures, %d toilet trips, %d both"
+               % (tally.get("night_quiet", 0), tally.get("night_power", 0),
+                  tally.get("night_toilet", 0), tally.get("night_combo", 0)))
+    out.append("  the stalker walked on %d of them; the bundle was outside the stall door %d times"
+               % (tally.get("stalker_nights", 0), tally.get("bundles", 0)))
     out.append("")
     out.append("  lamps stuttering with nothing behind them: %d" % tally.get("fault", 0))
     out.append("  ...of which carried the breath anyway:     %d  (false positives)"

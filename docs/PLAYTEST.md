@@ -153,6 +153,29 @@ Open the game with `?eva` on the end of the address to start straight on the spa
 `DERELICT_AUTOTEST=eva godot --headless --path .` runs the whole mission; `DERELICT_SHOTS=/tmp/eva
 DERELICT_SHOTS_ONLY=eva godot --path .` saves screenshots of it.
 
+## The nights and the washroom - what to check
+
+Nights are rolled (see the README's "The nights"), so waiting for a particular one takes a while. Pin
+them with `?night=` on the end of the address - every night of the run is then exactly that:
+`?night=toilet`, `?night=toilet,sticks`, `?night=power,toilet,sticks`, `?night=power`, or
+`?night=quiet`. Add `monster` to the list to have the stalker out whenever the odds are not zero
+(it never is on night 1).
+
+- **The stall door** (hold TRIGGER / USE on it): is 0.35 s of hold right? Can you tell whether it is
+  shut from inside - the VACANT / ENGAGED plate is on the outside?
+- **Getting in**: is the doorway (0.76 m) too tight to float through in VR without a fight?
+- **The black**: looking at the toilet with the door shut takes about a second, then the screen goes
+  black for about four. Too quick to register, or long enough to get uneasy in?
+- **The bundle**: when you open the door on it, does it land? It is hung at the height your eyes
+  were when the screen went black. Is 0.9 m outside the door close enough to make you stop?
+- **Back to bed** on a toilet night with the lights on: is the room you woke in easy to find again
+  on the night-cycle lighting?
+- **Quiet nights**: does a black screen and the next shift feel like a relief or like a bug?
+
+`DERELICT_AUTOTEST=nights godot --headless --path .` checks the odds and plays each kind of night;
+`DERELICT_SEED=5 DERELICT_SHOTS=/tmp/wc DERELICT_SHOTS_ONLY=washroom godot --path .` saves screenshots of
+the comms room, the stall, and the bundle.
+
 ## Tools and the belt - what to check in the headset
 
 - Look down: four holster rings at the waist, following your heading but not your head tilt. Seated and standing.

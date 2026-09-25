@@ -163,6 +163,9 @@ func _ready() -> void:
 	Game.tasks_changed.connect(_refresh_wrist)
 	Game.tasks_changed.connect(wrist.notify)
 	Game.day_started.connect(func(_d: int) -> void: wrist.notify())
+	Game.night_goal_changed.connect(func() -> void:
+		_refresh_wrist()
+		wrist.notify())
 	Game.phase_changed.connect(_on_phase)
 	Game.game_reset.connect(_on_reset)
 	Game.step_done.connect(func(id: String) -> void:
@@ -959,19 +962,24 @@ func _on_notice(text: String, seconds: float) -> void:
 	_notice_timer = seconds
 
 func _on_phase(p: int) -> void:
+	_refresh_wrist()
 	match p:
 		Game.Phase.SLEEP:
 			fade_speed = 0.6
 			fade_target = 1.0
 			set_suit(false)
 		Game.Phase.NIGHT:
-			# wake up in the dark, as far from the power plant as the deck allows - with your belt
+			# wake up where you sleep, as far from the power plant as the deck allows - with your belt.
+			# A quiet night you do not wake up at all: the black just holds until the next shift
 			teleport_head_to(Game.station.wake_point())
 			reset_orientation()
 			fuel = 1.0
+			if Game.is_quiet_night():
+				return
 			await get_tree().create_timer(1.5).timeout
-			fade_speed = 0.5
-			fade_target = 0.0
+			if Game.phase == Game.Phase.NIGHT:
+				fade_speed = 0.5
+				fade_target = 0.0
 		Game.Phase.DAY:
 			fade_speed = 1.5
 			fade_target = 0.0
@@ -981,7 +989,6 @@ func _on_phase(p: int) -> void:
 		Game.Phase.WON:
 			fade_speed = 0.3
 			fade_target = 1.0
-	_refresh_wrist()
 
 func _on_reset() -> void:
 	for hand in held.keys():
@@ -1162,7 +1169,7 @@ func _refresh_wrist() -> void:
 		Game.Phase.SLEEP:
 			s = "Shift over.\nGo to sleep."
 		Game.Phase.NIGHT:
-			s = "NIGHT %d    %s\nPOWER: OFFLINE\n> restore main power (POWER PLANT)\n> light freezes it. dark does not.\n" % [Game.day, _fuel_bar()]
+			s = "NIGHT %d    %s\n%s" % [Game.day, _fuel_bar(), Game.night_goal()]
 			s += _kit_line()
 			if Comms.is_playing():
 				s += "COMMS: carrier - something is transmitting\n"

@@ -16,6 +16,7 @@ var touch_btn: Button
 var touch_ui: TouchControls
 var touch_device := false
 var _ps1_by_hand := false        # the PS1 switch was set on the title screen: do not override it
+var _power_was_off := false
 
 func _ready() -> void:
 	# playtest shortcut straight to the spacewalk day: ?eva in the URL, or DERELICT_EVA=1
@@ -37,6 +38,7 @@ func _ready() -> void:
 		if player.started and not player.xr_active:
 			_apply_quality())
 	Game.power_changed.connect(_on_power)
+	Game.phase_changed.connect(_on_phase_mood)
 
 	webxr = XRServer.find_interface("WebXR")
 	if webxr:
@@ -54,6 +56,10 @@ func _ready() -> void:
 		_autotest_eva()
 	elif OS.get_environment("DERELICT_AUTOTEST") == "routes":
 		_survey_routes()
+	elif OS.get_environment("DERELICT_AUTOTEST") == "nights":
+		_autotest_nights()
+	elif OS.get_environment("DERELICT_AUTOTEST") == "layouts":
+		_survey_layouts()
 	elif OS.has_environment("DERELICT_AUTOTEST"):
 		_autotest()
 	if OS.has_environment("DERELICT_SHOTS"):
@@ -73,6 +79,11 @@ func _photo_mode(dir: String) -> void:
 		return
 	if OS.get_environment("DERELICT_SHOTS_ONLY") == "eva":
 		await _eva_shots(dir)
+		print("[shots] done -> ", dir)
+		get_tree().quit()
+		return
+	if OS.get_environment("DERELICT_SHOTS_ONLY") == "washroom":
+		await _washroom_shots(dir)
 		print("[shots] done -> ", dir)
 		get_tree().quit()
 		return
@@ -109,6 +120,43 @@ func _photo_mode(dir: String) -> void:
 		await _shot(dir, "night_" + sh[0], sh[1], sh[2])
 	print("[shots] done -> ", dir)
 	get_tree().quit()
+
+## The comms room and the washroom: DERELICT_SHOTS=dir DERELICT_SHOTS_ONLY=washroom (windowed).
+## The rooms by day, the stall from inside, the door shut, and the toilet trip's ending - the door
+## open and the bundle hanging outside it - by the night-cycle lights and again in a power failure.
+## DERELICT_AUTOTEST=layouts lists decks where both rooms are the right way up.
+func _washroom_shots(dir: String) -> void:
+	_start_desktop()
+	await get_tree().create_timer(1.8).timeout
+	player.hud_label.visible = false
+	player.wrist.visible = false
+	var wc: Washroom = station.washroom
+	for sh: Array in station.viewpoints():
+		var n: String = sh[0]
+		if n.ends_with("_comms") or n.ends_with("_washroom"):
+			await _shot(dir, n, sh[1], sh[2])
+	var console: CommsStation = station.comms
+	await _shot(dir, "comms_console", console.global_position + console.global_basis.z * 2.4 + console.global_basis.y * 0.1, console.global_position + console.global_basis.y * 0.3)
+	var room := func(x: float, y: float, z: float) -> Vector3: return wc.to_global(Vector3(x, y, z))
+	await _shot(dir, "stall_front", room.call(Washroom.STALL_X - 0.4, 1.6, 0.6), room.call(Washroom.STALL_X - 0.3, 1.1, Washroom.STALL_FRONT))
+	await _shot(dir, "stall_toilet", room.call(Washroom.STALL_X, 1.45, 3.75), wc.toilet_point())
+	wc.toggle_door()
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "stall_shut", room.call(Washroom.STALL_X, 1.4, 4.75), room.call(Washroom.STALL_X, 1.25, Washroom.STALL_FRONT))
+	# the night cycle, the bundle hung in the black, the door opened on it
+	station.set_night_cycle(true)
+	wc._hang_bundle(1.4)
+	wc.toggle_door()
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "stall_open_bundle", room.call(Washroom.STALL_X, 1.4, 4.55), wc.bundle.global_position)
+	await _shot(dir, "bundle_close", wc.bundle.global_position + wc.global_basis * Vector3(0.25, 0.08, -0.6), wc.bundle.global_position)
+	station.set_night_cycle(false)
+	station.set_power(false)
+	_on_power(false)
+	player.flashlight_on = true
+	player.flashlight.visible = true
+	await _shot(dir, "night_stall_open_bundle", room.call(Washroom.STALL_X, 1.4, 4.55), wc.bundle.global_position)
+	await _shot(dir, "night_washroom", room.call(0.0, 1.6, -3.5), room.call(0.3, 1.2, Washroom.STALL_FRONT))
 
 ## The kit: the belt seen from above, a tool floating on the deck, the wrench up at its terminal.
 func _item_shots(dir: String) -> void:
@@ -407,6 +455,11 @@ func _autotest() -> void:
 	# everything bolted down is merged into the chunk mesh of the wall it is on; what is left with a
 	# draw call of its own is what moves. If this climbs, a deck is paying for clutter again.
 	assert(meshes - hull <= 24, "loose meshes on the deck should stay merged into the hull (got %d)" % [meshes - hull])
+	# every deck has a comms room with the uplink in it, and a washroom with its working stall
+	var comms_i := station.layout.room_of("comms")
+	assert(comms_i >= 0 and station.comms_room_index == comms_i and station.comms_room() == "COMMS ROOM", "the uplink should be in the COMMS ROOM")
+	assert(station.washroom != null and station.layout.room_of("washroom") >= 0, "the deck should have a washroom")
+	assert(station.layout.rooms[station.wake_room]["type"] != "washroom", "nobody wakes up in the washroom")
 	# locomotion: thrusters burn fuel and move you; a grab pulls the body toward the anchor
 	Input.action_press("d_forward")
 	await get_tree().create_timer(1.0).timeout
@@ -540,37 +593,190 @@ func _autotest() -> void:
 			guard += 1
 		print("[autotest] completed %s with the %s (done=%s)" % [t["id"], it.tool, it.done])
 	assert(Game.phase == Game.Phase.SLEEP, "all tasks done -> SLEEP")
+	# night 1, pinned to a power failure that would bring the stalker on any other night: not this one
+	Game.debug_night = {"power": true, "toilet": false, "monster": true}
 	await get_tree().create_timer(7.0).timeout
 	assert(Game.phase == Game.Phase.NIGHT, "should be NIGHT")
 	assert(not Game.power_on, "power should be off")
-	print("[autotest] night, player head at %s stalker at %s" % [player.camera.global_position, haunt.stalker.global_position])
-	# let the stalker walk a bit with flashlight off
-	player.flashlight_on = false
-	await get_tree().create_timer(3.0).timeout
-	print("[autotest] stalker moved to %s lit=%s" % [haunt.stalker.global_position, haunt.stalker.is_lit(player)])
+	assert(not Game.monster_out and haunt.stalker == null, "nothing walks on the first night")
 	assert((Game.orbit as Orbit).sun_visible < 0.01, "night should be the Earth's shadow")
-	# restore power
+	print("[autotest] night 1: power out, no stalker (chance %.2f)" % Game.monster_chance())
+	_restore_power()
+	assert(Game.phase == Game.Phase.DAY and Game.day == 2, "power restored -> DAY 2")
+	print("[autotest] day 2 ok, intensity %.1f" % Game.intensity())
+	# night 2: the power fails AND you need the toilet, the bundle is outside the door and the stalker
+	# comes with it. The toilet comes first; the power panel will not take a hold until it is done
+	Game.debug_night = {"power": true, "toilet": true, "sticks": true, "monster": true}
+	Game.day_time = Game.day_length() + 1.0
+	await get_tree().create_timer(8.0).timeout
+	assert(Game.phase == Game.Phase.NIGHT and not Game.power_on and Game.toilet_pending, "NIGHT 2 should be a power failure and a toilet trip")
+	assert(haunt.stalker == null, "the stalker waits on the toilet trip")
+	var pp: Interactable = station.interactables["power"]
+	player.teleport_head_to(pp.global_position + pp.global_transform.basis.z * 1.5)
+	assert(not pp.hold(0.5) and not pp.done, "the power panel should refuse until the toilet trip is done")
+	await _toilet_trip(true)
+	assert(Game.monster_out and is_instance_valid(haunt.stalker), "combo night with the bundle: the stalker is out")
+	print("[autotest] toilet trip ok: door shut, black, bundle outside the door, stalker let go")
+	haunt.stalker.global_position = station.stalker_spawn_point()
+	_restore_power()
+	assert(Game.phase == Game.Phase.DAY and Game.day == 3, "toilet then power -> DAY 3")
+	assert(station.washroom.bundle == null, "the bundle is gone by morning")
+	# night 3: a plain power failure with the stalker, and get caught
+	Game.debug_night = {"power": true, "toilet": false, "monster": true}
+	Game.day_time = Game.day_length() + 1.0
+	await get_tree().create_timer(8.0).timeout
+	assert(Game.phase == Game.Phase.NIGHT and is_instance_valid(haunt.stalker), "NIGHT 3 should have the stalker out from the start")
+	haunt.stalker.global_position = player.camera.global_position + Vector3(0.5, 0, 0)
+	await get_tree().create_timer(1.5).timeout
+	assert(Game.phase == Game.Phase.DEAD, "should be DEAD")
+	print("[autotest] caught ok, restarting")
+	Game.debug_night = {}
+	Game.restart()
+	await get_tree().create_timer(0.5).timeout
+	assert(Game.phase == Game.Phase.DAY and Game.day == 1, "restart -> DAY 1")
+	print("[autotest] ALL OK  station children=%d" % station.get_child_count())
+	get_tree().quit()
+
+## Deck plans, headless: DERELICT_AUTOTEST=layouts godot --headless --path .
+## Grows a few hundred plans and checks every one has the rooms the game needs, and how many of the
+## others it found room for.
+func _survey_layouts() -> void:
+	var n := 300
+	var rooms := 0
+	var cells := 0
+	var kinds := {}
+	var upright: Array[int] = []      # decks with the comms room and washroom the right way up: photo mode
+	for s in n:
+		var lay := StationLayout.new()
+		assert(lay.generate(s), "seed %d did not grow a plan" % s)
+		if upright.size() < 5 and lay.rooms[lay.room_of("comms")]["roll"] == 0 and lay.rooms[lay.room_of("washroom")]["roll"] == 0:
+			upright.append(s)
+		for t: String in StationLayout.REQUIRED:
+			assert(lay.room_of(t) >= 0, "seed %d has no %s" % [s, t])
+		assert(lay.rooms[0]["type"] == "power", "seed %d: the power plant should be room 0" % s)
+		rooms += lay.rooms.size()
+		cells += lay.corridor.size()
+		for r: Dictionary in lay.rooms:
+			kinds[r["type"]] = kinds.get(r["type"], 0) + 1
+	print("[layouts] %d plans: %.2f rooms, %.1f corridor cells on average. %s" % [n, float(rooms) / n, float(cells) / n, kinds])
+	print("[layouts] comms room and washroom upright on decks %s" % [upright])
+	print("[layouts] ALL OK")
+	get_tree().quit()
+
+## The nights, headless: DERELICT_AUTOTEST=nights godot --headless --path .
+## The odds, a quiet night slept through, and a toilet trip with the lights on that ends back in bed.
+func _autotest_nights() -> void:
+	var haunt = $Haunt
+	print("[nights] start")
+	_start_desktop()
+	await get_tree().create_timer(2.0).timeout
+	# the odds, exactly as asked for: set tonight by hand and read the chance back
+	var cases := [
+		# [night, power, toilet, sticks, expected chance of the stalker]
+		[1, true, false, false, 0.0], [1, false, true, true, 0.0], [1, true, true, true, 0.0],
+		[2, true, false, false, 0.80], [5, true, false, false, 0.80],
+		[2, false, true, false, 0.20], [2, false, true, true, 0.50],
+		[2, true, true, false, 0.45], [2, true, true, true, 0.75],
+		[2, false, false, false, 0.0],
+	]
+	var day0 := Game.day
+	for c: Array in cases:
+		Game.day = c[0]
+		Game.night_power_out = c[1]
+		Game.night_toilet = c[2]
+		Game.sticks = c[3]
+		assert(is_equal_approx(Game.monster_chance(), c[4]), "night %d power=%s toilet=%s sticks=%s: stalker chance %.2f, want %.2f" % [c[0], c[1], c[2], c[3], Game.monster_chance(), c[4]])
+	Game.day = day0
+	Game._clear_night()
+	assert(is_equal_approx(Game.POWER_FAILURE_CHANCE, 1.0 / 3.0) and is_equal_approx(Game.TOILET_CHANCE, 0.25) and is_equal_approx(Game.STICKS_CHANCE, 0.5), "event odds")
+	# and the rolls themselves, unpinned, land near those odds over a lot of nights
+	var n := 20000
+	var hits := {"power": 0, "toilet": 0, "sticks": 0}
+	for i in n:
+		hits["power"] += 1 if Game._roll("power", Game.POWER_FAILURE_CHANCE) else 0
+		hits["toilet"] += 1 if Game._roll("toilet", Game.TOILET_CHANCE) else 0
+		hits["sticks"] += 1 if Game._roll("sticks", Game.STICKS_CHANCE) else 0
+	assert(absf(hits["power"] / float(n) - 1.0 / 3.0) < 0.02 and absf(hits["toilet"] / float(n) - 0.25) < 0.02 and absf(hits["sticks"] / float(n) - 0.5) < 0.02, "rolls: %s of %d" % [hits, n])
+	print("[nights] odds ok: %s of %d" % [hits, n])
+
+	# a quiet night: the screen never comes up, the next shift starts on its own
+	Game.debug_night = {"power": false, "toilet": false}
+	Game.day_time = Game.day_length() + 1.0
+	await get_tree().create_timer(7.0).timeout
+	assert(Game.phase == Game.Phase.NIGHT and Game.is_quiet_night() and Game.power_on, "a quiet night")
+	await get_tree().create_timer(2.0).timeout
+	assert(player.fade_target == 1.0 and haunt.stalker == null, "a quiet night stays black, and empty")
+	await get_tree().create_timer(Game.QUIET_NIGHT).timeout
+	assert(Game.phase == Game.Phase.DAY and Game.day == 2, "quiet night -> DAY 2 (day %d)" % Game.day)
+	print("[nights] quiet night ok")
+
+	# a toilet trip with the power on: the deck on its night cycle, no bundle, no stalker; then back to bed
+	Game.debug_night = {"power": false, "toilet": true, "sticks": false, "monster": false}
+	Game.day_time = Game.day_length() + 1.0
+	await get_tree().create_timer(8.0).timeout
+	assert(Game.phase == Game.Phase.NIGHT and Game.power_on and Game.toilet_pending, "a toilet night")
+	var lamp: OmniLight3D = station.lights[0]
+	assert(is_equal_approx(lamp.light_energy, float(lamp.get_meta("energy")) * Station.NIGHT_DIM), "lamps on the night cycle")
+	assert(station.interactables["power"].active == false, "the power panel has nothing to do tonight")
+	await _toilet_trip(false)
+	assert(not Game.monster_out and haunt.stalker == null, "no stalker")
+	assert(Game.phase == Game.Phase.NIGHT, "not over until you are back in bed")
+	player.teleport_head_to(station.wake_point())
+	await get_tree().create_timer(0.3).timeout
+	assert(Game.phase == Game.Phase.DAY and Game.day == 3, "back in bed -> DAY 3")
+	assert(is_equal_approx(lamp.light_energy, float(lamp.get_meta("energy"))), "full lights by day")
+	print("[nights] toilet night ok: trip, back to bed, lights back up")
+
+	# a toilet trip with the lights on that finds the bundle and lets the stalker go
+	Game.debug_night = {"power": false, "toilet": true, "sticks": true, "monster": true}
+	Game.day_time = Game.day_length() + 1.0
+	await get_tree().create_timer(8.0).timeout
+	await _toilet_trip(true)
+	assert(Game.monster_out and is_instance_valid(haunt.stalker), "the bundle and the stalker")
+	var from_wc: float = haunt.stalker.global_position.distance_to(player.camera.global_position)
+	assert(from_wc > 8.0, "it comes from well away from the stall (%.1f m)" % from_wc)
+	print("[nights] bundle + stalker ok, it starts %.1f m away" % from_wc)
+	print("[nights] ALL OK")
+	get_tree().quit()
+
+## Hold the MAIN POWER panel until it takes.
+func _restore_power() -> void:
 	var pp: Interactable = station.interactables["power"]
 	player.teleport_head_to(pp.global_position + pp.global_transform.basis.z * 1.5)
 	var g := 0
 	while not pp.done and g < 600:
 		pp.hold(0.05)
 		g += 1
-	assert(Game.phase == Game.Phase.DAY and Game.day == 2, "power restored -> DAY 2")
-	print("[autotest] day 2 ok, intensity %.1f" % Game.intensity())
-	# fast-forward to night 2 and get caught
-	Game.day_time = Game.day_length() + 1.0
-	await get_tree().create_timer(8.0).timeout
-	assert(Game.phase == Game.Phase.NIGHT, "should be NIGHT 2")
-	haunt.stalker.global_position = player.camera.global_position + Vector3(0.5, 0, 0)
-	await get_tree().create_timer(1.5).timeout
-	assert(Game.phase == Game.Phase.DEAD, "should be DEAD")
-	print("[autotest] caught ok, restarting")
-	Game.restart()
+
+## The toilet trip, the way a player makes it: into the stall, door shut, look at the toilet, wait
+## out the black, open the door. `sticks` says whether the bundle should be hanging outside.
+func _toilet_trip(sticks: bool) -> void:
+	var wc: Washroom = station.washroom
+	player.teleport_head_to(wc.outside_door(1.4))
+	assert(not wc.in_stall(player.camera.global_position), "outside the door is not in the stall")
+	player.teleport_head_to(wc.to_global(Vector3(Washroom.STALL_X, 1.3, 4.1)))
+	assert(wc.in_stall(player.camera.global_position), "should be in the stall")
+	wc.door.hold(0.5)
+	wc.door.release()
+	assert(not wc.door_open, "the door should shut")
+	await get_tree().create_timer(0.8).timeout
+	assert(wc.trip == Washroom.Trip.SHUT_IN, "shut in the stall (trip=%d)" % wc.trip)
+	player.look_at_point(wc.toilet_point())
+	await get_tree().create_timer(1.6).timeout
+	assert(wc.trip == Washroom.Trip.BLACK and player.fade_target == 1.0, "looking at the toilet with the door shut goes black")
+	assert(not wc.door.hold(0.5), "nobody opens the door in the black")
+	await get_tree().create_timer(Washroom.BLACK_TIME + 0.5).timeout
+	assert(wc.trip == Washroom.Trip.AFTER and player.fade_target == 0.0, "the black lifts")
+	assert((wc.bundle != null) == sticks, "the bundle should %sbe outside the door" % ("" if sticks else "not "))
+	if sticks:
+		var off := wc.to_local(wc.bundle.global_position)
+		assert(absf(off.x - Washroom.STALL_X) < 0.2 and off.z < Washroom.STALL_FRONT - 0.5, "the bundle hangs right outside the stall door")
+	assert(Game.toilet_pending, "not done until the door opens")
+	wc.door.release()
+	wc.door.hold(0.5)
+	wc.door.release()
 	await get_tree().create_timer(0.5).timeout
-	assert(Game.phase == Game.Phase.DAY and Game.day == 1, "restart -> DAY 1")
-	print("[autotest] ALL OK  station children=%d" % station.get_child_count())
-	get_tree().quit()
+	assert(wc.door_open and not Game.toilet_pending and wc.trip == Washroom.Trip.NONE, "opening the door ends the trip")
 
 ## Touch controls, headless: DERELICT_TOUCH=1 DERELICT_AUTOTEST=touch godot --headless --path .
 ## Fingers are fed straight to TouchControls, in its own 2D coordinates.
@@ -1166,7 +1372,16 @@ func _on_power(on: bool) -> void:
 	env.fog_light_color = Color(0.03, 0.04, 0.06) if on else Color(0.004, 0.003, 0.004)
 	if on:
 		Sfx.set_ambient("hum", -12.0)
-		if Game.nights_survived > 0:
+		if _power_was_off and Game.nights_survived > 0:
 			Sfx.play("powerup", -4.0)
 	else:
 		Sfx.set_ambient("drone", -9.0)
+	_power_was_off = not on
+
+## A night the power stays on: the deck on its night cycle (Station.set_night_cycle does the lamps),
+## the air darker, the hum turned down.
+func _on_phase_mood(p: int) -> void:
+	if p == Game.Phase.NIGHT and Game.power_on:
+		env.ambient_light_energy = 0.03
+		env.fog_density = 0.03
+		Sfx.set_ambient("hum", -18.0)

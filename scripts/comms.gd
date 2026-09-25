@@ -99,7 +99,8 @@ func _on_phase_changed(phase: int) -> void:
 			_stop()
 			_queue.clear()
 			var id := "n%d" % Game.day
-			if entries.has(id) and not _night_done.has(id):
+			# a night you sleep straight through, you do not hear it
+			if entries.has(id) and not _night_done.has(id) and not Game.is_quiet_night():
 				_night_done[id] = true
 				_queue.append(id)
 				_wait = float(NIGHT_CARRIER.get(Game.day, 30.0))
@@ -183,7 +184,7 @@ func _play(id: String) -> void:
 		where = str(Game.station.call("comms_room"))
 	match str(e.get("kind", "")):
 		"night":
-			Game.notice.emit("The comms console has power.\nSomething is transmitting.", 5.0)
+			Game.notice.emit("The comms console keys up by itself.\nSomething is transmitting.", 5.0)
 		"reply":
 			pass
 		_:
