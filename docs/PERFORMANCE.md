@@ -69,7 +69,7 @@ Then the per-pixel work, all of it PS1 mode:
 |---|---|---|
 | vertex lighting | a corridor lit by four lamps costs four sums per vertex, not four per pixel | Gouraud shading is the look |
 | 0.6 render scale per eye | 36% of the pixels of a full-size eye buffer | the console drew about 320x240 |
-| foveated eye buffers | the edges of each eye, which the lens blurs anyway, are shaded coarser | - |
+| foveated eye buffers (both looks) | the edges of each eye, which the lens blurs anyway, are shaded coarser | - |
 | no MSAA in the headset | no resolve, on a tiler drawing everything twice | there was no antialiasing |
 | point-sampled 128 px textures | a quarter of the bandwidth and the memory | chunky texels are the point |
 | no normal maps, no tangents | one texture read per pixel, four fewer floats per vertex | there were no normal maps |

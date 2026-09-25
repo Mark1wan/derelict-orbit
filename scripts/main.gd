@@ -18,12 +18,12 @@ var touch_device := false
 var _ps1_by_hand := false        # the PS1 switch was set on the title screen: do not override it
 var _power_was_off := false
 
-## The headset's eye buffers: a fraction of the size the browser recommends, and how hard their
-## edges are foveated (0 not at all, 1 as hard as the browser goes). PS1 mode is the low end of both.
+## The headset's eye buffers: a fraction of the size the browser recommends (PS1 mode is the low
+## end), and how hard their edges are foveated in either look (0 not at all, 1 as hard as the
+## browser goes).
 const XR_SCALE := 0.6
 const XR_SCALE_MODERN := 0.85
 const XR_FOVEATION := 1.0
-const XR_FOVEATION_MODERN := 0.5
 const XR_HZ := 72.0              # the physics ticks at this too: see _on_session_started
 
 ## Godot's WebXR (4.7) makes its projection layer with no scale factor and no foveation, and has no
@@ -1278,9 +1278,8 @@ func _enter_vr() -> void:
 	# draws the edges of each eye coarser still, where the lens blurs them regardless.
 	if OS.has_feature("web"):
 		var size := XR_SCALE if Game.retro else XR_SCALE_MODERN
-		var fov := XR_FOVEATION if Game.retro else XR_FOVEATION_MODERN
-		print("[xr] eye buffers at %.2f, foveation %.2f: %s" % [size, fov,
-			JavaScriptBridge.eval(XR_LAYER_JS % [size, fov], true)])
+		print("[xr] eye buffers at %.2f, foveation %.2f: %s" % [size, XR_FOVEATION,
+			JavaScriptBridge.eval(XR_LAYER_JS % [size, XR_FOVEATION], true)])
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
