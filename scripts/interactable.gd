@@ -124,6 +124,14 @@ func set_focused(f: bool) -> void:
 func hold(delta: float, with := "") -> bool:
 	if done or not active:
 		return false
+	if is_power and Game.toilet_pending:
+		# a night that is a power failure and a toilet trip at once: the trip comes first
+		if _warn <= 0.0:
+			Sfx.play_at("powerdown", global_position, -18.0, 10.0, 2.2)
+			Game.notice.emit("Not yet.\nYou need the WASHROOM first.", 3.0)
+		_warn = 0.5
+		release()
+		return false
 	if tool != "" and with != tool:
 		if _warn <= 0.0:
 			Sfx.play_at("powerdown", global_position, -18.0, 10.0, 2.2)

@@ -3,8 +3,11 @@ extends Node
 ##
 ## DAY   - power on, the crew member has maintenance tasks to finish, each with its repair tool.
 ## SLEEP - shift over, fade to black, moved to the sleep pod.
-## NIGHT - main power fails. Reach the power panel in the Reactor with the flashlight.
-## Each restored night advances the day counter; the haunting scales with intensity().
+## NIGHT - something wakes you, or nothing does. Each night rolls its own events (see the night,
+##         below): the main power may fail (reach the MAIN POWER panel in the power plant), you may
+##         need the toilet (the washroom stall, scripts/washroom.gd), both, or neither. The thing
+##         that walks the station is only sometimes out. Each night got through advances the day
+##         counter; the haunting scales with intensity().
 
 signal phase_changed(phase: int)
 signal tasks_changed
@@ -12,6 +15,8 @@ signal notice(text: String, seconds: float)
 signal power_changed(on: bool)
 signal day_started(day: int)
 signal game_reset
+signal monster_released          ## the stalker is out tonight: the haunt manager lets it go
+signal night_goal_changed        ## what tonight asks of you changed - the wrist redraws on it
 
 enum Phase { TITLE, DAY, SLEEP, NIGHT, DEAD, WON }
 
@@ -33,6 +38,19 @@ const EVA_STEPS := [
 ]
 
 signal step_done(id: String)
+
+## ---- the night
+## Every night rolls its events independently, so they can land together. What they are, and how
+## likely the thing that walks is to come with them - all tuned as one decision:
+const POWER_FAILURE_CHANCE := 1.0 / 3.0  ## the main power fails
+const TOILET_CHANCE := 0.25              ## you wake up needing the toilet (can land with a power failure)
+const MONSTER_POWER := 0.80              ## a power failure from the second night on brings the stalker
+const MONSTER_TOILET := 0.20             ## a trip to the toilet with the lights on
+const MONSTER_COMBO := 0.45              ## a trip to the toilet with the power out
+const STICKS_CHANCE := 0.50              ## the bundle of sticks outside the stall door, per toilet trip
+const STICKS_MONSTER := 0.30             ## ...and what finding it adds to the odds of the stalker
+const FIRST_MONSTER_NIGHT := 2           ## never on the first night, whatever else happens
+const QUIET_NIGHT := 7.0                 ## seconds of black a night with nothing in it lasts
 
 const TASK_POOL := [
 	{"id": "reactor_pump", "title": "Reset coolant pump", "room": "Reactor"},
@@ -69,6 +87,19 @@ var retro := false
 var mission := ""              # today's mission ("" on an ordinary shift)
 var start_day := 1             # playtest shortcut: ?eva in the page URL or DERELICT_EVA=1 starts on day 3
 
+# tonight (see the night, below)
+var night_power_out := false   # the main power failed
+var night_toilet := false      # you woke up needing the toilet
+var toilet_pending := false    # ...and have not been yet: the power panel waits on it
+var sticks := false            # the bundle was outside the stall door
+var monster_out := false       # the stalker is walking
+var _toilet_monster := false   # rolled in the stall's blackout, let out when the door opens
+var _night_id := 0             # which night a delayed callback belongs to
+## Tests and playtests pin tonight's rolls: {"power": bool, "toilet": bool, "sticks": bool,
+## "monster": bool}, any subset - what is not pinned is rolled. DERELICT_NIGHT=power,toilet,sticks
+## (or "quiet", or ?night=... in the page URL) pins every night of the run to exactly that.
+var debug_night := {}
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
@@ -76,6 +107,7 @@ func _ready() -> void:
 	# the one before it (tools, the perf probe) rather than against a different deck
 	layout_seed = int(OS.get_environment("DERELICT_SEED")) if OS.has_environment("DERELICT_SEED") else randi() % 10000
 	_setup_input()
+	_read_night_pin()
 	retro = default_retro(false, is_touch_device())
 
 ## PS1 mode as it starts out, before the title screen switch: on in a headset or on a phone, off on
@@ -149,6 +181,7 @@ func _begin_day() -> void:
 	phase = Phase.DAY
 	day_time = 0.0
 	power_on = true
+	_clear_night()
 	tasks.clear()
 	mission = MISSION_DAYS.get(day, "")
 	if mission != "":
@@ -181,6 +214,8 @@ func _process(delta: float) -> void:
 		day_time += delta
 		if day_time >= day_length():
 			_end_day(false)
+	elif phase == Phase.NIGHT:
+		_process_night()
 
 func on_task_completed(id: String) -> void:
 	if id == "power":
@@ -226,19 +261,155 @@ func _end_day(all_done: bool) -> void:
 	if phase == Phase.SLEEP:
 		_begin_night()
 
+# ---------------------------------------------------------------- the night
 func _begin_night() -> void:
 	phase = Phase.NIGHT
-	power_on = false
-	power_changed.emit(false)
+	_night_id += 1
+	_clear_night()
+	night_power_out = _roll("power", POWER_FAILURE_CHANCE)
+	night_toilet = _roll("toilet", TOILET_CHANCE)
+	toilet_pending = night_toilet
+	power_on = not night_power_out
+	if night_power_out:
+		power_changed.emit(false)
 	phase_changed.emit(phase)
-	notice.emit("NIGHT %d\nMain power failure.\nReach the MAIN POWER panel in the POWER PLANT.\nKeep the light on it." % day, 8.0)
+	# a power failure on its own brings the stalker with it, or does not, straight away. A toilet
+	# trip decides in the stall, in the dark (toilet_blackout)
+	if night_power_out and not night_toilet and _roll("monster", monster_chance()):
+		_release_monster()
+	night_goal_changed.emit()
+	var power := "the MAIN POWER panel in the POWER PLANT"
+	if night_power_out and night_toilet:
+		notice.emit("NIGHT %d\nMain power failure.\nAnd you need the toilet - the WASHROOM first,\nthen %s." % [day, power], 9.0)
+	elif night_power_out:
+		notice.emit("NIGHT %d\nMain power failure.\nReach %s.%s" % [day, power, "\nKeep the light on it." if monster_out else ""], 8.0)
+	elif night_toilet:
+		notice.emit("NIGHT %d\nYou wake up needing the toilet.\nThe WASHROOM. Shut the stall door behind you." % day, 8.0)
+	else:
+		notice.emit("NIGHT %d\nA quiet night.\nNothing wakes you." % day, QUIET_NIGHT)
+		var id := _night_id
+		await get_tree().create_timer(QUIET_NIGHT).timeout
+		if phase == Phase.NIGHT and _night_id == id:
+			_night_over()
+
+## Nothing tonight: no failure, no toilet. The screen stays black and the next shift starts.
+func is_quiet_night() -> bool:
+	return phase == Phase.NIGHT and not night_power_out and not night_toilet
+
+## How likely the stalker is tonight, given what has happened so far.
+func monster_chance() -> float:
+	if day < FIRST_MONSTER_NIGHT:
+		return 0.0
+	var p := 0.0
+	if night_toilet:
+		p = MONSTER_COMBO if night_power_out else MONSTER_TOILET
+	elif night_power_out:
+		p = MONSTER_POWER
+	if sticks:
+		p += STICKS_MONSTER
+	return clampf(p, 0.0, 1.0)
+
+## The stall has gone black (scripts/washroom.gd). This is where the bundle is decided - it is put
+## outside the door while nobody can see it - and with it whether the stalker comes. Returns
+## whether the bundle is there.
+func toilet_blackout() -> bool:
+	if phase != Phase.NIGHT or not toilet_pending:
+		return false
+	sticks = _roll("sticks", STICKS_CHANCE)
+	_toilet_monster = _roll("monster", monster_chance())
+	return sticks
+
+## Out of the stall. With the power still on that is half the night: back to bed. With it out, the
+## power panel is live now.
+func toilet_done() -> void:
+	if phase != Phase.NIGHT or not toilet_pending:
+		return
+	toilet_pending = false
+	if _toilet_monster:
+		_release_monster()
+	night_goal_changed.emit()
+	if night_power_out:
+		notice.emit("Now the power.\nThe MAIN POWER panel in the POWER PLANT.", 6.0)
+	else:
+		notice.emit("Back to bed.\n%s." % bed_room(), 5.0)
+
+func _release_monster() -> void:
+	if monster_out:
+		return
+	monster_out = true
+	monster_released.emit()
+	night_goal_changed.emit()
+
+## Where you sleep: the room you woke up in tonight.
+func bed_room() -> String:
+	if station != null and station.has_method("wake_room_name"):
+		return str(station.call("wake_room_name"))
+	return "your bunk"
+
+## Tonight's jobs, for the crew terminal on the wrist.
+func night_goal() -> String:
+	if is_quiet_night():
+		return "> quiet night. sleep.\n"
+	var s := ""
+	if toilet_pending:
+		s += "> you need the toilet (WASHROOM)\n> go in, shut the stall door\n"
+	if night_power_out:
+		s += "POWER: OFFLINE\n> %srestore main power (POWER PLANT)\n" % ("then " if toilet_pending else "")
+	elif night_toilet and not toilet_pending:
+		s += "> back to bed (%s)\n" % bed_room()
+	if monster_out:
+		s += "> light freezes it. dark does not.\n"
+	return s
+
+func _process_night() -> void:
+	# a toilet trip with the power on ends when you are back where you sleep
+	if night_power_out or not night_toilet or toilet_pending:
+		return
+	if player == null or station == null or not station.has_method("in_wake_room"):
+		return
+	if station.call("in_wake_room", player.camera.global_position):
+		notice.emit("Back in your bunk.", 3.0)
+		_night_over()
+
+func _clear_night() -> void:
+	night_power_out = false
+	night_toilet = false
+	toilet_pending = false
+	sticks = false
+	monster_out = false
+	_toilet_monster = false
+
+func _roll(what: String, chance: float) -> bool:
+	if chance <= 0.0:
+		return false          # a pin does not beat a rule: nothing brings the stalker on night one
+	if debug_night.has(what):
+		return bool(debug_night[what])
+	return randf() < chance
+
+func _read_night_pin() -> void:
+	var pin := OS.get_environment("DERELICT_NIGHT") if OS.has_environment("DERELICT_NIGHT") else ""
+	if pin == "" and OS.has_feature("web"):
+		var v: Variant = JavaScriptBridge.eval("(location.search.match(/[?&]night=([a-z,]+)/) || [])[1] || ''", true)
+		pin = str(v) if v != null else ""
+	if pin == "":
+		return
+	debug_night = {"power": false, "toilet": false, "sticks": false}
+	for k: String in pin.split(",", false):
+		if k in ["power", "toilet", "sticks", "monster"]:
+			debug_night[k] = true
 
 func _on_power_restored() -> void:
-	if phase != Phase.NIGHT:
+	if phase != Phase.NIGHT or toilet_pending:
 		return
 	power_on = true
-	nights_survived += 1
 	power_changed.emit(true)
+	_night_over()
+
+## Got through it, however it went: the next shift.
+func _night_over() -> void:
+	if phase != Phase.NIGHT:
+		return
+	nights_survived += 1
 	day += 1
 	if day > MAX_DAYS:
 		phase = Phase.WON

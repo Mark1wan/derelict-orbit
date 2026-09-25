@@ -13,798 +13,728 @@ DAY 1   intensity 1    3/3 tasks
   17:47  vulto crosses a doorway ahead
   18:45  a lamp stutters - the deck's own, nothing behind it
   19:59  a lamp stutters - the deck's own, nothing behind it
-  NIGHT 1   power out, 136s in the dark   stalker 0.57 m/s, unseen in the dark
-              23s  a whisper at your ear
-              44s  a whisper at your ear
-              65s  a bang, somewhere
-              84s  a bang, somewhere
-             105s  a whisper at your ear
-             115s  a bang, somewhere
-             127s  a whisper at your ear
+  NIGHT 1   quiet - slept through
 
-DAY 2   intensity 2    0/3 tasks
+DAY 2   intensity 2    2/3 tasks
 --------------------------------------------------------------------------
   08:57  a lamp stutters - the deck's own, nothing behind it
-  09:08  Good Neighbours take something and throw it  (you see the lights)
-  10:21  a lamp stutters - the deck's own, nothing behind it
-  10:47  a lamp stutters
-  12:01  a lamp stutters - the deck's own, nothing behind it
-  13:03  vulto crosses a doorway ahead
-  13:31  a lamp stutters - the deck's own, nothing behind it
-  14:47  a lamp stutters
-  14:59  a lamp stutters - the deck's own, nothing behind it
-  16:46  a lamp stutters - the deck's own, nothing behind it
-  17:25  a lamp stutters
-  18:32  a lamp stutters - the deck's own, nothing behind it
-  18:47  Good Neighbours take something and throw it  (you see the lights)  + the nearest lamp goes  *** something under the buzz ***
-  NIGHT 2   power out, 171s in the dark   stalker 0.81 m/s, eyes lit
-              13s  a bang, somewhere
-              31s  a bang, somewhere
-              51s  a whisper at your ear
-              67s  a whisper at your ear
-              80s  a bang, somewhere
-              97s  a bang, somewhere
-             108s  a bang, somewhere
-             125s  a bang, somewhere
-             135s  a whisper at your ear
-             148s  a whisper at your ear
-             169s  a bang, somewhere
+  09:12  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  11:11  a lamp stutters - the deck's own, nothing behind it
+  11:29  Good Neighbours take something and throw it  (you see the lights)
+  12:42  a lamp stutters - the deck's own, nothing behind it
+  13:29  a lamp stutters
+  14:46  a lamp stutters - the deck's own, nothing behind it
+  15:36  a lamp stutters
+  16:21  a lamp stutters - the deck's own, nothing behind it
+  17:45  a lamp stutters
+  18:37  a lamp stutters - the deck's own, nothing behind it
+  19:19  bang, somewhere off the corridor
+  NIGHT 2   quiet - slept through
 
-DAY 3   intensity 4    0/3 tasks
+DAY 3   intensity 4    3/3 tasks
 --------------------------------------------------------------------------
   08:57  a lamp stutters - the deck's own, nothing behind it
-  09:03  a lamp stutters
-  10:18  a lamp stutters - the deck's own, nothing behind it
-  10:29  a lamp stutters
-  11:35  a lamp stutters - the deck's own, nothing behind it
-  12:02  vulto standing down the corridor behind you
-  12:51  a lamp stutters - the deck's own, nothing behind it
-  13:54  vulto crosses a doorway ahead
-  14:10  a lamp stutters - the deck's own, nothing behind it
-  15:17  vulto crosses a doorway ahead
-  15:48  a lamp stutters - the deck's own, nothing behind it
-  16:16  ghul: a crew member down a passage, unlit, waiting
-  17:00  a lamp stutters - the deck's own, nothing behind it
-  17:36  Good Neighbours take something and throw it  (you see the lights)
-  18:08  a lamp stutters - the deck's own, nothing behind it
-  19:07  vulto crosses a doorway ahead  + the nearest lamp goes
-  19:33  a lamp stutters - the deck's own, nothing behind it
-  NIGHT 3   power out, 197s in the dark   stalker 1.05 m/s, eyes lit, pushes through your torch, closes distance while you look away
-              25s  a bang, somewhere
-              40s  a whisper at your ear
-              53s  a bang, somewhere
-              70s  a whisper at your ear
-              81s  a whisper at your ear
-             102s  a whisper at your ear
-             114s  a whisper at your ear
-             135s  a bang, somewhere
-             154s  a bang, somewhere
-             170s  a bang, somewhere
-             190s  a bang, somewhere
-
-DAY 4   intensity 6    1/3 tasks
---------------------------------------------------------------------------
-  08:53  vulto crosses close, barely off your shoulder
-  08:57  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  09:51  daylight blackout
-  10:09  a lamp stutters - the deck's own, nothing behind it
-  10:57  vulto crosses a doorway ahead
-  11:09  a lamp stutters - the deck's own, nothing behind it
-  11:42  vulto crosses a doorway ahead
-  12:22  a lamp stutters - the deck's own, nothing behind it
-  13:01  daylight blackout
-  13:11  a lamp stutters - the deck's own, nothing behind it
-  14:07  whisper at your ear
-  14:22  a lamp stutters - the deck's own, nothing behind it
-  14:46  vulto crosses close, barely off your shoulder
-  14:59  a lamp stutters - the deck's own, nothing behind it
-  15:56  vulto crosses a doorway ahead
-  16:01  a lamp stutters - the deck's own, nothing behind it
-  17:02  a lamp stutters - the deck's own, nothing behind it
-  17:18  bang, somewhere off the corridor
-  17:54  a lamp stutters - the deck's own, nothing behind it
-  18:38  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  18:52  a lamp stutters - the deck's own, nothing behind it
-  19:56  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  NIGHT 4   power out, 140s in the dark   stalker 1.29 m/s, eyes lit, pushes through your torch, closes distance while you look away
-              23s  a bang, somewhere
-              33s  a whisper at your ear
-              44s  a bang, somewhere
-              56s  a whisper at your ear
-              67s  a whisper at your ear
-              82s  a whisper at your ear
-              96s  a whisper at your ear
-             109s  a whisper at your ear
-             124s  a bang, somewhere
-             138s  a whisper at your ear
-
-DAY 5   intensity 8    2/3 tasks
---------------------------------------------------------------------------
-  08:57  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  09:15  daylight blackout
-  09:31  a lamp stutters - the deck's own, nothing behind it
-  09:39  vulto crosses a doorway ahead
-  10:05  a lamp stutters - the deck's own, nothing behind it
-  10:09  bang, somewhere off the corridor
-  10:44  vulto crosses a doorway ahead
-  10:59  a lamp stutters - the deck's own, nothing behind it
-  11:21  every loose thing in the deck shoves at once
-  11:32  a lamp stutters - the deck's own, nothing behind it
-  11:58  vulto crosses a doorway ahead
-  12:30  chupacabra at the edge of a side passage  (withdraws round the corner)
-  12:35  a lamp stutters - the deck's own, nothing behind it
-  12:58  daylight blackout
-  13:30  a lamp stutters - the deck's own, nothing behind it
-  13:31  whisper at your ear
-  13:57  vulto standing down the corridor behind you
-  14:19  daylight blackout
-  14:24  a lamp stutters - the deck's own, nothing behind it
-  14:45  a lamp stutters
-  15:03  a lamp stutters - the deck's own, nothing behind it
-  15:29  ghul: a crew member down a passage, unlit, waiting
-  15:38  a lamp stutters - the deck's own, nothing behind it
-  16:13  vulto standing down the corridor behind you  + the nearest lamp goes
-  16:27  a lamp stutters - the deck's own, nothing behind it
-  16:53  every loose thing in the deck shoves at once
-  17:16  a lamp stutters - the deck's own, nothing behind it
-  17:31  ghul: a crew member down a passage, unlit, waiting
-  17:54  vulto crosses a doorway ahead
-  18:01  a lamp stutters - the deck's own, nothing behind it
-  18:21  every loose thing in the deck shoves at once
-  18:42  bang, somewhere off the corridor
-  18:45  a lamp stutters - the deck's own, nothing behind it
-  19:17  every loose thing in the deck shoves at once
-  19:42  vulto crosses a doorway ahead
-  NIGHT 5   power out, 160s in the dark   stalker 1.53 m/s, eyes lit, pushes through your torch, closes distance while you look away
-              14s  a whisper at your ear
-              32s  a bang, somewhere
-              50s  a whisper at your ear
-              62s  a whisper at your ear
-              83s  a whisper at your ear
-             105s  a bang, somewhere
-             117s  a whisper at your ear
-             137s  a whisper at your ear
-             151s  a whisper at your ear
-
-DAY 6   intensity 10   2/3 tasks
---------------------------------------------------------------------------
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:22  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes
-  09:57  vulto crosses a doorway ahead
-  09:59  a lamp stutters - the deck's own, nothing behind it
-  10:38  a lamp stutters - the deck's own, nothing behind it
-  10:40  vulto standing down the corridor behind you
-  11:08  vulto standing down the corridor behind you
-  11:28  a lamp stutters - the deck's own, nothing behind it
-  11:39  Good Neighbours take something and throw it  (you see the lights)
-  12:12  a lamp stutters
-  12:39  a lamp stutters - the deck's own, nothing behind it
-  12:43  vulto crosses close, barely off your shoulder
-  13:09  vulto crosses a doorway ahead
-  13:18  a lamp stutters - the deck's own, nothing behind it
-  13:49  every loose thing in the deck shoves at once
-  14:12  a lamp stutters - the deck's own, nothing behind it
-  14:30  vulto crosses a doorway ahead
-  14:56  whisper at your ear
-  15:05  a lamp stutters - the deck's own, nothing behind it
-  15:34  bang, somewhere off the corridor
-  16:08  a lamp stutters - the deck's own, nothing behind it
-  16:20  vulto standing down the corridor behind you  + the nearest lamp goes a beat later  *** something under the buzz ***
-  16:45  vulto crosses a doorway ahead
-  17:12  vulto crosses a doorway ahead
-  17:22  a lamp stutters - the deck's own, nothing behind it
-  17:43  bang, somewhere off the corridor
-  18:07  vulto standing down the corridor behind you
-  18:20  a lamp stutters - the deck's own, nothing behind it
-  18:35  chupacabra at the edge of a side passage  (withdraws round the corner)
-  19:04  vulto crosses a doorway ahead
-  19:29  a lamp stutters - the deck's own, nothing behind it
-  19:36  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  NIGHT 6   power out, 247s in the dark   stalker 1.77 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              21s  a whisper at your ear
-              33s  a whisper at your ear
-              55s  a whisper at your ear
-              71s  a bang, somewhere
-              86s  a bang, somewhere
-             104s  a whisper at your ear
-             121s  a bang, somewhere
-             138s  a whisper at your ear
-             150s  a whisper at your ear
-             167s  a bang, somewhere
-             188s  a bang, somewhere
-             201s  a whisper at your ear
-             218s  a whisper at your ear
-             236s  a bang, somewhere
-
-DAY 7   intensity 12   1/3 tasks
---------------------------------------------------------------------------
-  08:46  chupacabra at the edge of a side passage  (withdraws round the corner)
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:19  bang, somewhere off the corridor
-  09:32  a lamp stutters - the deck's own, nothing behind it
-  09:48  a lamp stutters
-  10:12  a lamp stutters
-  10:36  a lamp stutters - the deck's own, nothing behind it
-  10:51  a lamp stutters
-  11:16  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  11:41  a lamp stutters - the deck's own, nothing behind it
-  11:47  a lamp stutters
-  12:23  a lamp stutters
-  12:37  a lamp stutters - the deck's own, nothing behind it
-  13:06  Good Neighbours take something and throw it  (you see the lights)
-  13:31  vulto standing down the corridor behind you
-  13:41  a lamp stutters - the deck's own, nothing behind it
-  13:59  vulto crosses close, barely off your shoulder
-  14:29  a lamp stutters - the deck's own, nothing behind it
-  14:45  every loose thing in the deck shoves at once
-  15:13  a lamp stutters - the deck's own, nothing behind it
-  15:13  vulto crosses a doorway ahead
-  16:00  vulto crosses a doorway ahead
-  16:02  a lamp stutters - the deck's own, nothing behind it
-  16:38  vulto crosses a doorway ahead
-  17:12  a lamp stutters - the deck's own, nothing behind it
-  17:18  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  17:42  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  17:46  a lamp stutters - the deck's own, nothing behind it
-  18:24  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
-  18:40  a lamp stutters - the deck's own, nothing behind it
-  18:49  vulto crosses close, barely off your shoulder
-  19:23  a lamp stutters - the deck's own, nothing behind it
-  19:26  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  19:59  vulto crosses a doorway ahead
-  NIGHT 7   power out, 281s in the dark   stalker 2.01 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              16s  a bang, somewhere
-              36s  a whisper at your ear
-              50s  a bang, somewhere
-              60s  a whisper at your ear
-              72s  a bang, somewhere
-              81s  a bang, somewhere
-              99s  a bang, somewhere
-             114s  a bang, somewhere
-             126s  a whisper at your ear
-             141s  a bang, somewhere
-             155s  a whisper at your ear
-             175s  a bang, somewhere
-             189s  a whisper at your ear
-             205s  a bang, somewhere
-             214s  a whisper at your ear
-             229s  a whisper at your ear
-             240s  a whisper at your ear
-             255s  a bang, somewhere
-             275s  a bang, somewhere
-
-DAY 8   intensity 14   3/3 tasks
---------------------------------------------------------------------------
-  08:39  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:25  vulto crosses a doorway ahead
-  10:00  vulto crosses a doorway ahead
-  10:01  a lamp stutters - the deck's own, nothing behind it
-  10:37  chupacabra at the edge of a side passage  (bolts across the opening)
-  10:43  a lamp stutters - the deck's own, nothing behind it
-  11:09  bang, somewhere off the corridor
-  11:17  a lamp stutters - the deck's own, nothing behind it
-  11:45  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  12:10  a lamp stutters - the deck's own, nothing behind it
-  12:19  vulto crosses close, barely off your shoulder  + the nearest lamp goes
-  12:44  vulto crosses close, barely off your shoulder
-  13:17  chupacabra at the edge of a side passage  (bolts across the opening)
-  13:22  a lamp stutters - the deck's own, nothing behind it
-  13:46  every loose thing in the deck shoves at once
-  14:08  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  14:33  a lamp stutters - the deck's own, nothing behind it
-  14:43  every loose thing in the deck shoves at once
-  15:08  every loose thing in the deck shoves at once
-  15:16  a lamp stutters - the deck's own, nothing behind it
-  15:50  chupacabra at the edge of a side passage  (withdraws round the corner)
-  16:05  a lamp stutters - the deck's own, nothing behind it
-  16:22  whisper at your ear
-  16:45  a lamp stutters - the deck's own, nothing behind it
-  16:54  vulto crosses close, barely off your shoulder
-  17:32  a lamp stutters - the deck's own, nothing behind it
-  17:36  every loose thing in the deck shoves at once
-  18:09  a lamp stutters - the deck's own, nothing behind it
-  18:22  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  18:54  a lamp stutters
-  19:21  a lamp stutters - the deck's own, nothing behind it
-  19:23  vulto crosses a doorway ahead
-  NIGHT 8   power out, 214s in the dark   stalker 2.13 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              13s  a whisper at your ear
-              29s  a bang, somewhere
-              41s  a whisper at your ear
-              53s  a whisper at your ear
-              68s  a whisper at your ear
-              84s  a whisper at your ear
-             100s  a bang, somewhere
-             112s  a bang, somewhere
-             131s  a bang, somewhere
-             141s  a whisper at your ear
-             152s  a whisper at your ear
-             162s  a bang, somewhere
-             174s  a whisper at your ear
-             191s  a whisper at your ear
-             210s  a whisper at your ear
-
-DAY 9   intensity 15   2/3 tasks
---------------------------------------------------------------------------
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:07  chupacabra at the edge of a side passage  (withdraws round the corner)
-  09:43  Good Neighbours take something and throw it  (you see the lights)  + the nearest lamp goes  *** something under the buzz ***
-  09:49  a lamp stutters - the deck's own, nothing behind it
-  10:15  vulto standing down the corridor behind you  + the nearest lamp goes a beat later
-  10:26  a lamp stutters - the deck's own, nothing behind it
-  10:55  vulto crosses close, barely off your shoulder
-  11:30  daylight blackout
-  11:34  a lamp stutters - the deck's own, nothing behind it
-  12:00  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  12:32  a lamp stutters - the deck's own, nothing behind it
-  12:33  daylight blackout
-  13:05  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  13:28  a lamp stutters
-  13:40  a lamp stutters - the deck's own, nothing behind it
-  13:56  vulto crosses a doorway ahead
-  14:18  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
-  14:21  a lamp stutters - the deck's own, nothing behind it
-  14:58  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
-  15:17  a lamp stutters - the deck's own, nothing behind it
-  15:30  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes  *** something under the buzz ***
-  16:10  a lamp stutters - the deck's own, nothing behind it
-  16:16  chupacabra at the edge of a side passage  (withdraws round the corner)
-  17:02  vulto crosses close, barely off your shoulder
-  17:14  a lamp stutters - the deck's own, nothing behind it
-  17:37  chupacabra at the edge of a side passage  (withdraws round the corner)
-  17:49  a lamp stutters - the deck's own, nothing behind it
-  17:57  chupacabra at the edge of a side passage  (withdraws round the corner)
-  18:26  whisper at your ear
-  18:36  a lamp stutters - the deck's own, nothing behind it
-  19:11  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  19:30  a lamp stutters - the deck's own, nothing behind it
-  19:32  vulto crosses a doorway ahead  + the nearest lamp goes
-  NIGHT 9   power out, 219s in the dark   stalker 2.37 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              15s  a bang, somewhere
-              33s  a whisper at your ear
-              53s  a whisper at your ear
-              66s  a bang, somewhere
-              84s  a whisper at your ear
-             100s  a whisper at your ear
-             116s  a bang, somewhere
-             127s  a bang, somewhere
-             145s  a whisper at your ear
-             166s  a bang, somewhere
-             183s  a whisper at your ear
-             203s  a whisper at your ear
-             217s  a whisper at your ear
-
-DAY 10  intensity 17   3/3 tasks
---------------------------------------------------------------------------
-  08:47  daylight blackout
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:20  whisper at your ear
-  09:59  a lamp stutters - the deck's own, nothing behind it
-  10:02  vulto standing down the corridor behind you  + the nearest lamp goes  *** something under the buzz ***
-  10:36  vulto standing down the corridor behind you
-  11:15  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  11:16  vulto standing down the corridor behind you  + the nearest lamp goes  *** something under the buzz ***
-  11:50  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  12:11  a lamp stutters - the deck's own, nothing behind it
-  12:20  every loose thing in the deck shoves at once
-  12:49  vulto standing down the corridor behind you  + the nearest lamp goes a beat later  *** something under the buzz ***
-  13:01  a lamp stutters - the deck's own, nothing behind it
-  13:26  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  13:48  a lamp stutters - the deck's own, nothing behind it
-  14:10  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
-  14:40  a lamp stutters - the deck's own, nothing behind it
-  14:44  a lamp stutters
-  15:21  vulto crosses a doorway ahead
-  15:48  a lamp stutters - the deck's own, nothing behind it
-  16:08  bang, somewhere off the corridor
-  16:40  vulto crosses close, barely off your shoulder
-  16:40  a lamp stutters - the deck's own, nothing behind it
-  17:07  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  17:32  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  17:54  a lamp stutters - the deck's own, nothing behind it
-  18:03  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
-  18:27  Good Neighbours take something and throw it  (you see the lights)
-  18:33  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  18:52  a lamp stutters
-  19:19  a lamp stutters - the deck's own, nothing behind it
-  19:26  every loose thing in the deck shoves at once
-  NIGHT 10  power out, 231s in the dark   stalker 2.49 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              18s  a whisper at your ear
-              39s  a bang, somewhere
-              59s  a bang, somewhere
-              77s  a whisper at your ear
-              98s  a bang, somewhere
-             112s  a whisper at your ear
-             125s  a bang, somewhere
-             140s  a bang, somewhere
-             159s  a bang, somewhere
-             177s  a whisper at your ear
-             190s  a whisper at your ear
-             212s  a bang, somewhere
-
-DAY 11  intensity 18   3/3 tasks
---------------------------------------------------------------------------
-  08:44  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes  *** something under the buzz ***
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:18  chupacabra at the edge of a side passage  (withdraws round the corner)
+  09:05  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
   09:56  a lamp stutters - the deck's own, nothing behind it
-  09:57  chupacabra at the edge of a side passage  (withdraws round the corner)
-  10:25  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  10:30  a lamp stutters - the deck's own, nothing behind it
-  11:05  ghul: a crew member down a passage, unlit, waiting
-  11:29  a lamp stutters - the deck's own, nothing behind it
-  11:32  daylight blackout
-  12:09  a lamp stutters - the deck's own, nothing behind it
-  12:18  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later
-  12:43  vulto crosses close, barely off your shoulder
-  13:04  daylight blackout
-  13:06  a lamp stutters - the deck's own, nothing behind it
-  13:36  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  13:45  a lamp stutters - the deck's own, nothing behind it
-  14:22  chupacabra at the edge of a side passage  (bolts across the opening)
-  14:23  a lamp stutters - the deck's own, nothing behind it
-  14:56  a lamp stutters
-  15:12  a lamp stutters - the deck's own, nothing behind it
-  15:27  every loose thing in the deck shoves at once
-  16:07  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  10:43  a lamp stutters - the deck's own, nothing behind it
+  10:53  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  12:08  a lamp stutters
+  12:16  a lamp stutters - the deck's own, nothing behind it
+  13:56  a lamp stutters - the deck's own, nothing behind it
+  14:15  a lamp stutters
+  14:44  a lamp stutters - the deck's own, nothing behind it
+  15:10  vulto crosses a doorway ahead
+  16:07  a lamp stutters
+  16:14  a lamp stutters - the deck's own, nothing behind it
+  17:21  a lamp stutters - the deck's own, nothing behind it
+  18:12  a lamp stutters - the deck's own, nothing behind it
+  18:13  a lamp stutters
+  19:12  a lamp stutters - the deck's own, nothing behind it
+  19:52  bang, somewhere off the corridor
+  NIGHT 3   quiet - slept through
+
+DAY 4   intensity 5    3/3 tasks
+--------------------------------------------------------------------------
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:12  ghul: a crew member down a passage, unlit, waiting
+  10:23  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  10:27  ghul: a crew member down a passage, unlit, waiting
+  11:23  a lamp stutters - the deck's own, nothing behind it
+  11:50  a lamp stutters
+  12:14  a lamp stutters - the deck's own, nothing behind it
+  13:07  a lamp stutters - the deck's own, nothing behind it
+  13:22  vulto crosses a doorway ahead
+  14:02  a lamp stutters - the deck's own, nothing behind it
+  15:07  vulto crosses a doorway ahead
+  15:20  a lamp stutters - the deck's own, nothing behind it
+  16:08  whisper at your ear
+  16:48  a lamp stutters - the deck's own, nothing behind it
+  17:13  vulto crosses a doorway ahead
+  17:42  a lamp stutters - the deck's own, nothing behind it
+  18:21  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  18:39  a lamp stutters - the deck's own, nothing behind it
+  19:23  every loose thing in the deck shoves at once
+  19:46  a lamp stutters - the deck's own, nothing behind it
+  NIGHT 4   power out, 218s up   nothing walking
+              18s  a bang, somewhere
+              31s  a whisper at your ear
+              52s  a bang, somewhere
+              64s  a bang, somewhere
+              79s  a bang, somewhere
+              99s  a whisper at your ear
+             110s  a bang, somewhere
+             130s  a whisper at your ear
+             149s  a bang, somewhere
+             160s  a bang, somewhere
+             179s  a bang, somewhere
+             193s  a bang, somewhere
+             207s  a bang, somewhere
+
+DAY 5   intensity 6    3/3 tasks
+--------------------------------------------------------------------------
+  08:45  vulto crosses a doorway ahead
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:31  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  10:07  bang, somewhere off the corridor
+  10:47  a lamp stutters - the deck's own, nothing behind it
+  11:28  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  12:01  a lamp stutters - the deck's own, nothing behind it
+  12:45  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  13:20  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  13:51  vulto crosses a doorway ahead
+  14:13  a lamp stutters - the deck's own, nothing behind it
+  14:35  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  15:15  a lamp stutters
+  15:30  a lamp stutters - the deck's own, nothing behind it
+  16:09  vulto standing down the corridor behind you
+  16:46  a lamp stutters - the deck's own, nothing behind it
+  17:14  vulto crosses a doorway ahead
+  17:30  a lamp stutters - the deck's own, nothing behind it
+  18:01  a lamp stutters
+  18:37  a lamp stutters - the deck's own, nothing behind it
+  18:47  vulto standing down the corridor behind you
+  19:49  a lamp stutters - the deck's own, nothing behind it
+  NIGHT 5   power out AND a toilet trip, the bundle outside the stall door, 283s up   stalker 1.17 m/s, eyes lit, pushes through your torch, closes distance while you look away
+              25s  a whisper at your ear
+              38s  a bang, somewhere
+              51s  a whisper at your ear
+              68s  a bang, somewhere
+              79s  a bang, somewhere
+              90s  a whisper at your ear
+             108s  a bang, somewhere
+             118s  a bang, somewhere
+             132s  a whisper at your ear
+             151s  a bang, somewhere
+             171s  a whisper at your ear
+             185s  a bang, somewhere
+             201s  a whisper at your ear
+             215s  a whisper at your ear
+             230s  a bang, somewhere
+             246s  a whisper at your ear
+             256s  a bang, somewhere
+             271s  a whisper at your ear
+
+DAY 6   intensity 7    1/3 tasks
+--------------------------------------------------------------------------
+  08:56  a lamp stutters
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:56  vulto crosses a doorway ahead
+  10:09  a lamp stutters - the deck's own, nothing behind it
+  10:34  every loose thing in the deck shoves at once
+  11:04  bang, somewhere off the corridor
+  11:15  a lamp stutters - the deck's own, nothing behind it
+  11:55  every loose thing in the deck shoves at once
+  11:59  a lamp stutters - the deck's own, nothing behind it
+  12:30  vulto crosses a doorway ahead
+  12:51  a lamp stutters - the deck's own, nothing behind it
+  13:29  a lamp stutters - the deck's own, nothing behind it
+  13:32  vulto crosses a doorway ahead
+  14:27  vulto crosses a doorway ahead
+  14:37  a lamp stutters - the deck's own, nothing behind it
+  15:26  vulto crosses a doorway ahead
+  15:38  a lamp stutters - the deck's own, nothing behind it
+  16:16  whisper at your ear
+  16:49  a lamp stutters - the deck's own, nothing behind it
+  16:49  a lamp stutters
+  17:54  vulto crosses a doorway ahead
+  17:56  a lamp stutters - the deck's own, nothing behind it
+  18:56  Good Neighbours take something and throw it  (you see the lights)
+  18:57  a lamp stutters - the deck's own, nothing behind it
+  19:32  whisper at your ear
+  NIGHT 6   quiet - slept through
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+
+DAY 7   intensity 9    1/3 tasks
+--------------------------------------------------------------------------
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:01  ghul: a crew member down a passage, unlit, waiting
+  09:44  vulto crosses a doorway ahead
+  09:57  a lamp stutters - the deck's own, nothing behind it
+  10:27  vulto standing down the corridor behind you
+  10:56  vulto standing down the corridor behind you
+  11:09  a lamp stutters - the deck's own, nothing behind it
+  11:26  Good Neighbours take something and throw it  (you see the lights)
+  11:47  a lamp stutters - the deck's own, nothing behind it
+  11:59  a lamp stutters
+  12:24  a lamp stutters - the deck's own, nothing behind it
+  12:31  vulto crosses close, barely off your shoulder
+  12:56  vulto crosses a doorway ahead
+  13:29  a lamp stutters - the deck's own, nothing behind it
+  13:36  every loose thing in the deck shoves at once
+  14:17  vulto crosses a doorway ahead
+  14:41  a lamp stutters - the deck's own, nothing behind it
+  14:43  whisper at your ear
+  15:21  bang, somewhere off the corridor
+  15:36  a lamp stutters - the deck's own, nothing behind it
+  16:07  vulto standing down the corridor behind you  + the nearest lamp goes a beat later  *** something under the buzz ***
+  16:27  a lamp stutters - the deck's own, nothing behind it
+  16:32  vulto crosses a doorway ahead
+  16:59  vulto crosses a doorway ahead
+  17:31  bang, somewhere off the corridor
+  17:31  a lamp stutters - the deck's own, nothing behind it
+  17:54  vulto standing down the corridor behind you
+  18:11  a lamp stutters - the deck's own, nothing behind it
+  18:22  chupacabra at the edge of a side passage  (withdraws round the corner)
+  18:51  vulto crosses a doorway ahead
+  18:55  a lamp stutters - the deck's own, nothing behind it
+  19:23  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
+  19:36  a lamp stutters - the deck's own, nothing behind it
+  19:57  a lamp stutters
+  NIGHT 7   power out, 223s up   stalker 1.65 m/s, eyes lit, pushes through your torch, closes distance while you look away
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              19s  a whisper at your ear
+              35s  a bang, somewhere
+              48s  a whisper at your ear
+              66s  a whisper at your ear
+              85s  a bang, somewhere
+              99s  a whisper at your ear
+             114s  a bang, somewhere
+             130s  a whisper at your ear
+             147s  a whisper at your ear
+             162s  a bang, somewhere
+             173s  a bang, somewhere
+             192s  a whisper at your ear
+             203s  a bang, somewhere
+             219s  a whisper at your ear
+
+DAY 8   intensity 11   3/3 tasks
+--------------------------------------------------------------------------
+  08:43  a lamp stutters
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:07  a lamp stutters
+  09:41  a lamp stutters - the deck's own, nothing behind it
+  09:45  a lamp stutters
+  10:11  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  10:15  a lamp stutters - the deck's own, nothing behind it
+  10:41  a lamp stutters
+  10:53  a lamp stutters - the deck's own, nothing behind it
+  11:17  a lamp stutters
+  11:46  a lamp stutters - the deck's own, nothing behind it
+  12:01  Good Neighbours take something and throw it  (you see the lights)
+  12:26  vulto standing down the corridor behind you
+  12:30  a lamp stutters - the deck's own, nothing behind it
+  12:54  vulto crosses close, barely off your shoulder
+  13:33  a lamp stutters - the deck's own, nothing behind it
+  13:39  every loose thing in the deck shoves at once
+  14:08  vulto crosses a doorway ahead
+  14:28  a lamp stutters - the deck's own, nothing behind it
+  14:54  vulto crosses a doorway ahead
+  15:32  vulto crosses a doorway ahead
+  15:38  a lamp stutters - the deck's own, nothing behind it
+  16:12  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  16:37  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
+  16:52  a lamp stutters - the deck's own, nothing behind it
+  17:19  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
+  17:43  vulto crosses close, barely off your shoulder
+  17:43  a lamp stutters - the deck's own, nothing behind it
+  18:20  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  18:51  a lamp stutters - the deck's own, nothing behind it
+  18:54  vulto crosses a doorway ahead
+  19:23  chupacabra at the edge of a side passage  (bolts across the opening)
+  19:26  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  NIGHT 8   power out AND a toilet trip, the bundle outside the stall door, 315s up   stalker 1.77 m/s, eyes lit, pushes through your torch, closes distance while you look away
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              19s  a bang, somewhere
+              34s  a whisper at your ear
+              48s  a bang, somewhere
+              69s  a whisper at your ear
+              83s  a bang, somewhere
+              99s  a whisper at your ear
+             110s  a bang, somewhere
+             122s  a whisper at your ear
+             133s  a bang, somewhere
+             145s  a bang, somewhere
+             156s  a bang, somewhere
+             167s  a bang, somewhere
+             177s  a bang, somewhere
+             193s  a bang, somewhere
+             202s  a bang, somewhere
+             216s  a whisper at your ear
+             226s  a bang, somewhere
+             240s  a bang, somewhere
+             262s  a bang, somewhere
+             272s  a bang, somewhere
+             283s  a whisper at your ear
+             297s  a bang, somewhere
+             306s  a whisper at your ear
+
+DAY 9   intensity 12   2/3 tasks
+--------------------------------------------------------------------------
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:16  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  09:49  vulto crosses close, barely off your shoulder  + the nearest lamp goes
+  09:50  a lamp stutters - the deck's own, nothing behind it
+  10:15  vulto crosses close, barely off your shoulder
+  10:48  chupacabra at the edge of a side passage  (bolts across the opening)
+  11:03  a lamp stutters - the deck's own, nothing behind it
+  11:16  every loose thing in the deck shoves at once
+  11:39  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  11:48  a lamp stutters - the deck's own, nothing behind it
+  12:14  every loose thing in the deck shoves at once
+  12:31  a lamp stutters - the deck's own, nothing behind it
+  12:39  every loose thing in the deck shoves at once
+  13:15  a lamp stutters - the deck's own, nothing behind it
+  13:21  chupacabra at the edge of a side passage  (withdraws round the corner)
+  13:53  whisper at your ear
+  14:22  a lamp stutters - the deck's own, nothing behind it
+  14:25  vulto crosses close, barely off your shoulder
+  15:07  every loose thing in the deck shoves at once
+  15:22  a lamp stutters - the deck's own, nothing behind it
+  15:53  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
   16:09  a lamp stutters - the deck's own, nothing behind it
-  16:51  a lamp stutters
-  16:58  a lamp stutters - the deck's own, nothing behind it
-  17:27  a lamp stutters
-  17:56  vulto crosses a doorway ahead
-  18:01  a lamp stutters - the deck's own, nothing behind it
-  18:33  a lamp stutters
-  18:45  a lamp stutters - the deck's own, nothing behind it
-  19:17  Good Neighbours take something and throw it  (you see the lights)
-  19:37  a lamp stutters - the deck's own, nothing behind it
-  19:38  ghul: a crew member down a passage, unlit, waiting
-  NIGHT 11  power out, 274s in the dark   stalker 2.61 m/s, eyes lit, pushes through your torch, closes distance while you look away
+  16:25  a lamp stutters
+  16:45  a lamp stutters - the deck's own, nothing behind it
+  16:54  vulto crosses a doorway ahead
+  17:38  vulto crosses close, barely off your shoulder
+  17:47  a lamp stutters - the deck's own, nothing behind it
+  18:21  ghul: a crew member down a passage, unlit, waiting
+  18:41  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  19:02  a lamp stutters - the deck's own, nothing behind it
+  19:04  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  19:31  vulto crosses a doorway ahead
+  NIGHT 9   power out, 303s up   stalker 2.01 m/s, eyes lit, pushes through your torch, closes distance while you look away
            ** one doorway is warm: somebody is sitting in a circle of candles **
               12s  a bang, somewhere
-              32s  a bang, somewhere
-              45s  a bang, somewhere
-              60s  a bang, somewhere
-              78s  a whisper at your ear
-              92s  a bang, somewhere
-             114s  a whisper at your ear
-             124s  a bang, somewhere
-             143s  a whisper at your ear
-             153s  a bang, somewhere
-             168s  a bang, somewhere
-             189s  a whisper at your ear
-             202s  a bang, somewhere
+              33s  a bang, somewhere
+              48s  a bang, somewhere
+              68s  a whisper at your ear
+              85s  a whisper at your ear
+             105s  a bang, somewhere
+             122s  a bang, somewhere
+             133s  a whisper at your ear
+             149s  a whisper at your ear
+             161s  a whisper at your ear
+             176s  a whisper at your ear
+             186s  a bang, somewhere
+             201s  a bang, somewhere
              218s  a whisper at your ear
-             230s  a bang, somewhere
-             240s  a whisper at your ear
-             250s  a whisper at your ear
-             265s  a whisper at your ear
+             232s  a whisper at your ear
+             249s  a bang, somewhere
+             263s  a whisper at your ear
+             276s  a bang, somewhere
+             286s  a bang, somewhere
+             297s  a whisper at your ear
 
-DAY 12  intensity 19   2/3 tasks
+DAY 10  intensity 14   2/3 tasks
 --------------------------------------------------------------------------
-  08:49  chupacabra at the edge of a side passage  (withdraws round the corner)
   08:57  a lamp stutters - the deck's own, nothing behind it
-  09:25  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  09:50  a lamp stutters - the deck's own, nothing behind it
-  10:08  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  10:33  a lamp stutters
-  10:59  a lamp stutters - the deck's own, nothing behind it
-  11:19  a lamp stutters
-  11:55  a lamp stutters - the deck's own, nothing behind it
-  12:04  every loose thing in the deck shoves at once
-  12:40  a lamp stutters - the deck's own, nothing behind it
-  12:47  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes a beat later  *** something under the buzz ***
-  13:17  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  13:45  chupacabra at the edge of a side passage  (bolts across the opening)  + the nearest lamp goes  *** something under the buzz ***
-  13:55  a lamp stutters - the deck's own, nothing behind it
-  14:11  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
-  14:37  chupacabra at the edge of a side passage  (bolts across the opening)
-  14:56  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  15:17  every loose thing in the deck shoves at once
-  15:51  a lamp stutters - the deck's own, nothing behind it
-  15:53  daylight blackout
-  16:30  vulto crosses a doorway ahead
-  16:32  a lamp stutters - the deck's own, nothing behind it
-  16:51  vulto crosses close, barely off your shoulder
-  17:17  a lamp stutters - the deck's own, nothing behind it
-  17:27  vulto standing down the corridor behind you
-  17:58  vulto crosses close, barely off your shoulder  + the nearest lamp goes
-  18:28  vulto crosses close, barely off your shoulder
-  18:29  a lamp stutters - the deck's own, nothing behind it
-  18:51  daylight blackout
-  19:07  a lamp stutters - the deck's own, nothing behind it
-  19:20  a lamp stutters
-  19:56  a lamp stutters
-  NIGHT 12  power out, 356s in the dark   stalker 2.85 m/s, eyes lit, pushes through your torch, closes distance while you look away
+  09:20  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  09:43  a lamp stutters
+  10:11  vulto crosses a doorway ahead
+  10:13  a lamp stutters - the deck's own, nothing behind it
+  10:32  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  11:11  a lamp stutters - the deck's own, nothing behind it
+  11:12  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
+  11:44  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes  *** something under the buzz ***
+  12:24  a lamp stutters - the deck's own, nothing behind it
+  12:31  chupacabra at the edge of a side passage  (withdraws round the corner)
+  13:16  vulto crosses close, barely off your shoulder
+  13:20  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  13:51  chupacabra at the edge of a side passage  (withdraws round the corner)
+  14:10  a lamp stutters - the deck's own, nothing behind it
+  14:12  chupacabra at the edge of a side passage  (withdraws round the corner)
+  14:40  whisper at your ear
+  15:24  a lamp stutters - the deck's own, nothing behind it
+  15:25  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  15:46  vulto crosses a doorway ahead  + the nearest lamp goes
+  16:16  chupacabra at the edge of a side passage  (bolts across the opening)
+  16:36  a lamp stutters - the deck's own, nothing behind it
+  16:41  vulto crosses a doorway ahead  + the nearest lamp goes
+  17:17  a lamp stutters
+  17:49  vulto standing down the corridor behind you  + the nearest lamp goes  *** something under the buzz ***
+  17:50  a lamp stutters - the deck's own, nothing behind it
+  18:17  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
+  18:41  whisper at your ear
+  18:43  a lamp stutters - the deck's own, nothing behind it
+  19:27  daylight blackout
+  19:49  a lamp stutters - the deck's own, nothing behind it
+  NIGHT 10  quiet - slept through
            ** one doorway is warm: somebody is sitting in a circle of candles **
-              24s  a whisper at your ear
-              45s  a whisper at your ear
-              64s  a bang, somewhere
-              73s  a whisper at your ear
-              92s  a bang, somewhere
-             107s  a whisper at your ear
-             119s  a whisper at your ear
-             136s  a bang, somewhere
-             146s  a whisper at your ear
-             159s  a whisper at your ear
-             170s  a bang, somewhere
-             182s  a bang, somewhere
-             199s  a bang, somewhere
-             208s  a bang, somewhere
-             220s  a whisper at your ear
-             231s  a bang, somewhere
-             247s  a whisper at your ear
-             267s  a whisper at your ear
-             281s  a bang, somewhere
-             294s  a bang, somewhere
-             315s  a bang, somewhere
-             337s  a bang, somewhere
-             351s  a bang, somewhere
 
-DAY 13  intensity 21   0/3 tasks
+DAY 11  intensity 16   1/3 tasks
 --------------------------------------------------------------------------
-  08:47  vulto crosses close, barely off your shoulder
+  08:41  vulto crosses close, barely off your shoulder
   08:57  a lamp stutters - the deck's own, nothing behind it
-  09:10  a lamp stutters
-  09:35  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  09:54  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  10:18  daylight blackout
-  10:49  a lamp stutters - the deck's own, nothing behind it
-  10:52  daylight blackout
-  11:29  a lamp stutters - the deck's own, nothing behind it
-  11:38  daylight blackout
-  12:05  vulto standing down the corridor behind you
-  12:11  a lamp stutters - the deck's own, nothing behind it
-  12:36  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
-  13:17  a lamp stutters
-  13:27  a lamp stutters - the deck's own, nothing behind it
-  13:51  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  14:21  vulto crosses a doorway ahead
-  14:33  a lamp stutters - the deck's own, nothing behind it
-  14:57  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes a beat later
-  15:30  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  15:38  a lamp stutters - the deck's own, nothing behind it
-  16:06  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
-  16:29  bang, somewhere off the corridor
-  16:49  a lamp stutters - the deck's own, nothing behind it
-  17:06  every loose thing in the deck shoves at once
+  09:18  vulto crosses a doorway ahead
+  09:35  a lamp stutters - the deck's own, nothing behind it
+  09:54  a lamp stutters
+  10:28  vulto standing down the corridor behind you
+  10:44  a lamp stutters - the deck's own, nothing behind it
+  11:08  vulto standing down the corridor behind you  + the nearest lamp goes  *** something under the buzz ***
+  11:20  a lamp stutters - the deck's own, nothing behind it
+  11:42  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
+  12:12  every loose thing in the deck shoves at once
+  12:26  a lamp stutters - the deck's own, nothing behind it
+  12:41  vulto standing down the corridor behind you  + the nearest lamp goes a beat later  *** something under the buzz ***
+  13:18  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  13:18  a lamp stutters - the deck's own, nothing behind it
+  14:02  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
+  14:02  a lamp stutters - the deck's own, nothing behind it
+  14:36  a lamp stutters
+  14:45  a lamp stutters - the deck's own, nothing behind it
+  15:13  vulto crosses a doorway ahead
+  15:30  a lamp stutters - the deck's own, nothing behind it
+  16:00  bang, somewhere off the corridor
+  16:25  a lamp stutters - the deck's own, nothing behind it
+  16:32  vulto crosses close, barely off your shoulder
+  16:59  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  17:23  a lamp stutters - the deck's own, nothing behind it
+  17:24  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  17:55  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
+  18:01  a lamp stutters - the deck's own, nothing behind it
+  18:19  Good Neighbours take something and throw it  (you see the lights)
+  18:34  a lamp stutters - the deck's own, nothing behind it
+  18:44  a lamp stutters
+  19:18  every loose thing in the deck shoves at once
+  19:28  a lamp stutters - the deck's own, nothing behind it
+  19:59  daylight blackout
+  NIGHT 11  power out, 287s up   stalker 2.49 m/s, eyes lit, pushes through your torch, closes distance while you look away
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              22s  a whisper at your ear
+              36s  a bang, somewhere
+              52s  a bang, somewhere
+              63s  a bang, somewhere
+              77s  a whisper at your ear
+              90s  a whisper at your ear
+             109s  a bang, somewhere
+             129s  a whisper at your ear
+             142s  a whisper at your ear
+             153s  a whisper at your ear
+             163s  a whisper at your ear
+             174s  a whisper at your ear
+             185s  a bang, somewhere
+             199s  a whisper at your ear
+             213s  a whisper at your ear
+             226s  a bang, somewhere
+             242s  a bang, somewhere
+             259s  a bang, somewhere
+             274s  a whisper at your ear
+
+DAY 12  intensity 18   1/3 tasks
+--------------------------------------------------------------------------
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:06  whisper at your ear
+  09:34  vulto standing down the corridor behind you
+  10:00  a lamp stutters - the deck's own, nothing behind it
+  10:07  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  10:39  vulto crosses a doorway ahead  + the nearest lamp goes a beat later
+  11:06  a lamp stutters - the deck's own, nothing behind it
+  11:20  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  11:42  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  12:10  a lamp stutters - the deck's own, nothing behind it
+  12:13  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  12:57  a lamp stutters - the deck's own, nothing behind it
+  12:57  a lamp stutters
+  13:33  a lamp stutters
+  13:59  a lamp stutters - the deck's own, nothing behind it
+  14:02  vulto crosses a doorway ahead
+  14:39  a lamp stutters
+  14:46  a lamp stutters - the deck's own, nothing behind it
+  15:23  Good Neighbours take something and throw it  (you see the lights)
+  15:44  ghul: a crew member down a passage, unlit, waiting
+  16:01  a lamp stutters - the deck's own, nothing behind it
+  16:24  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  16:46  a lamp stutters - the deck's own, nothing behind it
+  16:47  every loose thing in the deck shoves at once
+  17:13  a lamp stutters
   17:26  a lamp stutters - the deck's own, nothing behind it
-  17:45  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  18:13  daylight blackout
-  18:29  a lamp stutters - the deck's own, nothing behind it
-  18:38  vulto crosses a doorway ahead
-  19:17  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes  *** something under the buzz ***
-  19:34  a lamp stutters - the deck's own, nothing behind it
-  19:50  ghul: a crew member down a passage, unlit, waiting
-  NIGHT 13  power out, 336s in the dark   stalker 3.09 m/s, eyes lit, pushes through your torch, closes distance while you look away
+  17:57  vulto crosses a doorway ahead
+  18:21  Good Neighbours take something and throw it  (you see the lights)
+  18:25  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  18:42  chupacabra at the edge of a side passage  (withdraws round the corner)
+  19:07  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  19:28  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
+  NIGHT 12  toilet trip, lights on, 128s up   nothing walking
            ** one doorway is warm: somebody is sitting in a circle of candles **
-              15s  a bang, somewhere
-              33s  a whisper at your ear
-              51s  a whisper at your ear
-              67s  a bang, somewhere
-              80s  a bang, somewhere
-              99s  a whisper at your ear
-             109s  a whisper at your ear
-             126s  a whisper at your ear
-             141s  a bang, somewhere
-             163s  a bang, somewhere
-             177s  a whisper at your ear
+              23s  a whisper at your ear
+              45s  a bang, somewhere
+              61s  a whisper at your ear
+              76s  a bang, somewhere
+              96s  a bang, somewhere
+             116s  a whisper at your ear
+
+DAY 13  intensity 20   2/3 tasks
+--------------------------------------------------------------------------
+  08:57  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:40  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  09:44  a lamp stutters - the deck's own, nothing behind it
+  10:05  a lamp stutters
+  10:36  a lamp stutters - the deck's own, nothing behind it
+  10:51  a lamp stutters
+  11:36  every loose thing in the deck shoves at once
+  11:51  a lamp stutters - the deck's own, nothing behind it
+  12:18  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes a beat later  *** something under the buzz ***
+  12:33  a lamp stutters - the deck's own, nothing behind it
+  12:49  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  13:17  chupacabra at the edge of a side passage  (bolts across the opening)  + the nearest lamp goes  *** something under the buzz ***
+  13:30  a lamp stutters - the deck's own, nothing behind it
+  13:43  vulto crosses close, barely off your shoulder  + the nearest lamp goes a beat later  *** something under the buzz ***
+  14:09  chupacabra at the edge of a side passage  (bolts across the opening)
+  14:17  a lamp stutters - the deck's own, nothing behind it
+  14:49  every loose thing in the deck shoves at once
+  15:15  a lamp stutters - the deck's own, nothing behind it
+  15:25  daylight blackout
+  16:01  vulto crosses a doorway ahead
+  16:12  a lamp stutters - the deck's own, nothing behind it
+  16:23  vulto crosses close, barely off your shoulder
+  16:59  vulto standing down the corridor behind you
+  17:00  a lamp stutters - the deck's own, nothing behind it
+  17:30  vulto crosses close, barely off your shoulder  + the nearest lamp goes
+  17:55  a lamp stutters - the deck's own, nothing behind it
+  18:00  vulto crosses close, barely off your shoulder
+  18:23  daylight blackout
+  18:41  a lamp stutters - the deck's own, nothing behind it
+  18:52  a lamp stutters
+  19:28  a lamp stutters
+  19:51  a lamp stutters - the deck's own, nothing behind it
+  19:58  a lamp stutters
+  NIGHT 13  power out, 370s up   nothing walking
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              20s  a bang, somewhere
+              37s  a whisper at your ear
+              51s  a bang, somewhere
+              63s  a bang, somewhere
+              74s  a whisper at your ear
+              92s  a bang, somewhere
+             103s  a whisper at your ear
+             119s  a whisper at your ear
+             134s  a whisper at your ear
+             150s  a bang, somewhere
+             168s  a whisper at your ear
              187s  a bang, somewhere
-             202s  a bang, somewhere
-             223s  a bang, somewhere
-             233s  a bang, somewhere
-             242s  a whisper at your ear
-             262s  a whisper at your ear
-             271s  a whisper at your ear
+             204s  a bang, somewhere
+             220s  a bang, somewhere
+             234s  a whisper at your ear
+             247s  a bang, somewhere
+             263s  a whisper at your ear
+             275s  a bang, somewhere
+             286s  a bang, somewhere
+             300s  a bang, somewhere
+             314s  a whisper at your ear
+             327s  a whisper at your ear
+             348s  a whisper at your ear
+             360s  a bang, somewhere
+
+DAY 14  intensity 22   2/3 tasks
+--------------------------------------------------------------------------
+  08:54  vulto crosses close, barely off your shoulder
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:28  daylight blackout
+  09:34  a lamp stutters - the deck's own, nothing behind it
+  10:15  daylight blackout
+  10:42  vulto standing down the corridor behind you
+  10:44  a lamp stutters - the deck's own, nothing behind it
+  11:12  vulto crosses a doorway ahead  + the nearest lamp goes a beat later  *** something under the buzz ***
+  11:22  a lamp stutters - the deck's own, nothing behind it
+  11:54  a lamp stutters
+  11:58  a lamp stutters - the deck's own, nothing behind it
+  12:27  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  12:58  vulto crosses a doorway ahead
+  13:13  a lamp stutters - the deck's own, nothing behind it
+  13:33  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes a beat later
+  14:00  a lamp stutters - the deck's own, nothing behind it
+  14:06  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
+  14:37  a lamp stutters - the deck's own, nothing behind it
+  14:42  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  15:05  bang, somewhere off the corridor
+  15:42  every loose thing in the deck shoves at once
+  15:45  a lamp stutters - the deck's own, nothing behind it
+  16:21  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
+  16:23  a lamp stutters - the deck's own, nothing behind it
+  16:49  daylight blackout
+  16:57  a lamp stutters - the deck's own, nothing behind it
+  17:14  vulto crosses a doorway ahead
+  17:51  a lamp stutters - the deck's own, nothing behind it
+  17:54  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes  *** something under the buzz ***
+  18:26  ghul: a crew member down a passage, unlit, waiting
+  18:58  whisper at your ear
+  19:07  a lamp stutters - the deck's own, nothing behind it
+  19:39  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes a beat later  *** something under the buzz ***
+  19:45  a lamp stutters - the deck's own, nothing behind it
+  NIGHT 14  power out AND a toilet trip, 479s up   nothing walking
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              13s  a whisper at your ear
+              28s  a bang, somewhere
+              50s  a bang, somewhere
+              64s  a whisper at your ear
+              74s  a bang, somewhere
+              90s  a bang, somewhere
+             111s  a bang, somewhere
+             120s  a bang, somewhere
+             129s  a whisper at your ear
+             149s  a whisper at your ear
+             159s  a whisper at your ear
+             172s  a bang, somewhere
+             185s  a bang, somewhere
+             195s  a whisper at your ear
+             205s  a whisper at your ear
+             215s  a whisper at your ear
+             227s  a bang, somewhere
+             245s  a whisper at your ear
+             264s  a whisper at your ear
+             281s  a bang, somewhere
+             299s  a whisper at your ear
+             321s  a bang, somewhere
+             331s  a whisper at your ear
+             352s  a bang, somewhere
+             370s  a whisper at your ear
+             384s  a bang, somewhere
+             401s  a bang, somewhere
+             414s  a whisper at your ear
+             426s  a bang, somewhere
+             438s  a bang, somewhere
+             456s  a whisper at your ear
+             477s  a bang, somewhere
+
+DAY 15  intensity 24   2/3 tasks
+--------------------------------------------------------------------------
+  08:54  vulto crosses a doorway ahead
+  08:57  a lamp stutters - the deck's own, nothing behind it
+  09:32  a lamp stutters - the deck's own, nothing behind it
+  09:36  every loose thing in the deck shoves at once
+  10:06  every loose thing in the deck shoves at once
+  10:14  a lamp stutters - the deck's own, nothing behind it
+  10:34  whisper at your ear
+  10:57  Good Neighbours take something and throw it  (you see the lights)
+  11:12  a lamp stutters - the deck's own, nothing behind it
+  11:29  a lamp stutters
+  12:05  every loose thing in the deck shoves at once
+  12:11  a lamp stutters - the deck's own, nothing behind it
+  12:38  every loose thing in the deck shoves at once
+  12:53  a lamp stutters - the deck's own, nothing behind it
+  13:12  daylight blackout
+  13:33  a lamp stutters - the deck's own, nothing behind it
+  13:48  vulto crosses close, barely off your shoulder
+  14:10  a lamp stutters - the deck's own, nothing behind it
+  14:26  Good Neighbours take something and throw it  (you see the lights)
+  14:50  a lamp stutters - the deck's own, nothing behind it
+  15:10  a lamp stutters
+  15:44  a lamp stutters - the deck's own, nothing behind it
+  15:57  a lamp stutters
+  16:27  a lamp stutters - the deck's own, nothing behind it
+  16:27  a lamp stutters
+  16:51  Good Neighbours take something and throw it  (you see the lights)
+  17:34  daylight blackout
+  17:38  a lamp stutters - the deck's own, nothing behind it
+  18:06  a lamp stutters
+  18:30  daylight blackout
+  18:35  a lamp stutters - the deck's own, nothing behind it
+  19:04  vulto crosses close, barely off your shoulder
+  19:22  a lamp stutters - the deck's own, nothing behind it
+  19:25  vulto crosses a doorway ahead
+  19:54  every loose thing in the deck shoves at once
+  NIGHT 15  power out, 393s up   nothing walking
+           ** one doorway is warm: somebody is sitting in a circle of candles **
+              22s  a bang, somewhere
+              34s  a bang, somewhere
+              45s  a whisper at your ear
+              66s  a whisper at your ear
+              82s  a bang, somewhere
+              97s  a bang, somewhere
+             117s  a bang, somewhere
+             130s  a whisper at your ear
+             142s  a whisper at your ear
+             155s  a whisper at your ear
+             165s  a whisper at your ear
+             179s  a bang, somewhere
+             197s  a whisper at your ear
+             209s  a bang, somewhere
+             226s  a bang, somewhere
+             246s  a bang, somewhere
+             257s  a bang, somewhere
+             268s  a bang, somewhere
              284s  a bang, somewhere
              297s  a bang, somewhere
-             308s  a whisper at your ear
-             318s  a whisper at your ear
-             328s  a whisper at your ear
+             312s  a whisper at your ear
+             327s  a whisper at your ear
+             342s  a bang, somewhere
+             354s  a whisper at your ear
+             369s  a bang, somewhere
+             384s  a whisper at your ear
 
-DAY 14  intensity 23   0/3 tasks
+DAY 16  intensity 26   2/3 tasks
 --------------------------------------------------------------------------
-  08:42  daylight blackout
+  08:55  vulto standing down the corridor behind you
   08:57  a lamp stutters - the deck's own, nothing behind it
-  09:20  ghul: a crew member down a passage, unlit, waiting
-  09:51  vulto crosses close, barely off your shoulder
-  10:02  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  10:36  ghul: a crew member down a passage, unlit, waiting
-  10:57  a lamp stutters - the deck's own, nothing behind it
-  11:16  vulto standing down the corridor behind you
-  11:56  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  12:03  a lamp stutters - the deck's own, nothing behind it
-  12:36  daylight blackout
-  12:57  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  13:09  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  13:47  vulto crosses a doorway ahead
-  13:57  a lamp stutters - the deck's own, nothing behind it
-  14:14  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  14:33  a lamp stutters - the deck's own, nothing behind it
-  14:59  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  15:28  daylight blackout
-  15:34  a lamp stutters - the deck's own, nothing behind it
-  16:10  chupacabra at the edge of a side passage  (withdraws round the corner)
+  09:25  vulto crosses a doorway ahead
+  09:45  a lamp stutters - the deck's own, nothing behind it
+  10:08  vulto crosses a doorway ahead
+  10:18  a lamp stutters - the deck's own, nothing behind it
+  10:30  every loose thing in the deck shoves at once
+  10:54  vulto crosses close, barely off your shoulder
+  11:14  a lamp stutters - the deck's own, nothing behind it
+  11:27  vulto crosses a doorway ahead
+  12:06  bang, somewhere off the corridor
+  12:07  a lamp stutters - the deck's own, nothing behind it
+  12:29  bang, somewhere off the corridor
+  13:01  a lamp stutters - the deck's own, nothing behind it
+  13:07  Good Neighbours take something and throw it  (you see the lights)
+  13:45  vulto crosses a doorway ahead
+  13:52  a lamp stutters - the deck's own, nothing behind it
+  14:06  vulto crosses close, barely off your shoulder  + the nearest lamp goes
+  14:32  vulto crosses close, barely off your shoulder
+  14:45  a lamp stutters - the deck's own, nothing behind it
+  15:09  ghul: a crew member down a passage, unlit, waiting
+  15:30  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
+  15:49  a lamp stutters - the deck's own, nothing behind it
+  15:50  daylight blackout
+  16:14  chupacabra at the edge of a side passage  (withdraws round the corner)
   16:29  a lamp stutters - the deck's own, nothing behind it
-  16:40  every loose thing in the deck shoves at once
-  17:08  whisper at your ear
-  17:32  Good Neighbours take something and throw it  (you see the lights)
-  17:43  a lamp stutters - the deck's own, nothing behind it
-  18:03  a lamp stutters
-  18:16  a lamp stutters - the deck's own, nothing behind it
-  18:39  every loose thing in the deck shoves at once
-  18:51  a lamp stutters - the deck's own, nothing behind it
-  19:12  every loose thing in the deck shoves at once
-  19:46  daylight blackout
-  19:52  a lamp stutters - the deck's own, nothing behind it
-  NIGHT 14  power out, 321s in the dark   stalker 3.33 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              24s  a whisper at your ear
-              45s  a bang, somewhere
-              56s  a bang, somewhere
-              76s  a bang, somewhere
-              89s  a bang, somewhere
-             110s  a bang, somewhere
-             119s  a whisper at your ear
-             132s  a bang, somewhere
-             154s  a bang, somewhere
-             164s  a whisper at your ear
-             176s  a bang, somewhere
-             197s  a bang, somewhere
-             218s  a bang, somewhere
-             231s  a bang, somewhere
-             247s  a whisper at your ear
-             261s  a whisper at your ear
-             274s  a whisper at your ear
-             295s  a whisper at your ear
-             315s  a bang, somewhere
-
-DAY 15  intensity 25   2/3 tasks
---------------------------------------------------------------------------
-  08:48  Good Neighbours take something and throw it  (you see the lights)
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:17  bang, somewhere off the corridor
-  09:36  a lamp stutters - the deck's own, nothing behind it
-  09:40  every loose thing in the deck shoves at once
-  10:20  whisper at your ear
-  10:47  a lamp stutters
-  10:51  a lamp stutters - the deck's own, nothing behind it
-  11:23  a lamp stutters
-  11:44  ghul: a crew member down a passage, unlit, waiting
-  12:02  a lamp stutters - the deck's own, nothing behind it
-  12:09  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes  *** something under the buzz ***
-  12:31  ghul: a crew member down a passage, unlit, waiting
-  12:51  vulto crosses close, barely off your shoulder
-  13:15  a lamp stutters - the deck's own, nothing behind it
-  13:23  Good Neighbours take something and throw it  (you see the lights)
-  13:48  vulto crosses close, barely off your shoulder  + the nearest lamp goes  *** something under the buzz ***
-  14:11  a lamp stutters - the deck's own, nothing behind it
-  14:20  vulto crosses close, barely off your shoulder
-  14:48  a lamp stutters - the deck's own, nothing behind it
-  14:50  vulto crosses a doorway ahead
-  15:20  vulto crosses close, barely off your shoulder
-  15:39  a lamp stutters - the deck's own, nothing behind it
-  15:40  bang, somewhere off the corridor
-  16:14  a lamp stutters - the deck's own, nothing behind it
-  16:19  Good Neighbours take something and throw it  (you see the lights)  + the nearest lamp goes  *** something under the buzz ***
-  16:59  vulto standing down the corridor behind you
-  17:25  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
+  16:52  a lamp stutters
   17:29  vulto crosses a doorway ahead
-  18:09  a lamp stutters - the deck's own, nothing behind it
-  18:12  vulto crosses a doorway ahead
-  18:34  every loose thing in the deck shoves at once
-  18:54  a lamp stutters - the deck's own, nothing behind it
-  18:58  vulto crosses close, barely off your shoulder
-  19:31  vulto crosses a doorway ahead
-  NIGHT 15  power out, 391s in the dark   stalker 3.57 m/s, eyes lit, pushes through your torch, closes distance while you look away
+  17:44  a lamp stutters - the deck's own, nothing behind it
+  17:57  whisper at your ear
+  18:21  a lamp stutters - the deck's own, nothing behind it
+  18:37  ghul: a crew member down a passage, unlit, waiting
+  19:08  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes a beat later
+  19:31  a lamp stutters - the deck's own, nothing behind it
+  19:33  chupacabra at the edge of a side passage  (withdraws round the corner)  + the nearest lamp goes  *** something under the buzz ***
+  NIGHT 16  quiet - slept through
            ** one doorway is warm: somebody is sitting in a circle of candles **
-              24s  a bang, somewhere
-              38s  a whisper at your ear
-              51s  a bang, somewhere
-              73s  a whisper at your ear
-              91s  a whisper at your ear
-             100s  a whisper at your ear
-             115s  a whisper at your ear
-             128s  a whisper at your ear
-             143s  a bang, somewhere
-             160s  a whisper at your ear
-             173s  a whisper at your ear
-             183s  a whisper at your ear
-             199s  a bang, somewhere
-             218s  a bang, somewhere
-             239s  a whisper at your ear
-             252s  a bang, somewhere
-             270s  a bang, somewhere
-             284s  a bang, somewhere
-             298s  a bang, somewhere
-             313s  a whisper at your ear
-             329s  a whisper at your ear
-             350s  a whisper at your ear
-             359s  a whisper at your ear
-             374s  a bang, somewhere
-
-DAY 16  intensity 27   0/3 tasks
---------------------------------------------------------------------------
-  08:57  a lamp stutters - the deck's own, nothing behind it
-  09:03  vulto crosses close, barely off your shoulder
-  09:34  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)  + the nearest lamp goes a beat later  *** something under the buzz ***
-  10:05  a lamp stutters - the deck's own, nothing behind it
-  10:10  vulto crosses a doorway ahead
-  10:48  a lamp stutters - the deck's own, nothing behind it
-  10:55  whisper at your ear
-  11:28  a lamp stutters
-  11:55  Good Neighbours take something and throw it  (NOTHING VISIBLE - a crate crosses the corridor on its own)
-  12:00  a lamp stutters - the deck's own, nothing behind it
-  12:16  vulto crosses close, barely off your shoulder
-  12:52  ghul: a crew member down a passage, unlit, waiting
-  12:55  a lamp stutters - the deck's own, nothing behind it
-  13:17  vulto crosses close, barely off your shoulder
-  13:50  vulto crosses close, barely off your shoulder
-  14:00  a lamp stutters - the deck's own, nothing behind it  *** something under the buzz ***
-  14:12  vulto crosses a doorway ahead
-  14:47  chupacabra at the edge of a side passage  (bolts across the opening)
-  15:06  a lamp stutters - the deck's own, nothing behind it
-  15:20  ghul: a crew member down a passage, unlit, waiting  + the nearest lamp goes  *** something under the buzz ***
-  15:46  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  16:11  a lamp stutters - the deck's own, nothing behind it
-  16:15  vulto crosses a doorway ahead
-  16:45  chupacabra at the edge of a side passage  (bolts across the opening)
-  17:16  every loose thing in the deck shoves at once
-  17:20  a lamp stutters - the deck's own, nothing behind it
-  17:38  every loose thing in the deck shoves at once
-  18:21  bang, somewhere off the corridor
-  18:36  a lamp stutters - the deck's own, nothing behind it
-  19:07  vulto standing down the corridor behind you
-  19:12  a lamp stutters - the deck's own, nothing behind it
-  19:37  vulto crosses a doorway ahead  + the nearest lamp goes  *** something under the buzz ***
-  NIGHT 16  power out, 365s in the dark   stalker 3.81 m/s, eyes lit, pushes through your torch, closes distance while you look away
-           ** one doorway is warm: somebody is sitting in a circle of candles **
-              21s  a whisper at your ear
-              40s  a whisper at your ear
-              54s  a bang, somewhere
-              71s  a bang, somewhere
-              91s  a bang, somewhere
-             108s  a bang, somewhere
-             120s  a whisper at your ear
-             135s  a whisper at your ear
-             156s  a whisper at your ear
-             176s  a whisper at your ear
-             187s  a whisper at your ear
-             207s  a whisper at your ear
-             226s  a bang, somewhere
-             238s  a whisper at your ear
-             249s  a whisper at your ear
-             266s  a whisper at your ear
-             279s  a bang, somewhere
-             300s  a whisper at your ear
-             314s  a whisper at your ear
-             329s  a whisper at your ear
-             344s  a bang, somewhere
 
 ==========================================================================
 OVER 16 NIGHTS
 ==========================================================================
-  shadow          62 apparition
-  shadow_close    36 apparition
-  flicker         30 
-  thrown          28 apparition
-  drift           23 
-  chupacabra      22 apparition
-  blackout        20 
-  watcher         18 apparition
-  bang            15 
-  ghoul           15 apparition
-  whisper          9 
-  apparitions    181
+  shadow          66 apparition
+  flicker         41 
+  thrown          27 apparition
+  shadow_close    27 apparition
+  drift           21 
+  chupacabra      17 apparition
+  watcher         15 apparition
+  bang            13 
+  whisper         11 
+  blackout        11 
+  ghoul           10 apparition
+  apparitions    162
+
+  nights: 6 quiet, 6 power failures, 1 toilet trips, 3 both
+  the stalker walked on 5 of them; the bundle was outside the stall door 2 times
 
   lamps stuttering with nothing behind them: 185
-  ...of which carried the breath anyway:     11  (false positives)
+  ...of which carried the breath anyway:     8  (false positives)
 
-  the breath under the buzz: 41 times with something there, 11 without
-  -> hearing it means something is there 79% of the time. Worth listening for,
+  the breath under the buzz: 36 times with something there, 8 without
+  -> hearing it means something is there 82% of the time. Worth listening for,
      never safe to trust, which is the whole point of it.

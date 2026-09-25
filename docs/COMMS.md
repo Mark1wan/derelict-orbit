@@ -13,7 +13,7 @@ you key the mic once a shift and say you are still alive.
 | When it finishes | Your shift report comes due. The console's screen turns amber and the wrist terminal says `COMMS: shift report due`. |
 | Whenever you get there | Point at the console and hold **TRIGGER** (**USE** on a phone) for 2.5 s. The mic keys, and your own voice reads your report back to Earth. A tool in your hand makes no difference - you are pressing a key, not fixing anything. |
 | If you never key up | It counts as a missed report. Gateway opens the next shift asking why you went quiet, before it says anything else. |
-| Nights 4 and 6 | Main power is out, but the uplink runs off its own cell, so the console is the one screen still lit in the dark - and on those two nights it keys up by itself. |
+| Nights 4 and 6 | If anything wakes you (a power failure, a toilet trip - see the README's "The nights"), the console keys up by itself. The uplink runs off its own cell, so in a power failure it is the one screen still lit in the dark. A quiet night you sleep straight through it, and it is gone. |
 
 Nothing about the uplink gates the maintenance shift: you can ignore it for a whole run and still
 survive seven nights. It costs you the story, and Gateway keeps asking.
@@ -80,10 +80,17 @@ somebody is wrong. Three speakers come out of the same synth on different settin
 
 ## Where the console is
 
-One per deck. `Station._place_comms` puts it in the control room if the deck plan grew one,
-otherwise the server room, the observation deck or the laboratory, otherwise any room that is not
-the power plant - on a wall bay that room's own maintenance tasks are not using. The name plate
-outside its door is the room the notice names.
+One per deck, in the **COMMS ROOM** - every deck plan has one (`StationLayout.REQUIRED`). The room
+was built round it (`kit/room_comms.glb`, from `tools/build_extra_rooms.py`): the console hangs in
+an uplink bay on the back wall, straight ahead as you come through the door, between two operator
+desks with their radio stacks, copper waveguides running up either side of it into the ceiling
+toward the dish, a wall of transceiver racks on one side and the orbit plot on the other. The
+room's two maintenance terminals (realign the antenna array, retune the uplink filter) are on the
+door wall. The name plate outside its door is the room the notice names.
+
+A plan without a comms room (a hand-built one, or an old seed from before it was required) falls
+back to the old rule in `Station._place_comms`: the control room, otherwise the server room, the
+observation deck or the laboratory, on a wall bay that room's own tasks are not using.
 
 It is a `CommsStation` (an `Interactable`, so the existing point-and-hold works on it unchanged),
 but it is deliberately kept out of the station's task list: nothing about it is switched on and off

@@ -12,7 +12,7 @@ const NAV_Y := 1.4          # mid-height of a corridor: where floating things tr
 const ROOM_LABEL := {
 	"control": "CONTROL ROOM", "power": "POWER PLANT", "plant": "LIFE SUPPORT",
 	"laboratory": "LABORATORY", "observation": "OBSERVATION DECK", "exercise": "GYM",
-	"server": "SERVER ROOM", "eva": "EVA AIRLOCK",
+	"server": "SERVER ROOM", "eva": "EVA AIRLOCK", "comms": "COMMS ROOM", "washroom": "WASHROOM",
 }
 ## Per room type: [id, title, x on the door wall, repair tool it needs (an Item kind)]. Bays at x = +-2.65 / +-4.2 are clear of
 ## furniture (checked against the kit's build ops); rooms with less wall space get fewer tasks.
@@ -25,11 +25,15 @@ const ROOM_TASKS := {
 	"exercise": [["gym_harness", "Inspect treadmill harness", -2.65, "wrench"], ["gym_bike", "Reset bike telemetry", 2.65, "multitool"]],
 	"server": [["srv_log", "Upload signal log", -4.2, "scanner"], ["srv_cooling", "Reseat rack cooling", 4.2, "multitool"]],
 	"eva": [["eva_suits", "Charge suit batteries", 2.65, "multitool"]],
+	"comms": [["com_array", "Realign antenna array", -2.65, "multitool"], ["com_filter", "Retune uplink filter", 2.65, "scanner"]],
+	"washroom": [["wc_pump", "Clear the waste pump", 2.65, "wrench"]],
 }
-## The comms console goes in the first of these room types the deck happens to have (any other
-## room will do if it has none of them) - see _place_comms and scripts/comms_station.gd.
-const COMMS_ROOMS := ["control", "server", "observation", "laboratory"]
+## The comms console goes in the comms room, on the back wall between the operator desks (every deck
+## has one now - StationLayout.REQUIRED). Older plans without one put it in the first of the other
+## room types here, on a door wall bay that room's tasks are not using - see _place_comms.
+const COMMS_ROOMS := ["comms", "control", "server", "observation", "laboratory"]
 const COMMS_BAYS := [-4.2, 4.2, -2.65, 2.65]
+const COMMS_BACK_Z := 5.18   # the uplink bay on the comms room's back wall (tools/build_extra_rooms.py)
 const POWER_PANEL_X := 2.65
 const PANEL_Y := 1.5
 const PANEL_Z := -5.37      # just proud of the door wall's panelling (wall slab inner face is -5.5)
@@ -37,7 +41,10 @@ const ROOM_TINT := {
 	"control": Color(0.8, 0.88, 1.0), "power": Color(0.85, 0.95, 0.85), "plant": Color(0.8, 0.95, 0.9),
 	"laboratory": Color(0.95, 0.95, 1.0), "observation": Color(0.75, 0.8, 1.0), "exercise": Color(1.0, 0.9, 0.8),
 	"server": Color(0.8, 0.85, 1.0), "eva": Color(1.0, 0.92, 0.8),
+	"comms": Color(0.8, 0.9, 1.0), "washroom": Color(0.95, 0.97, 0.92),
 }
+## Tonight the power stayed on: the deck runs its night cycle, every lamp at this much of itself.
+const NIGHT_DIM := 0.3
 
 var layout: StationLayout
 var pal: Palette
@@ -57,6 +64,7 @@ var prop_spin: Array[Vector3] = []
 var prop_vel: Array[Vector3] = []
 var comms: CommsStation
 var comms_room_index := -1
+var washroom: Washroom
 var power_led: OmniLight3D
 var planet: MeshInstance3D
 var clouds: MeshInstance3D
@@ -82,6 +90,7 @@ func _ready() -> void:
 	Game.day_started.connect(_on_day_started)
 	Game.tasks_changed.connect(_refresh_active)
 	Game.game_reset.connect(func(): regenerate(Game.layout_seed); set_power(true))
+	Game.phase_changed.connect(_on_phase)
 
 # ---------------------------------------------------------------- build
 ## The deck is built once at load, before the title screen knows whether this is a headset, a phone
@@ -106,6 +115,7 @@ func regenerate(seed_: int) -> void:
 	airlock = null
 	exterior = null
 	power_led = null
+	washroom = null
 	layout = StationLayout.new()
 	if not layout.generate(seed_):
 		layout.generate(1)
@@ -153,6 +163,7 @@ func regenerate(seed_: int) -> void:
 	_pick_faulty_lights()
 	_place_rooms()
 	_place_comms()
+	_build_washroom()
 	_place_props()
 	_build_outside()
 	_place_window_sun()
@@ -259,6 +270,8 @@ const WALL_BY_ROOM := {
 	"exercise": ["prop_foot_restraint", "prop_foot_restraint", "prop_grab_loop", "prop_handhold"],
 	"server": ["prop_tool_rack", "prop_control_box", "prop_cable_reel", "prop_hose_reel"],
 	"eva": ["prop_locker", "prop_tool_rack", "prop_valve", "prop_cable_reel", "prop_ladder"],
+	"comms": ["prop_control_box", "prop_cable_reel", "prop_tool_rack", "prop_locker"],
+	"washroom": ["prop_handhold", "prop_grab_loop", "prop_medkit", "prop_foot_restraint"],
 }
 
 ## The loose stuff that has drifted out of somebody's hands and never been collected.
@@ -274,6 +287,8 @@ const EQUIPMENT := {
 	"exercise": ["prop_toolbox", "prop_slate"],
 	"server": ["prop_power_cell", "prop_slate"],
 	"eva": ["prop_helmet", "prop_canister"],
+	"comms": ["prop_slate", "prop_toolbox"],
+	"washroom": [],          # nothing adrift in here: it would float through the stalls
 }
 
 ## Corridor pieces with both side walls intact - the ones a wall fitting can hang on.
@@ -412,6 +427,8 @@ func _pick_special_rooms() -> void:
 	wake_room = 0
 	var best := -1
 	for r: Dictionary in layout.rooms:
+		if r["type"] == "washroom":
+			continue          # nobody sleeps in there
 		var dist: int = d.get(r["center"], -1)
 		if dist > best:
 			best = dist
@@ -547,6 +564,7 @@ func _light(pos: Vector3, energy: float, range_: float, col := Color(0.8, 0.9, 1
 	var l := OmniLight3D.new()
 	l.position = pos
 	l.light_energy = energy
+	l.set_meta("energy", energy)      # what it goes back to after a night cycle
 	l.omni_range = range_
 	l.light_color = col
 	l.light_specular = 0.25
@@ -690,6 +708,14 @@ func _place_comms() -> void:
 	var room: Dictionary = layout.rooms[pick]
 	var t: String = room["type"]
 	var xf := Kit.cell_transform(room["center"], room["rot"], room["roll"])
+	comms_room_index = pick
+	if t == "comms":
+		# the comms room was built round it: the uplink bay on the back wall, facing the door
+		comms = CommsStation.new()
+		root.add_child(comms)
+		comms.setup_comms(ROOM_LABEL[t])
+		comms.global_transform = Transform3D(xf.basis * Basis(Vector3.UP, PI), xf * Vector3(0, PANEL_Y, COMMS_BACK_Z))
+		return
 	var used := []
 	for task: Array in ROOM_TASKS[t]:
 		used.append(task[2])
@@ -705,13 +731,23 @@ func _place_comms() -> void:
 	comms.setup_comms(ROOM_LABEL[t])
 	# the panel's +Z is the way it faces, which is the room's own +Z however the deck rolled it
 	comms.global_transform = Transform3D(xf.basis, xf * Vector3(x, PANEL_Y, PANEL_Z))
-	comms_room_index = pick
 
 ## Where the console is, in the words on the name plate outside its door.
 func comms_room() -> String:
 	if comms_room_index < 0:
 		return "COMMS"
 	return ROOM_LABEL[layout.rooms[comms_room_index]["type"]]
+
+## The washroom: the stalls are in the room's kit piece (room_washroom.glb), the one working stall
+## door and the night's toilet trip are scripts/washroom.gd.
+func _build_washroom() -> void:
+	var i := layout.room_of("washroom")
+	if i < 0:
+		return
+	var r: Dictionary = layout.rooms[i]
+	washroom = Washroom.new()
+	root.add_child(washroom)
+	washroom.build(self, Kit.cell_transform(r["center"], r["rot"], r["roll"]))
 
 func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 	var p := CPUParticles3D.new()
@@ -774,6 +810,18 @@ func set_power(on: bool) -> void:
 			it.set_active(not on)
 		else:
 			it._refresh()
+
+## A night the power stays on is the deck's night cycle: the lamps at a fraction of themselves, which
+## is dark enough for a flashlight to matter and light enough to see what is standing in a doorway.
+func _on_phase(p: int) -> void:
+	if p == Game.Phase.NIGHT and Game.power_on:
+		set_night_cycle(true)
+	elif p == Game.Phase.DAY or p == Game.Phase.TITLE:
+		set_night_cycle(false)
+
+func set_night_cycle(on: bool) -> void:
+	for l in lights:
+		l.light_energy = float(l.get_meta("energy", l.light_energy)) * (NIGHT_DIM if on else 1.0)
 
 func _on_day_started(_day: int) -> void:
 	var ids := []
@@ -932,6 +980,34 @@ func start_point() -> Vector3:
 
 func wake_point() -> Vector3:
 	return room_entry(wake_room)
+
+func wake_room_name() -> String:
+	return ROOM_LABEL[layout.rooms[wake_room]["type"]]
+
+## Inside the room you sleep in - which is what "back to bed" means on a night with the lights on.
+func in_wake_room(p: Vector3) -> bool:
+	return _room_boxes.has(wake_room) and (_room_boxes[wake_room] as AABB).grow(-0.2).has_point(p)
+
+## A room's entry as far from `p` along the deck as there is, never the room you sleep in, the
+## washroom or the power plant when anything else will do: where the stalker comes from when it
+## comes out of a toilet trip, so that it has to walk to you and is never already between you and
+## the room you are heading for.
+func stalker_spawn_far_from(p: Vector3) -> Vector3:
+	var d := layout.distances_from(layout.node_of(p))
+	var best := -1
+	var best_d := -1
+	for pass_ in 2:
+		for r: Dictionary in layout.rooms:
+			var i: int = r["index"]
+			if pass_ == 0 and (i == wake_room or i == 0 or r["type"] == "washroom"):
+				continue
+			var dist: int = d.get(r["center"], -1)
+			if dist > best_d:
+				best_d = dist
+				best = i
+		if best >= 0:
+			break
+	return room_entry(maxi(best, 0), 1.2)
 
 func stalker_spawn_point() -> Vector3:
 	return room_entry(stalker_room, 1.2)

@@ -8,7 +8,8 @@ extends Node3D
 ##   I>=4  loose objects get shoved
 ##   I>=5  brief full blackouts during the day
 ##   I>=6  shadows cross much closer
-## Night: the Stalker (see stalker.gd), plus bangs/whispers.
+## Night: bangs and whispers, and on some nights the Stalker (see stalker.gd) - only when
+## Game.monster_released says so, which is never the first night and not every night after.
 
 ## Daytime apparitions take the lighting with them about a third of the time: whatever lamp is
 ## nearest the thing stutters while it is there. The flicker itself still means nothing - the
@@ -34,6 +35,7 @@ var _fault_timer := 12.0
 func _ready() -> void:
 	Game.phase_changed.connect(_on_phase)
 	Game.game_reset.connect(_reset)
+	Game.monster_released.connect(_release_stalker)
 
 func _reset() -> void:
 	_clear_figures()
@@ -465,14 +467,28 @@ func _start_night() -> void:
 	_clear_figures()
 	if is_instance_valid(stalker):
 		stalker.queue_free()
+	stalker = null
+	next_event = randf_range(12.0, 25.0)
+	if Game.night_power_out:
+		Sfx.play("powerdown", -2.0)
+	if not Game.is_quiet_night():
+		_place_ritual()
+
+## Tonight it walks. At the start of a power failure it comes from as far from where you woke as the
+## deck goes; out of a toilet trip it comes from as far from where you are standing now - which is
+## the stall - and never out of the room you are trying to get back to.
+func _release_stalker() -> void:
+	if Game.phase != Game.Phase.NIGHT or is_instance_valid(stalker):
+		return
+	var st: Station = Game.station
 	stalker = Stalker.new()
 	add_child(stalker)
-	# the player wakes far from the power room; the stalker starts somewhere else again
-	stalker.global_position = Game.station.stalker_spawn_point()
+	if Game.night_toilet and Game.player != null:
+		stalker.global_position = st.stalker_spawn_far_from(Game.player.camera.global_position)
+	else:
+		stalker.global_position = st.stalker_spawn_point()
 	stalker.caught.connect(_on_caught)
-	next_event = randf_range(12.0, 25.0)
-	Sfx.play("powerdown", -2.0)
-	_place_ritual()
+	Sfx.play_at("bang", stalker.global_position, -4.0, 60.0, 0.6)
 
 ## Once a night, in a room you are not waking up in and the stalker is not starting in, somebody is
 ## sitting in a circle of candles. Nothing announces it: either you see warm light coming out of a
@@ -497,6 +513,8 @@ func _place_ritual() -> void:
 	ritual.global_transform = st.room_transform(choices.pick_random()).translated_local(Vector3(0, 0.02, 0))
 
 func _night_tick(delta: float) -> void:
+	if Game.is_quiet_night():
+		return          # asleep: nothing to hear
 	next_event -= delta
 	if next_event <= 0.0:
 		next_event = randf_range(9.0, 22.0)

@@ -8,8 +8,16 @@ extends RefCounted
 ## and rotation that matches its open sides.
 
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, 1)]
-const LIMIT := 7            # cells from the origin the plan may reach
-const ROOM_TYPES := ["control", "plant", "laboratory", "observation", "exercise", "server", "eva"]
+const LIMIT := 9            # cells from the origin the plan may reach. 9 since the comms room and the
+                            # washroom became rooms every deck has: at 7 they crowded the others out
+                            # (5.5 rooms a plan, one of them optional); at 9 it is 6.5 rooms, two or
+                            # three of them optional, for four more corridor cells on average
+const ROOM_TYPES := ["control", "plant", "laboratory", "observation", "exercise", "server", "eva", "comms", "washroom"]
+## Rooms every deck has, placed first and in this order: the power plant (the night walk ends there),
+## the EVA airlock (the spacewalk goes out of it, and its way out has to be kept clear before
+## anything else is placed), the comms room (Earth calls there every shift) and the washroom (the
+## night you need it). A plan that cannot fit all four is thrown away and grown again.
+const REQUIRED := ["power", "eva", "comms", "washroom"]
 
 var rng := RandomNumberGenerator.new()
 var seed_ := 0
@@ -22,7 +30,7 @@ var occupied := {}          # Vector2i -> room index (all 9 cells of each room)
 ## where you come out of it into space.
 var reserved := {}
 
-func generate(p_seed: int, room_count := 6) -> bool:
+func generate(p_seed: int, room_count := 7) -> bool:
 	seed_ = p_seed
 	rng.seed = p_seed
 	for attempt in 40:
@@ -58,7 +66,7 @@ func _grow(room_count: int) -> bool:
 		guard += 1
 		var from: Vector2i = corridor.keys()[rng.randi() % corridor.size()]
 		var d: Vector2i = DIRS[rng.randi() % 4]
-		var run := rng.randi_range(1, 4)
+		var run := rng.randi_range(18, 26)
 		for k in run:
 			var n := from + d * (k + 1)
 			if not _free(n) or _makes_blob(n):
@@ -66,13 +74,12 @@ func _grow(room_count: int) -> bool:
 			_add_cell(n)
 	if corridor.size() < 12:
 		return false
-	# rooms: power first (the game needs it), the EVA airlock second (the spacewalk needs it and its
-	# way out has to be kept clear before anything else is placed), then a shuffled selection
+	# rooms: the ones every deck needs first (REQUIRED), then a shuffled selection of the rest
 	var types := ROOM_TYPES.duplicate()
-	types.erase("eva")
+	for t: String in REQUIRED:
+		types.erase(t)
 	_shuffle(types)
-	types.insert(0, "eva")
-	types.insert(0, "power")
+	types = REQUIRED + types
 	var placed := 0
 	for t: String in types:
 		if placed >= room_count:
@@ -81,16 +88,23 @@ func _grow(room_count: int) -> bool:
 			placed += 1
 	if placed < 4:
 		return false
-	if rooms.is_empty() or rooms[0]["type"] != "power" or eva_room() < 0:
+	if rooms.is_empty() or rooms[0]["type"] != "power":
 		return false
+	for t: String in REQUIRED:
+		if room_of(t) < 0:
+			return false
 	return true
+
+## Index of the first room of this type, or -1.
+func room_of(type: String) -> int:
+	for r: Dictionary in rooms:
+		if r["type"] == type:
+			return r["index"]
+	return -1
 
 ## Index of the EVA airlock room, or -1.
 func eva_room() -> int:
-	for r: Dictionary in rooms:
-		if r["type"] == "eva":
-			return r["index"]
-	return -1
+	return room_of("eva")
 
 func _shuffle(a: Array) -> void:
 	for i in range(a.size() - 1, 0, -1):

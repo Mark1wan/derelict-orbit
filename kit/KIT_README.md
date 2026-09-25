@@ -56,9 +56,21 @@ wall; rotate in 90° steps to face it wherever you need.
 | `room_exercise.glb` | 3580 | two treadmills with lit consoles, resistance machine with weight stack, exercise bike, mat area, free weights, lockers, mirror |
 | `room_server.glb` | 8252 | two rack rows flanking a cold aisle, LED-lit rack fronts, overhead cable trays, cooling unit, operator station |
 | `room_eva.glb` | 4652 | circular airlock hatch with locking wheel, six suit alcoves with suits, tool bench, charging docks, hoist rail, floor hazard marking |
+| `room_comms.glb` | 6972 | the uplink bay on the back wall (the game hangs its comms console there), two operator desks with tilted monitors and radio stacks, copper waveguides up into the ceiling, three transceiver racks, the orbit plot and a cabinet under it, chairs with lap belts |
+| `room_washroom.glb` | 5276 | two toilet stalls on the back wall - laminate partitions on legs, open to the ceiling, a headrail - one shut and taped over, one working (its door is a separate runtime node, `scripts/washroom.gd`); toilets with thigh bars and a suction hose; a counter with two basins, a steel mirror, hand dryer, the waste processor and its plumbing |
 
 Every room keeps the area in front of its doorway clear, so nothing blocks you walking
 in from the corridor, and circulation rails are split rather than run wall to wall.
+
+**The comms room and the washroom** came later than the other eight, and their generator is in this
+repository: `tools/build_extra_rooms.py`. It does not re-author the room shell - it lifts it out of
+the kit. The triangles that the six plainly walled rooms (control, power, plant, laboratory, gym,
+server) all have in common, exactly, are the bare room: walls, ribs, panelling, floor, ceiling,
+light strips, pipe runs and the doorway. The fit-out is built on top of that from kitlib primitives
+with the kit's material names, so the new rooms match the old ones everywhere the fit-out is not
+and the palette remaps them with no changes.
+
+    python3 tools/build_extra_rooms.py --check   # rewrites both, re-parses them, checks the shell is intact
 
 ## The loose props
 

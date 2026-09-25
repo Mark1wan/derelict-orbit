@@ -132,7 +132,7 @@ def build(run, out_path):
         A('      <div><dt>Intensity</dt><dd>%d</dd></div>' % I)
         A('      <div><dt>Tasks</dt><dd class="%s">%d / %d</dd></div>' % (task_cls, tasks, run["tasks"]))
         A('      <div><dt>Events</dt><dd>%d</dd></div>' % len(d["events"]))
-        A('      <div><dt>Dark</dt><dd>%d s</dd></div>' % round(night["length"]))
+        A('      <div><dt>Night</dt><dd>%d s</dd></div>' % round(night["length"]))
         A('    </dl>')
         A('  </header>')
         A('  <div class="ruler" role="img" aria-label="Shift timeline, 08:00 to 20:00">')
@@ -142,8 +142,22 @@ def build(run, out_path):
         A('  <ol class="events">%s</ol>' % "".join(rows))
         A('  <div class="night">')
         A('    <h3>Night %02d</h3>' % day)
-        A('    <p class="nightline">Main power out. <b>%d seconds in the dark.</b> Stalker: %s.</p>'
-          % (round(night["length"]), ", ".join(night_bits)))
+        # older run files have no night kind: every night then was a power failure with the stalker
+        kind = night.get("kind", "power")
+        what = {"quiet": "A quiet night - slept straight through.",
+                "power": "Main power out.",
+                "toilet": "Woke up needing the toilet, lights on the night cycle.",
+                "combo": "Main power out, and the toilet first."}[kind]
+        if night.get("sticks"):
+            what += " The bundle of sticks was outside the stall door."
+        if kind == "quiet":
+            A('    <p class="nightline">%s</p>' % html.escape(what))
+        elif night.get("stalker", True):
+            A('    <p class="nightline">%s <b>%d seconds up.</b> Stalker: %s.</p>'
+              % (html.escape(what), round(night["length"]), ", ".join(night_bits)))
+        else:
+            A('    <p class="nightline">%s <b>%d seconds up.</b> Nothing walking.</p>'
+              % (html.escape(what), round(night["length"])))
         if night["ritual"]:
             A('    <p class="warm">One doorway is warm: somebody is sitting in a circle of candles.</p>')
         A('    <p class="beats">%d disturbances in the dark &mdash; %d bangs, %d whispers.</p>'
@@ -166,7 +180,7 @@ def build(run, out_path):
         days=len(days),
         total_events=sum(len(d["events"]) for d in days),
         dark=round(sum(d["night"]["length"] for d in days)),
-        top_speed="%.2f" % max(d["night"]["speed"] for d in days),
+        top_speed="%.2f" % max([d["night"]["speed"] for d in days if d["night"].get("stalker", True)] or [0.0]),
     )
     with open(out_path, "w") as f:
         f.write(page)
@@ -346,7 +360,7 @@ TEMPLATE = """<title>Kestrel-9 Shift Log</title>
       <span>DAYS <b>{days}</b></span>
       <span>LOGGED EVENTS <b>{total_events}</b></span>
       <span>APPARITIONS <b>{total_app}</b></span>
-      <span>TIME IN THE DARK <b>{dark} s</b></span>
+      <span>TIME UP AT NIGHT <b>{dark} s</b></span>
       <span>FASTEST STALKER <b>{top_speed} m/s</b></span>
     </div>
     <div class="legend">
