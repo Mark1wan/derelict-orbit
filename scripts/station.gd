@@ -77,6 +77,7 @@ var _module_boxes := {}                 # corridor cell -> its world AABB (what 
 var _room_boxes := {}                   # room index -> its world AABB
 var airlock: Airlock
 var exterior: Exterior
+var cull: DeckCull                      # draws only the modules that can be seen (deck_cull.gd)
 
 ## Lists the haunt manager toggles directly during a blackout.
 var emissive_mats: Array[StandardMaterial3D]:
@@ -127,37 +128,44 @@ func regenerate(seed_: int) -> void:
 	colliders.collision_layer = 1
 	colliders.collision_mask = 0
 	root.add_child(colliders)
+	cull = DeckCull.new()
+	root.add_child(cull)
+	cull.setup(self, layout)
 
-	# hull: every placed piece merged per 3x3-cell chunk and material - the inside, and separately
-	# the outside faces, which go on the exterior render layer where the sun can light them
+	# hull: every placed piece merged per 5x5-cell chunk and material - the inside, and separately
+	# the outside faces, which go on the exterior render layer where the sun can light them. The
+	# outside is only ever seen through glass, and the whole deck's is 30-odd thousand vertices: one
+	# mesh per material for all of it costs a handful of draw calls where per chunk it cost fifty.
 	var mergers := {}
-	var outers := {}
+	var outer := Kit.Merger.new()
+	var cells := {}          # chunk key -> the plan cells merged into it
 	var keymap := func(n: String) -> String: return Palette.KIT_MAP.get(n, "metal")
 	for c: Vector2i in layout.corridor:
 		var cell: Dictionary = layout.corridor[c]
 		var key := chunk_key(c)
 		if not mergers.has(key):
 			mergers[key] = Kit.Merger.new()
-			outers[key] = Kit.Merger.new()
+			cells[key] = []
+		cells[key].append(c)
 		var xf := Kit.cell_transform(c, cell["rot"], cell["roll"])
 		mergers[key].add(Kit.part(cell["piece"], "in"), xf, keymap)
-		outers[key].add(Kit.part(cell["piece"], "out"), xf, keymap)
+		outer.add(Kit.part(cell["piece"], "out"), xf, keymap)
 		_module_boxes[c] = xf * Kit.mesh(cell["piece"]).get_aabb()
 	for r: Dictionary in layout.rooms:
 		var key := "room%d" % r["index"]
 		mergers[key] = Kit.Merger.new()
-		outers[key] = Kit.Merger.new()
+		cells[key] = [r["center"]]
 		var xf := Kit.cell_transform(r["center"], r["rot"], r["roll"])
 		var piece: String = "room_" + String(r["type"])
 		var hatch: bool = r["type"] == "eva"
 		mergers[key].add(Kit.part(piece, "in", hatch), xf, keymap)
-		outers[key].add(Kit.part(piece, "out", hatch), xf, keymap)
+		outer.add(Kit.part(piece, "out", hatch), xf, keymap)
 		_room_boxes[r["index"]] = xf * Kit.mesh(piece).get_aabb()
 	_place_wall_fittings(mergers)
 	for key: String in mergers:
-		mergers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key)
-		for mi: MeshInstance3D in outers[key].commit(root, colliders, pal.get_mat, Palette.NO_COLLIDE, key + "_out"):
-			_exterior(mi)
+		mergers[key].commit(cull.chunk_node(key, cells[key]), colliders, pal.get_mat, Palette.NO_COLLIDE, key)
+	for mi: MeshInstance3D in outer.commit(cull.outside, colliders, pal.get_mat, Palette.NO_COLLIDE, "out"):
+		_exterior(mi)
 
 	_place_lights()
 	_pick_faulty_lights()
@@ -170,6 +178,7 @@ func regenerate(seed_: int) -> void:
 	_build_eva()
 	_pick_special_rooms()
 	_place_tools()
+	cull.adopt(root, [colliders])
 	Game.task_pool = task_pool()
 
 func _place_lights() -> void:

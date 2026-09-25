@@ -33,6 +33,7 @@ var _flickering := false
 var _fault_timer := 12.0
 
 func _ready() -> void:
+	add_to_group("haunt")        # what it puts on the deck is culled with the deck (DeckCull)
 	Game.phase_changed.connect(_on_phase)
 	Game.game_reset.connect(_reset)
 	Game.monster_released.connect(_release_stalker)

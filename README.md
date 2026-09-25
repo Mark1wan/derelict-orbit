@@ -237,6 +237,7 @@ scripts/palette.gd     the materials the kit's glTF names are remapped to (textu
                        power-controlled emissives)
 scripts/station.gd     builds a deck from the layout: hull, lights, terminals per room type, name plates, props,
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
+scripts/deck_cull.gd   draws only the modules the eye can see: a portal walk through the plan's openings
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
 kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3: ten rooms) plus 22 props
                        (prop_*.glb), classed wall attachment / floating / room equipment. Every

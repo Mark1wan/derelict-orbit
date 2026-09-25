@@ -80,6 +80,11 @@ handles. In a station with no floor those are the route, not the scenery. The co
   long corridor through a doorway, which is the worst frame a deck has. The browser console
   should print `[xr] eye buffers at 0.85, foveation 1.00: ok` on entering VR. If it struggles,
   docs/PERFORMANCE.md says what to try next and how to measure it.
+- **Anything popping in.** The deck only draws the modules you can see from where your head is
+  (`scripts/deck_cull.gd`). If a wall, a lamp's light, a prop or anything at the end of a corridor
+  ever *appears* as you move - round a corner, through a doorway, out of a window - rather than
+  having been there all along, that is a bug: note where you were standing and which way you were
+  looking.
 
 ## Desktop, without a headset
 

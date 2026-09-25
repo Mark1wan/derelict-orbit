@@ -16,6 +16,7 @@ var touch_btn: Button
 var touch_ui: TouchControls
 var touch_device := false
 var _power_was_off := false
+var _perf_lamps := 0.0
 
 ## The headset's eye buffers: a fraction of the size the browser recommends, and how hard their
 ## edges are foveated (0 not at all, 1 as hard as the browser goes).
@@ -316,6 +317,7 @@ func _perf_probe() -> void:
 	var worst := {"name": "-", "draws": 0, "prims": 0}
 	var rows := 0
 	var sum_draws := 0
+	var sum_lamps := 0.0
 	for pass_night in [false, true]:
 		if pass_night:
 			station.set_power(false)
@@ -337,13 +339,14 @@ func _perf_probe() -> void:
 			print("[perf] %-22s %7d %9d %8d %8.2f   %s" % [label, draws, prims, objs, cpu, seen])
 			rows += 1
 			sum_draws += draws
+			sum_lamps += _perf_lamps
 			if draws > worst["draws"]:
 				worst = {"name": label, "draws": draws, "prims": prims}
 	var tex := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0
 	var buf := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_BUFFER_MEM_USED) / 1048576.0
 	print("[perf] worst: %s  %d draws  %d vertices" % [worst["name"], worst["draws"], worst["prims"]])
-	print("[perf] mean draws %.0f over %d viewpoints   texture %.1f MB   buffers %.1f MB" % [
-		float(sum_draws) / maxf(rows, 1), rows, tex, buf])
+	print("[perf] mean draws %.0f over %d viewpoints   lamps per hull mesh %.1f   texture %.1f MB   buffers %.1f MB" % [
+		float(sum_draws) / maxf(rows, 1), rows, sum_lamps / maxf(rows, 1), tex, buf])
 	print("[perf] lights in the deck: %d (%d emergency), props %d, dust emitters %d" % [
 		station.lights.size(), station.emergency_lights.size(), station.props.size(), station.dust_emitters.size()])
 	_perf_census()
@@ -396,11 +399,20 @@ func _perf_frame_ms() -> float:
 ## What is actually in front of the camera right now, by kind - the draw calls the renderer is
 ## being handed. Frustum test only (the same AABB test the engine culls with), so it is an upper
 ## bound: it does not know what a wall hides.
+##
+## `lamps` is how many lamps light the average hull mesh in view. The Compatibility renderer shades
+## every pixel of a mesh with every lamp whose range touches the mesh (up to eight), so that number
+## times the pixels is what the headset's GPU pays for lighting.
 func _perf_in_view() -> String:
 	var planes := player.camera.get_frustum()
 	var hull := 0
 	var loose := 0
 	var text := 0
+	var lamp_sum := 0
+	var lamps: Array[Light3D] = []
+	for l: Node in get_tree().root.find_children("*", "Light3D", true, false):
+		if (l is OmniLight3D or l is SpotLight3D) and (l as Light3D).is_visible_in_tree() and (l as Light3D).light_energy > 0.0:
+			lamps.append(l)
 	var stack: Array[Node] = [get_tree().root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
@@ -431,9 +443,18 @@ func _perf_in_view() -> String:
 			continue
 		if g.is_in_group("hull"):
 			hull += 1
+			var n_lit := 0
+			for l: Light3D in lamps:
+				var reach: float = (l as OmniLight3D).omni_range if l is OmniLight3D else (l as SpotLight3D).spot_range
+				var at := l.global_position
+				if box.grow(reach).has_point(at) and at.clamp(box.position, box.end).distance_to(at) <= reach:
+					n_lit += 1
+			lamp_sum += mini(n_lit, 8)
 		else:
 			loose += 1
-	return "hull %3d  loose %3d  labels %2d" % [hull, loose, text]
+	_perf_lamps = float(lamp_sum) / maxf(hull, 1)
+	return "hull %3d  loose %3d  labels %2d  lamps %.1f  modules %2d/%d" % [hull, loose, text, _perf_lamps,
+		station.cull.visible_areas, station.layout.corridor.size() + station.layout.rooms.size()]
 
 ## Everything on the deck that costs a draw call, by what made it. One line per kind, worst first:
 ## this is the list to shorten when the headset is behind.
@@ -484,7 +505,11 @@ func _autotest() -> void:
 	print("[autotest] day %d tasks: %s" % [Game.day, str(Game.tasks)])
 	var meshes := 0
 	var hull := 0
-	for n in station.root.get_children():
+	# the deck's static meshes are sorted into the cull's bins (DeckCull.adopt)
+	var drawn: Array[Node] = station.root.get_children()
+	for bin in station.cull.get_children():
+		drawn.append_array(bin.get_children())
+	for n in drawn:
 		if n is MeshInstance3D:
 			meshes += 1
 			if (n as MeshInstance3D).is_in_group("hull"):
