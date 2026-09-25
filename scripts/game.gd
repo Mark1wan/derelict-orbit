@@ -41,13 +41,25 @@ signal step_done(id: String)
 
 ## ---- the night
 ## Every night rolls its events independently, so they can land together. What they are, and how
-## likely the thing that walks is to come with them - all tuned as one decision:
-const POWER_FAILURE_CHANCE := 1.0 / 3.0  ## the main power fails
-const TOILET_CHANCE := 0.25              ## you wake up needing the toilet (can land with a power failure)
+## likely the thing that walks is to come with them - all tuned as one decision, against
+## tools/simulate_run.py. Each odd climbs from its first-night value to its last-night value as the
+## run goes on (night_ramp: the day number plus unfinished shifts), and two of them carry dread: the
+## longer the power has held, or the stalker has stayed in, the likelier it is tonight. Over a
+## 7-night run that is about 4 or 5 power failures and 4 nights the stalker walks, and never a run with
+## only one of either.
+const POWER_FAILURE_CHANCE := 0.40       ## the main power fails, on the first night...
+const POWER_FAILURE_LAST := 0.70         ## ...climbing to this by the last
+const POWER_DREAD := 0.15                ## added for every night in a row the power has held
+const POWER_DRY_MAX := 2                 ## after this many nights in a row with the power holding, it fails
+const TOILET_CHANCE := 0.25              ## you wake up needing the toilet (can land with a power failure)...
+const TOILET_LAST := 0.40                ## ...climbing to this
 const MONSTER_POWER := 0.80              ## a power failure from the second night on brings the stalker
 const MONSTER_TOILET := 0.20             ## a trip to the toilet with the lights on
 const MONSTER_COMBO := 0.45              ## a trip to the toilet with the power out
-const STICKS_CHANCE := 0.50              ## the bundle of sticks outside the stall door, per toilet trip
+const MONSTER_RAMP := 0.20               ## added to all three by the last night
+const MONSTER_DREAD := 0.20              ## ...and for every night since the second it has not walked
+const STICKS_CHANCE := 0.50              ## the bundle of sticks outside the stall door, per toilet trip...
+const STICKS_LAST := 0.70                ## ...climbing to this
 const STICKS_MONSTER := 0.30             ## ...and what finding it adds to the odds of the stalker
 const FIRST_MONSTER_NIGHT := 2           ## never on the first night, whatever else happens
 const QUIET_NIGHT := 7.0                 ## seconds of black a night with nothing in it lasts
@@ -89,6 +101,8 @@ var toilet_pending := false    # ...and have not been yet: the power panel waits
 var sticks := false            # the bundle was outside the stall door
 var monster_out := false       # the stalker is walking
 var _toilet_monster := false   # rolled in the stall's blackout, let out when the door opens
+var power_held := 0            # nights in a row the power has not failed (dread, see the night)
+var monster_kept := 0          # nights since the second the stalker has not walked (dread)
 var _night_id := 0             # which night a delayed callback belongs to
 ## Tests and playtests pin tonight's rolls: {"power": bool, "toilet": bool, "sticks": bool,
 ## "monster": bool}, any subset - what is not pinned is rolled. DERELICT_NIGHT=power,toilet,sticks
@@ -145,6 +159,8 @@ func start_game() -> void:
 	day = start_day
 	night_penalty = 0
 	nights_survived = 0
+	power_held = 0
+	monster_kept = 0
 	_begin_day()
 
 func restart() -> void:
@@ -242,8 +258,9 @@ func _begin_night() -> void:
 	phase = Phase.NIGHT
 	_night_id += 1
 	_clear_night()
-	night_power_out = _roll("power", POWER_FAILURE_CHANCE)
-	night_toilet = _roll("toilet", TOILET_CHANCE)
+	night_power_out = _roll("power", power_chance())
+	night_toilet = _roll("toilet", toilet_chance())
+	power_held = 0 if night_power_out else power_held + 1
 	toilet_pending = night_toilet
 	power_on = not night_power_out
 	if night_power_out:
@@ -272,6 +289,23 @@ func _begin_night() -> void:
 func is_quiet_night() -> bool:
 	return phase == Phase.NIGHT and not night_power_out and not night_toilet
 
+## How far into the run the nights are: 0 on the first, 1 on the last. Unfinished shifts push it
+## on, the same way they push intensity().
+func night_ramp() -> float:
+	return clampf((intensity() - 1.0) / float(MAX_DAYS - 1), 0.0, 1.0)
+
+## How likely the main power is to fail tonight.
+func power_chance() -> float:
+	if power_held >= POWER_DRY_MAX:
+		return 1.0
+	return clampf(lerpf(POWER_FAILURE_CHANCE, POWER_FAILURE_LAST, night_ramp()) + POWER_DREAD * power_held, 0.0, 1.0)
+
+func toilet_chance() -> float:
+	return lerpf(TOILET_CHANCE, TOILET_LAST, night_ramp())
+
+func sticks_chance() -> float:
+	return lerpf(STICKS_CHANCE, STICKS_LAST, night_ramp())
+
 ## How likely the stalker is tonight, given what has happened so far.
 func monster_chance() -> float:
 	if day < FIRST_MONSTER_NIGHT:
@@ -281,6 +315,9 @@ func monster_chance() -> float:
 		p = MONSTER_COMBO if night_power_out else MONSTER_TOILET
 	elif night_power_out:
 		p = MONSTER_POWER
+	else:
+		return 0.0          # a quiet night: nothing to come out of
+	p += MONSTER_RAMP * night_ramp() + MONSTER_DREAD * monster_kept
 	if sticks:
 		p += STICKS_MONSTER
 	return clampf(p, 0.0, 1.0)
@@ -291,7 +328,7 @@ func monster_chance() -> float:
 func toilet_blackout() -> bool:
 	if phase != Phase.NIGHT or not toilet_pending:
 		return false
-	sticks = _roll("sticks", STICKS_CHANCE)
+	sticks = _roll("sticks", sticks_chance())
 	_toilet_monster = _roll("monster", monster_chance())
 	return sticks
 
@@ -386,6 +423,8 @@ func _night_over() -> void:
 	if phase != Phase.NIGHT:
 		return
 	nights_survived += 1
+	if day >= FIRST_MONSTER_NIGHT:
+		monster_kept = 0 if monster_out else monster_kept + 1
 	day += 1
 	if day > MAX_DAYS:
 		phase = Phase.WON

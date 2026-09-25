@@ -9,12 +9,12 @@ class_name Washroom
 ##   get into the stall, shut the door (hold TRIGGER / USE on it), look at the toilet -
 ##   the screen goes black - it comes back, you turn round and open the door.
 ##
-## Half the time (Game.STICKS_CHANCE) there is something hanging in the air right outside that door
-## when you open it: a bundle of sticks, bound up with twine and a red thread, at the height of your
-## eyes, as if someone had left it there for you. It is put there while the screen is black, so it
-## is never seen arriving - only found, on the way out. Finding it makes the thing that walks more
-## likely to be out tonight (Game.monster_chance), and if it is, it is let go the moment the door
-## opens (Game.toilet_done).
+## Half the time at first, more often later (Game.sticks_chance), there is something hanging in the
+## air right outside that door when you open it: a bundle of sticks, bound up with twine and a red
+## thread, at the height of your eyes, as if someone had left it there for you. It is put there
+## while the screen is black, so it is never seen arriving - only found, on the way out. Finding it
+## makes the thing that walks more likely to be out tonight (Game.monster_chance), and if it is, it
+## is let go the moment the door opens (Game.toilet_done).
 ##
 ## Everything is in the room's own frame, so a washroom the deck plan rolled onto its side has its
 ## stalls on the wall and all of this still lines up.
