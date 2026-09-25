@@ -267,6 +267,41 @@ respawn will do as readily as a test.
 
 Comfort snap turning is on the title screen for players who need it.
 
+## The shell guard
+
+The cave is a shell one triangle thick with nothing behind it, and a `CharacterBody3D` has two
+ways through a wall like that, neither of them by moving. The capsule is **resized or turned into
+rock in one step** - a posture change in a slot, a prone capsule swung across a tube by the
+mouse - and the engine's depenetration shoves it out whichever side is nearer. Or a snap, a haul
+or the rope pulls it a few centimetres into the shell, and the next step's recovery finishes the
+job. Once the centre is on the far side of a face there is no rock to slide along, and you are
+outside the world without having seen it happen. It was easy to do, and it happened most in
+exactly the places the game is about.
+
+Two checks in `caver.gd`, both cheap, and together they make the shell a wall from the inside:
+
+- **A shape is checked before it is applied** (`_shape_clear`). Every step the body computes the
+  capsule it wants - radius, length, tilt, offset - and asks the physics server how deep that
+  capsule would sit in the rock *here*. Under `SHELL_SKIN` (3 cm) it is resting on rock, and it
+  goes on. Deeper than that, it is refused and the body keeps the last shape that was clear,
+  until the rock gives it room. A shape that is *smaller* than the current one is always
+  allowed, because shrinking is the way out of everything. A prone capsule therefore no longer
+  turns in a tube it cannot turn in: the view turns, the collider waits.
+- **The centre is traced after every step** (`_guard_shell`). Two rays, from where the capsule's
+  centre and the chest were at the end of the last step to where they are now. Every collider has
+  `backface_collision` on, so a ray crosses a face from either side, and a centre that crossed
+  one is a body that went through a wall - whichever of the ways through it took. It is put back
+  where it was, still, with the shape it had: that position was inside the cave a step ago and the
+  shape was clear of the rock there. At walking pace the trace is two centimetres long, so it
+  cannot clip a corner the capsule itself went round.
+
+`Caver.unclips` counts the second one and the route test asserts it is zero: the guard is the
+last line, not the first, and a route that needs it is a route where the capsule went through a
+wall for a reason that wants finding rather than hiding. `Caver.refits` counts the first, and it
+is allowed to be large - a body pushing into the closed end of the Drainpipe is refused a shape
+every step, which is the lead doing what a lead does. `CAVE_DEBUG_REFIT=1` prints every 24th
+refusal with the shape it wanted, the shape it kept, and how deep each would be.
+
 ## When it stops and you cannot see why
 
 `Caver.debug_contacts` exists because **rays lie about this cave, and every diagnosis made from

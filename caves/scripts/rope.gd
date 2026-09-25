@@ -140,5 +140,8 @@ func _run_sound(caver: Caver, speed: float) -> void:
 # ---------------------------------------------------------------- test hooks
 
 func debug_clip(caver: Caver) -> void:
-	caver.global_position = point_near(top + Vector3(0, -1.0, 0)) + Vector3(0, -0.6, 0)
+	# Through teleport, not a bare position write: the caver traces its own centre from step
+	# to step, and a body that appears at the head of the pitch from the far end of the cave
+	# has, as far as that trace can tell, just come through forty metres of rock.
+	caver.teleport(point_near(top + Vector3(0, -1.0, 0)) + Vector3(0, -0.6, 0))
 	clip_on(caver)

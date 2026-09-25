@@ -46,6 +46,24 @@ const SNAP_ANGLE := 30.0
 const HEAD_CLEAR := 0.16       ## closer than this to rock and the view starts to black out
 const EYE_LERP := 7.0
 const FALL_LIMIT := 12.0       ## seconds of freefall before the safety net decides you are lost
+## The shell guard. The cave is one triangle thick with nothing behind it, and a CharacterBody3D
+## has two ways through a wall like that, neither of them by moving: the capsule is resized or
+## turned into rock in one step - a posture change in a slot, a prone capsule swung across a
+## tube by the mouse - and the engine's depenetration shoves it out whichever side is nearer;
+## or a snap, a haul or a rope pulls it a few centimetres into the shell, and the next step's
+## recovery finishes the job. Once the centre is on the far side of a face there is no rock to
+## slide along and you are outside the world, usually without having seen it happen.
+##
+## So a shape is checked against the rock BEFORE it is applied (`_shape_clear`) - a capsule that
+## would start the step embedded keeps the last shape that was not - and the capsule's centre is
+## traced from where it was to where it is AFTER every step (`_guard_shell`): a trace that
+## crosses a face, from either side, is a body that went through a wall, and it is put back
+## where it was. Both are cheap - one shape query and two rays - and together they make the
+## shell a wall from the inside, which is all a cave needs to be.
+const SHELL_SKIN := 0.03       ## a capsule this far into rock is resting on it, not through it
+const SHELL_LEAP := 0.50       ## a centre that moved further than this in one step was placed,
+                               ## not pushed: nothing that tunnels moves a body half a metre in
+                               ## a 72nd of a second, and a placement is not a wall crossing
 
 # What the hand marker says, unshaded so it reads the same in a lit chamber and in the dark.
 const HAND_IDLE := Color(0.26, 0.25, 0.23)   ## nothing in reach
@@ -138,7 +156,15 @@ var _say_again := 0.0
 var rescues := 0               ## times the safety net has had to put you back. Asserted zero
                                ## by the route test: trimming too much punches a hole to the
                                ## void, and this is how that gets noticed.
+var unclips := 0               ## times the shell guard caught the body going through a wall
+var refits := 0                ## times a shape was refused because it would have been in rock
 var _probe_frame := 0
+var _prev_centre := Vector3.INF   ## capsule centre and chest at the end of the last step,
+var _prev_chest := Vector3.INF    ## for the shell trace. INF means "no last step": skip once.
+var _prev_origin := Vector3.INF
+var _clear_shape := {}            ## the last capsule that was known to be clear of the rock
+var _probe_capsule := CapsuleShape3D.new()   ## reused by _shape_clear, never in the tree
+var _debug_refit := OS.has_environment("CAVE_DEBUG_REFIT")   ## print every 24th refused shape
 
 func _ready() -> void:
 	Cave.caver = self
@@ -240,6 +266,11 @@ func teleport(p: Vector3, look_dir := Vector3.ZERO) -> void:
 	global_position = p
 	velocity = Vector3.ZERO
 	_last_pos = p
+	# A teleport is the one move that is allowed to cross rock: the trace starts again here.
+	_prev_centre = Vector3.INF
+	_prev_chest = Vector3.INF
+	_prev_origin = Vector3.INF
+	_clear_shape = {}
 	for i in 2:
 		_held[i] = false
 	if look_dir != Vector3.ZERO:
@@ -288,6 +319,7 @@ func _physics_process(delta: float) -> void:
 	_move(delta, frame)
 	_climb(delta)
 	move_and_slide()
+	_guard_shell()
 
 	_track_progress()
 	_advise(delta)
@@ -295,6 +327,80 @@ func _physics_process(delta: float) -> void:
 	if rope:
 		rope.caver_moved(self, intent, delta)
 	intent.clear_edges()
+	_prev_centre = body_shape.global_position
+	_prev_chest = chest_point()
+	_prev_origin = global_position
+
+## Did the body go through the shell this step? Trace the capsule's centre and the chest from
+## where they were to where they are. Every collider in the cave has backface_collision on, so
+## a ray crosses a face from either side, and a centre that crossed one is a body that is now
+## on the wrong side of it - whichever of the ways through it took. Put it back where it was,
+## still, with the shape it had: that position was inside the cave a step ago and the shape was
+## clear of the rock there, and the next step starts again from something true.
+##
+## The trace is two centimetres long at walking pace, so it cannot clip a corner the capsule
+## itself went round, and a step that stays inside the cave costs it nothing.
+func _guard_shell() -> void:
+	if _prev_centre == Vector3.INF:
+		return
+	if _prev_centre.distance_to(body_shape.global_position) > SHELL_LEAP:
+		return
+	if not _crossed(_prev_centre, body_shape.global_position) \
+			and not _crossed(_prev_chest, chest_point()):
+		return
+	if _debug_refit:
+		var q := PhysicsRayQueryParameters3D.create(_prev_centre, body_shape.global_position, 1)
+		q.hit_back_faces = true
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if hit.is_empty():
+			q = PhysicsRayQueryParameters3D.create(_prev_chest, chest_point(), 1)
+			q.hit_back_faces = true
+			hit = get_world_3d().direct_space_state.intersect_ray(q)
+		print("[unclip] #%d %s at %s: centre %s -> %s hit %s normal %s (%s), on floor %s, rope %s, vel %s"
+			% [unclips + 1, body.name_of(), global_position, _prev_centre, body_shape.global_position,
+				hit.get("position", Vector3.INF), hit.get("normal", Vector3.ZERO),
+				hit["collider"].name if hit.has("collider") and hit["collider"] else "?",
+				is_on_floor(), rope != null and rope.clipped, velocity])
+	global_position = _prev_origin
+	velocity = Vector3.ZERO
+	unclips += 1
+
+func _crossed(from: Vector3, to: Vector3) -> bool:
+	if from.distance_squared_to(to) < 1e-8:
+		return false
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+	q.exclude = [get_rid()]
+	q.hit_back_faces = true
+	return not get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+## How deep a capsule of this shape, placed here, would be inside the rock. Zero means clear.
+func _shape_depth(radius: float, height: float, local: Transform3D) -> float:
+	_probe_capsule.radius = radius
+	_probe_capsule.height = height
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = _probe_capsule
+	q.transform = global_transform * local
+	q.collision_mask = 1
+	q.exclude = [get_rid()]
+	q.margin = 0.0
+	var pairs := get_world_3d().direct_space_state.collide_shape(q, 8)
+	var deepest := 0.0
+	for i in range(0, pairs.size() - 1, 2):
+		deepest = maxf(deepest, pairs[i].distance_to(pairs[i + 1]))
+	return deepest
+
+## Would this capsule start the step clear of the rock - or at least no deeper in it than the
+## one we have? A shape that gets smaller is always allowed, because shrinking is the way out of
+## anything; a shape that would be embedded when the current one is not is refused, and the
+## body keeps the shape it has until the rock gives it room for the new one.
+func _shape_clear(radius: float, height: float, local: Transform3D) -> bool:
+	var depth := _shape_depth(radius, height, local)
+	if depth <= SHELL_SKIN:
+		return true
+	if _clear_shape.is_empty():
+		return false
+	var now: float = _shape_depth(_clear_shape["radius"], _clear_shape["height"], _clear_shape["local"])
+	return depth <= now + 0.005
 
 ## Nobody should ever fall out of the world. A cave is a hollow shell with nothing outside it,
 ## so a body that gets through the rock - or is put somewhere it should not be - falls until
@@ -369,9 +475,15 @@ func _read_input(delta: float) -> void:
 	if intent.slate and slate:
 		slate.toggle()
 
-## The body's own frame: x across the passage, y up it, z back the way you came. The ring is
-## cast in the x/y plane, so it measures the cross-section you have to fit through rather than
-## an arbitrary horizontal slice - which matters the moment a passage tilts.
+## The body's own frame: x across the passage TO THE RIGHT, y up it, z back the way you came.
+## The ring is cast in the x/y plane, so it measures the cross-section you have to fit through
+## rather than an arbitrary horizontal slice - which matters the moment a passage tilts.
+##
+## `across` is forward x up, which is the right-hand side, the same side as Godot's camera +x.
+## It was up x forward, which is the LEFT - and every producer puts "right" in Intent.move.x,
+## so A walked you right and D walked you left on every platform at once. The probes never
+## noticed, because a ring and a pair of side casts are symmetric; only the strafe in `_move`
+## reads the sign, and it read it backwards.
 func _body_frame() -> Basis:
 	var fwd := -origin.global_transform.basis.z
 	if xr_active:
@@ -381,8 +493,8 @@ func _body_frame() -> Basis:
 	if fwd.length_squared() < 0.001:
 		fwd = Vector3.FORWARD
 	fwd = fwd.normalized()
-	var across := Vector3.UP.cross(fwd).normalized()
-	return Basis(across, fwd.cross(across).normalized(), -fwd)
+	var across := fwd.cross(Vector3.UP).normalized()
+	return Basis(across, across.cross(fwd).normalized(), -fwd)
 
 func chest_point() -> Vector3:
 	# Where the widest part of you is: roughly at the eye when upright, and just off the floor
@@ -404,12 +516,15 @@ func chest_point() -> Vector3:
 func _shape_body() -> void:
 	var b := body.box()
 	var prone: bool = body.posture >= CaverBody.BELLY and body.name_of() != "commit"
+	var radius: float
+	var height: float
+	var local := Transform3D.IDENTITY
 	if prone:
 		# Head first, the chest IS the height, and the height is the mechanic: the Devil's Pinch
 		# is a flattened tube, and at full skin a relaxed chest slides under a roof the body model
 		# says it cannot. Same quarter skin as the upright squeeze postures below.
 		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() == "superman" else 1.0)
-		_capsule.radius = clampf(b.y * 0.5 - skin, 0.07, 0.30)
+		radius = clampf(b.y * 0.5 - skin, 0.07, 0.30)
 		# Never longer than it can turn in, and never longer than it needs to be.
 		#
 		# A metre of capsule lying in an eighty-centimetre tube cannot rotate: asked to face a
@@ -419,16 +534,16 @@ func _shape_body() -> void:
 		# that nose goes, the harder Godot shoves it back, and a body moving forward at a third
 		# of a metre a second covers half a metre in forty-five seconds. Half the length is half
 		# the dig.
-		_capsule.height = clampf(body.width * 0.92, _capsule.radius * 2.0 + 0.02, PRONE_LENGTH)
+		height = clampf(body.width * 0.92, radius * 2.0 + 0.02, PRONE_LENGTH)
 		var up := _floor_up()
-		body_shape.basis = _prone_basis(up)
+		local.basis = _prone_basis(up)
 		# Offset along the FLOOR NORMAL, not along world up. The capsule turns about its own
 		# centre, so a body lying at thirty degrees with its centre a radius above the origin
 		# has its back end a quarter of a metre underneath the floor - and a trimesh with
 		# backface collision on is perfectly happy to keep it there, reading four centimetres of
 		# headroom in a passage 60 cm tall and folding the body down to superman inside the
 		# rock. Along the normal, the capsule sits on the slope however steep the slope is.
-		body_shape.position = up * (_capsule.radius + 0.01)
+		local.origin = up * (radius + 0.01)
 	else:
 		# In `commit` and `superman` the width IS the mechanic, so the skin has to get out of
 		# its way - `superman` is the shape that decides whether a lead admits you at all, and
@@ -437,10 +552,41 @@ func _shape_body() -> void:
 		# is worth three and a half: at full skin a relaxed chest slides through the crux the
 		# body model says is shut, which is the one thing the Devil's Pinch must never do.
 		var skin: float = CAPSULE_SKIN * (0.25 if body.name_of() in ["commit", "superman"] else 1.0)
-		_capsule.radius = clampf(minf(b.x, 0.46) * 0.5 - skin, 0.09, 0.28)
-		_capsule.height = maxf(b.y, _capsule.radius * 2.0 + 0.02)
-		body_shape.basis = Basis.IDENTITY
-		body_shape.position = Vector3(0, _capsule.height * 0.5, 0)
+		radius = clampf(minf(b.x, 0.46) * 0.5 - skin, 0.09, 0.28)
+		height = maxf(b.y, radius * 2.0 + 0.02)
+		local.origin = Vector3(0, height * 0.5, 0)
+	_apply_shape(radius, height, local)
+
+## Only a shape that is clear of the rock - or no deeper in it than the last one - goes on the
+## body. The check is skipped when nothing has changed, which is most steps standing still, and
+## on the first fit after a teleport, where there is no last shape to fall back on.
+func _apply_shape(radius: float, height: float, local: Transform3D) -> void:
+	if not _clear_shape.is_empty():
+		var same: bool = absf(radius - _clear_shape["radius"]) < 0.001 \
+			and absf(height - _clear_shape["height"]) < 0.001 \
+			and local.origin.distance_to(_clear_shape["local"].origin) < 0.002 \
+			and local.basis.z.dot(_clear_shape["local"].basis.z) > 0.9995 \
+			and local.basis.y.dot(_clear_shape["local"].basis.y) > 0.9995
+		if same:
+			return
+		if not _shape_clear(radius, height, local):
+			refits += 1
+			if _debug_refit and refits % 24 == 1:
+				var prev: Transform3D = _clear_shape["local"]
+				print("[refit] #%d %s want r%.3f h%.3f depth %.3f | have r%.3f h%.3f depth %.3f | tilt %.1f->%.1f deg, yaw %.1f deg, floor %s %.0f deg, rope %s, p=%.2f at %s"
+					% [refits, body.name_of(), radius, height, _shape_depth(radius, height, local),
+						_clear_shape["radius"], _clear_shape["height"],
+						_shape_depth(_clear_shape["radius"], _clear_shape["height"], prev),
+						rad_to_deg(acos(clampf(prev.basis.y.y, -1.0, 1.0))),
+						rad_to_deg(acos(clampf(local.basis.y.y, -1.0, 1.0))),
+						rad_to_deg(prev.basis.y.signed_angle_to(local.basis.y, Vector3.UP)),
+						is_on_floor(), rad_to_deg(get_floor_angle()) if is_on_floor() else 0.0,
+						rope != null and rope.clipped, body.pressure, global_position])
+			return
+	_capsule.radius = radius
+	_capsule.height = height
+	body_shape.transform = local
+	_clear_shape = {"radius": radius, "height": height, "local": local}
 
 ## The surface under the body, as an up vector, clamped to a tilt a body would actually lie at.
 ## Only trusted while there IS a floor: in the air you lie level, which is both correct and what
@@ -793,6 +939,8 @@ func debug_state() -> Dictionary:
 		"wedged": body.wedged,
 		"air": body.air,
 		"depth": -global_position.y,
+		"unclips": unclips,
+		"refits": refits,
 	}
 
 ## What the body is actually touching, and how far the actual capsule could actually go.

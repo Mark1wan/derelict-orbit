@@ -383,6 +383,27 @@ func _autotest() -> void:
 	else:
 		assert(lights <= 4, "the dark cave should have almost no lights, found %d" % lights)
 
+	# Sideways means sideways. +x in Intent.move is the right-hand side of wherever you are
+	# facing, on every platform. It was the left, on every platform, and nothing noticed for
+	# a fortnight because a ring of rays is symmetric and the walker only ever asks for forward.
+	var facing: Vector3 = -caver.origin.global_transform.basis.z
+	facing.y = 0.0
+	facing = facing.normalized()
+	var right: Vector3 = facing.cross(Vector3.UP)
+	var from := caver.global_position
+	caver.debug_move(Vector2(1, 0))
+	for i in 50:
+		await get_tree().physics_frame
+	caver.debug_move(Vector2.ZERO)
+	var went: Vector3 = caver.global_position - from
+	went.y = 0.0
+	print("[autotest] strafe: asked for right, went %.2f m right and %.2f m forward"
+		% [went.dot(right), went.dot(facing)])
+	assert(went.dot(right) > 0.15, "+x should move you to your RIGHT, went %s" % went)
+	# Mostly sideways, not exactly: the Cellar floor is breakdown, and a body strafing across
+	# it drifts down the slope it is standing on.
+	assert(absf(went.dot(facing)) < went.dot(right) * 0.75, "a strafe should not be mostly forward")
+
 	# 2. The Gullet puts you on your hands and knees without being asked.
 	await _put_in("gullet", 0.6)
 	assert(b.posture >= CaverBody.KNEES, "the Gullet should fold you down, got %s" % b.name_of())
@@ -551,6 +572,22 @@ func _autotest_touch() -> void:
 	var walked := before.distance_to(caver.global_position)
 	assert(walked > 0.25 and walked < 5.0, "the touch stick moved you %.2f m in 1.2 s" % walked)
 	print("[autotest] stick moved %.2f m" % walked)
+
+	# And the stick's right is your right.
+	await _put_in("cellar", 0.5)
+	var facing: Vector3 = -caver.origin.global_transform.basis.z
+	facing.y = 0.0
+	var right: Vector3 = facing.normalized().cross(Vector3.UP)
+	before = caver.global_position
+	touch_ui.finger_down(1, Vector2(120, 340))
+	touch_ui.finger_move(1, Vector2(180, 340))
+	for i in 60:
+		await get_tree().physics_frame
+	touch_ui.finger_up(1, Vector2(180, 340))
+	var went: Vector3 = caver.global_position - before
+	went.y = 0.0
+	print("[autotest] stick right: went %.2f m right" % went.dot(right))
+	assert(went.dot(right) > 0.15, "pushing the stick right should move you RIGHT, went %s" % went)
 
 	# Dragging on the right looks around.
 	var yaw := caver.yaw
@@ -946,6 +983,10 @@ func _autotest_route() -> void:
 	# and you would never know, so it is asserted rather than trusted.
 	print("[autotest] safety net fired %d times" % caver.rescues)
 	assert(caver.rescues == 0, "fell out of the world %d times - the cave leaks" % caver.rescues)
+	# The shell guard is the last line, not the first: a route that needs it is a route where
+	# the capsule went through a wall, and the reason wants finding rather than hiding.
+	print("[autotest] shell guard: %d times through a wall, %d shapes refused" % [caver.unclips, caver.refits])
+	assert(caver.unclips == 0, "the body went through the shell %d times on the route" % caver.unclips)
 
 	if not blocked.is_empty():
 		print("[autotest] BLOCKED: " + ", ".join(blocked))
