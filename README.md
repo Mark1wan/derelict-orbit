@@ -237,6 +237,7 @@ scripts/palette.gd     the materials the kit's glTF names are remapped to (textu
                        power-controlled emissives)
 scripts/station.gd     builds a deck from the layout: hull, lights, terminals per room type, name plates, props,
                        the outside (planet, stars, truss, solar wings), navigation for the stalker
+scripts/deck_cull.gd   draws only the modules the eye can see: a portal walk through the plan's openings
 scripts/station_classic.gd  the original hand-laid hub-and-four-arms map, kept: swap it onto the Station node
 kit/                   the modular station kit (glTF, 4 m cells, rooms 3x3: ten rooms) plus 22 props
                        (prop_*.glb), classed wall attachment / floating / room equipment. Every
@@ -340,13 +341,17 @@ each. What keeps it inside that:
   catches a rail the way it did).
 - **No flashlight shadow map in the headset**, and at most three sunlit windows.
 - **Nothing blended over the whole view unless it is showing**: the fade and the spin vignette are hidden while clear.
+- **Only the modules you can see are drawn** (`scripts/deck_cull.gd`): a walk through the plan's openings
+  from where your head is, redone every time it moves 4 cm. Built to draw too much rather than too little:
+  a lamp stays on while anything in its range is in view, so no light changes on a wall you can see.
 
-Measured on one deck (`DERELICT_SEED=4242`), 44 viewpoints by day and night:
+Measured on one deck (`DERELICT_SEED=4242`), every room, doorway and corridor by day and night:
 
-| | worst frame | mean | texture memory |
+| | worst frame inside | mean | texture memory |
 |---|---|---|---|
-| before | 563 draws | 242 | 51.8 MB |
-| now | 401 draws | 167 | 52.8 MB |
+| first pass | 563 draws | 242 | 51.8 MB |
+| fittings merged, no beam shadow | 283 draws | 167 | 52.8 MB |
+| drawing only what can be seen | 166 draws | 101 | 52.8 MB |
 
 Run the probe on any machine - draw calls and memory do not depend on the GPU measuring them:
 
