@@ -98,24 +98,30 @@ last seen. The MAIN POWER panel at night needs no tool.
 
 ## The nights
 
-Every night rolls its own events, independently, so they can land together:
+Every night rolls its own events, independently, so they can land together. The odds climb as the run goes on
+(from the first night to the last; unfinished shifts push them on faster):
 
-| Event | Chance | What you do |
-|---|---|---|
-| **Power failure** | 1 in 3 | you wake in the dark; reach the MAIN POWER panel in the POWER PLANT and hold it |
-| **Toilet trip** | 1 in 4 | you wake needing the toilet: get into the working stall in the WASHROOM and shut the door (hold **trigger** / **USE** on it), look at the toilet - the screen goes black - then turn round and open the door. With the power on, that is half the night: go back to bed (the room you woke in) |
-| **Both** | 1 in 12 | the toilet comes first: the power panel will not take a hold until you have been |
-| **Neither** | 1 in 2 | a quiet night. The screen stays black and the next shift starts |
+| Event | Night 1 | Night 7 | What you do |
+|---|---|---|---|
+| **Power failure** | 40 % | 70 % | you wake in the dark; reach the MAIN POWER panel in the POWER PLANT and hold it |
+| **Toilet trip** | 25 % | 40 % | you wake needing the toilet: get into the working stall in the WASHROOM and shut the door (hold **trigger** / **USE** on it), look at the toilet - the screen goes black - then turn round and open the door. With the power on, that is half the night: go back to bed (the room you woke in) |
+| **Both** | 10 % | 28 % | the toilet comes first: the power panel will not take a hold until you have been |
+| **Neither** | 45 % | 18 % | a quiet night. The screen stays black and the next shift starts |
+
+**Dread.** Every night in a row the power holds adds 15 % to its chance of failing, and after two nights in a row
+with the lights on the third one always fails. A 7-night run averages about 4 or 5 power failures and 1 or 2 quiet
+nights, never a single failure. The bangs and whispers in the dark also come closer together: by the last night the
+gap between them is about half what it was on the first.
 
 On a night the power stays on, the deck runs its night cycle: every lamp at 30 %, dark enough for the flashlight to
 matter and light enough to see what is standing in a doorway.
 
-**The bundle.** On half the toilet trips, when you open the stall door, there is a bundle of sticks hanging in the
-air right outside it, at the height of your eyes - a dozen twigs bound with twine and a red thread, a strip of cloth
-knotted round it, a loop of cord at the top as though it had been hung from something. It is put there while the
-screen is black, so you never see it arrive, only find it on the way out.
+**The bundle.** On half the toilet trips (70 % by the last night), when you open the stall door, there is a bundle
+of sticks hanging in the air right outside it, at the height of your eyes - a dozen twigs bound with twine and a red
+thread, a strip of cloth knotted round it, a loop of cord at the top as though it had been hung from something. It is
+put there while the screen is black, so you never see it arrive, only find it on the way out.
 
-**The thing that walks** (the stalker) is never out on the first night. After that:
+**The thing that walks** (the stalker) is never out on the first night, or on a quiet night. After that:
 
 | Tonight | Chance it is out |
 |---|---|
@@ -123,6 +129,10 @@ screen is black, so you never see it arrive, only find it on the way out.
 | toilet trip, lights on | 20 % |
 | toilet trip and power failure | 45 % |
 | ...and the bundle was outside the door | +30 % on either (50 % / 75 %) |
+| ...as the run goes on | up to +20 % on all of them by the last night |
+| ...for every night since the second it has not walked | +20 % more (dread) |
+
+A 7-night run has it out on about 4 of the 6 nights it can be, and practically never on just one.
 
 On a toilet night it is decided in the stall, in the black, and let go the moment you open the door - from the room
 farthest from you that is not the one you are heading for. All of these numbers are constants at the top of "the

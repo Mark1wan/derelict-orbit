@@ -735,23 +735,36 @@ func _autotest_nights() -> void:
 	await get_tree().create_timer(2.0).timeout
 	# the odds, exactly as asked for: set tonight by hand and read the chance back
 	var cases := [
-		# [night, power, toilet, sticks, expected chance of the stalker]
-		[1, true, false, false, 0.0], [1, false, true, true, 0.0], [1, true, true, true, 0.0],
-		[2, true, false, false, 0.80], [5, true, false, false, 0.80],
-		[2, false, true, false, 0.20], [2, false, true, true, 0.50],
-		[2, true, true, false, 0.45], [2, true, true, true, 0.75],
-		[2, false, false, false, 0.0],
+		# [night, power, toilet, sticks, nights the stalker has stayed in, expected chance of it]
+		[1, true, false, false, 0, 0.0], [1, false, true, true, 0, 0.0], [1, true, true, true, 3, 0.0],
+		[4, true, false, false, 0, 0.90], [7, true, false, false, 0, 1.0],
+		[4, false, true, false, 0, 0.30], [4, false, true, true, 0, 0.60],
+		[4, true, true, false, 0, 0.55], [4, true, true, true, 0, 0.85],
+		[4, false, true, false, 2, 0.70], [7, false, false, false, 3, 0.0],
 	]
 	var day0 := Game.day
+	var penalty0 := Game.night_penalty
+	Game.night_penalty = 0
 	for c: Array in cases:
 		Game.day = c[0]
 		Game.night_power_out = c[1]
 		Game.night_toilet = c[2]
 		Game.sticks = c[3]
-		assert(is_equal_approx(Game.monster_chance(), c[4]), "night %d power=%s toilet=%s sticks=%s: stalker chance %.2f, want %.2f" % [c[0], c[1], c[2], c[3], Game.monster_chance(), c[4]])
+		Game.monster_kept = c[4]
+		assert(is_equal_approx(Game.monster_chance(), c[5]), "night %d power=%s toilet=%s sticks=%s kept=%d: stalker chance %.2f, want %.2f" % [c[0], c[1], c[2], c[3], c[4], Game.monster_chance(), c[5]])
+	# the rest climb over the run, and the power gets likelier the longer it has held
+	for c: Array in [[1, 0, 0.40], [4, 0, 0.55], [7, 0, 0.70], [1, 1, 0.55], [4, 1, 0.70], [1, 2, 1.0], [7, 2, 1.0]]:
+		Game.day = c[0]
+		Game.power_held = c[1]
+		assert(is_equal_approx(Game.power_chance(), c[2]), "night %d held %d: power chance %.2f, want %.2f" % [c[0], c[1], Game.power_chance(), c[2]])
+	for c: Array in [[1, 0.25, 0.50], [4, 0.325, 0.60], [7, 0.40, 0.70]]:
+		Game.day = c[0]
+		assert(is_equal_approx(Game.toilet_chance(), c[1]) and is_equal_approx(Game.sticks_chance(), c[2]), "night %d: toilet %.3f sticks %.3f" % [c[0], Game.toilet_chance(), Game.sticks_chance()])
 	Game.day = day0
+	Game.night_penalty = penalty0
+	Game.power_held = 0
+	Game.monster_kept = 0
 	Game._clear_night()
-	assert(is_equal_approx(Game.POWER_FAILURE_CHANCE, 1.0 / 3.0) and is_equal_approx(Game.TOILET_CHANCE, 0.25) and is_equal_approx(Game.STICKS_CHANCE, 0.5), "event odds")
 	# and the rolls themselves, unpinned, land near those odds over a lot of nights
 	var n := 20000
 	var hits := {"power": 0, "toilet": 0, "sticks": 0}
@@ -759,7 +772,7 @@ func _autotest_nights() -> void:
 		hits["power"] += 1 if Game._roll("power", Game.POWER_FAILURE_CHANCE) else 0
 		hits["toilet"] += 1 if Game._roll("toilet", Game.TOILET_CHANCE) else 0
 		hits["sticks"] += 1 if Game._roll("sticks", Game.STICKS_CHANCE) else 0
-	assert(absf(hits["power"] / float(n) - 1.0 / 3.0) < 0.02 and absf(hits["toilet"] / float(n) - 0.25) < 0.02 and absf(hits["sticks"] / float(n) - 0.5) < 0.02, "rolls: %s of %d" % [hits, n])
+	assert(absf(hits["power"] / float(n) - Game.POWER_FAILURE_CHANCE) < 0.02 and absf(hits["toilet"] / float(n) - Game.TOILET_CHANCE) < 0.02 and absf(hits["sticks"] / float(n) - Game.STICKS_CHANCE) < 0.02, "rolls: %s of %d" % [hits, n])
 	print("[nights] odds ok: %s of %d" % [hits, n])
 
 	# a quiet night: the screen never comes up, the next shift starts on its own

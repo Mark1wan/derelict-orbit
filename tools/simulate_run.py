@@ -55,13 +55,22 @@ FAULT_BREATH = num(HAUNT, r"const FAULT_BREATH := ([\d.]+)", 0.07)
 SEEN_CHANCE = num(FAE, r"const SEEN_CHANCE := ([\d.]+)", 0.45)
 BOLT_CHANCE = num(CHUPA, r"const BOLT_CHANCE := ([\d.]+)", 0.25)
 RITUAL_DAY = int(num(HAUNT, r"if Game\.day < (\d+)", 6))
+NIGHT_BEAT_LAST = num(HAUNT, r"const NIGHT_BEAT_LAST := ([\d.]+)", 0.55)
 # the night's rolls (scripts/game.gd, "the night")
-POWER_FAILURE = const(GAME, "POWER_FAILURE_CHANCE", 1.0 / 3.0)
+MAX_DAYS = int(const(GAME, "MAX_DAYS", 7))
+POWER_FAILURE = const(GAME, "POWER_FAILURE_CHANCE", 0.4)
+POWER_FAILURE_LAST = const(GAME, "POWER_FAILURE_LAST", 0.7)
+POWER_DREAD = const(GAME, "POWER_DREAD", 0.15)
+POWER_DRY_MAX = int(const(GAME, "POWER_DRY_MAX", 2))
 TOILET = const(GAME, "TOILET_CHANCE", 0.25)
+TOILET_LAST = const(GAME, "TOILET_LAST", 0.4)
 MONSTER_POWER = const(GAME, "MONSTER_POWER", 0.8)
 MONSTER_TOILET = const(GAME, "MONSTER_TOILET", 0.2)
 MONSTER_COMBO = const(GAME, "MONSTER_COMBO", 0.45)
+MONSTER_RAMP = const(GAME, "MONSTER_RAMP", 0.2)
+MONSTER_DREAD = const(GAME, "MONSTER_DREAD", 0.2)
 STICKS = const(GAME, "STICKS_CHANCE", 0.5)
+STICKS_LAST = const(GAME, "STICKS_LAST", 0.7)
 STICKS_MONSTER = const(GAME, "STICKS_MONSTER", 0.3)
 FIRST_MONSTER_NIGHT = int(const(GAME, "FIRST_MONSTER_NIGHT", 2))
 QUIET_NIGHT = const(GAME, "QUIET_NIGHT", 7.0)
@@ -89,6 +98,15 @@ LABEL = {
 APPARITIONS = {"shadow", "shadow_close", "watcher", "ghoul", "thrown", "chupacabra"}
 
 
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+
+def night_ramp(I):
+    """Game.night_ramp: 0 on the first night, 1 on the last; unfinished shifts push it on."""
+    return max(0.0, min(1.0, (I - 1.0) / float(MAX_DAYS - 1)))
+
+
 def clock(t):
     """The game's own wrist clock: 08:00 + twelve hours across a shift."""
     frac = max(0.0, min(1.0, t / DAY_LENGTH))
@@ -101,6 +119,8 @@ def run(nights, seed, skill=0.72):
     drives night_penalty, which is what drives everything else."""
     rng = random.Random(seed)
     penalty = 0
+    power_held = 0      # Game.power_held / monster_kept: the dread
+    monster_kept = 0
     log = []
     tally = {}
     for day in range(1, nights + 1):
@@ -146,18 +166,27 @@ def run(nights, seed, skill=0.72):
             penalty += 1
         night_I = day + penalty
         # tonight's rolls, the way Game._begin_night and the washroom's blackout make them
-        power = rng.random() < POWER_FAILURE
-        toilet = rng.random() < TOILET
-        sticks = toilet and rng.random() < STICKS
+        ramp = night_ramp(night_I)
+        if power_held >= POWER_DRY_MAX:
+            power_p = 1.0
+        else:
+            power_p = min(1.0, lerp(POWER_FAILURE, POWER_FAILURE_LAST, ramp) + POWER_DREAD * power_held)
+        power = rng.random() < power_p
+        toilet = rng.random() < lerp(TOILET, TOILET_LAST, ramp)
+        sticks = toilet and rng.random() < lerp(STICKS, STICKS_LAST, ramp)
+        power_held = 0 if power else power_held + 1
         chance = 0.0
-        if day >= FIRST_MONSTER_NIGHT:
+        if day >= FIRST_MONSTER_NIGHT and (power or toilet):
             if toilet:
                 chance = MONSTER_COMBO if power else MONSTER_TOILET
-            elif power:
+            else:
                 chance = MONSTER_POWER
+            chance += MONSTER_RAMP * ramp + MONSTER_DREAD * monster_kept
             if sticks:
                 chance += STICKS_MONSTER
         stalker = rng.random() < min(1.0, chance)
+        if day >= FIRST_MONSTER_NIGHT:
+            monster_kept = 0 if stalker else monster_kept + 1
         kind = "combo" if power and toilet else ("power" if power else ("toilet" if toilet else "quiet"))
         for k, on in (("night_" + kind, True), ("stalker_nights", stalker), ("bundles", sticks)):
             if on:
@@ -175,7 +204,8 @@ def run(nights, seed, skill=0.72):
             "eyes": day >= 2,
             "beats": [],
         }
-        nt = rng.uniform(12.0, 25.0)
+        gap = lerp(1.0, NIGHT_BEAT_LAST, ramp)                    # night beats close up over the run
+        nt = rng.uniform(12.0, 25.0) * gap
         walk = 0.0
         if power:
             walk += rng.uniform(70.0, 190.0) + 9.0 * night_I     # how long to find the power room
@@ -188,7 +218,7 @@ def run(nights, seed, skill=0.72):
             nt = walk
         while nt < walk:
             night["beats"].append((nt, "bang" if rng.random() < 0.5 else "whisper"))
-            nt += rng.uniform(9.0, 22.0)
+            nt += rng.uniform(9.0, 22.0) * gap
         night["length"] = walk
         log.append({"day": day, "I": I, "night_I": night_I, "events": events,
                     "done": done, "night": night})

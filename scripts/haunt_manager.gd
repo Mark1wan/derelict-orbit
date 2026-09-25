@@ -8,8 +8,9 @@ extends Node3D
 ##   I>=4  loose objects get shoved
 ##   I>=5  brief full blackouts during the day
 ##   I>=6  shadows cross much closer
-## Night: bangs and whispers, and on some nights the Stalker (see stalker.gd) - only when
-## Game.monster_released says so, which is never the first night and not every night after.
+## Night: bangs and whispers, coming closer together as the run goes on (Game.night_ramp), and on
+## some nights the Stalker (see stalker.gd) - only when Game.monster_released says so, which is
+## never the first night and not every night after.
 
 ## Daytime apparitions take the lighting with them about a third of the time: whatever lamp is
 ## nearest the thing stutters while it is there. The flicker itself still means nothing - the
@@ -24,6 +25,7 @@ extends Node3D
 const APPARITION_FLICKER := 0.30
 const HAUNTED_BREATH := 0.75    ## chance a haunted stutter carries the sound underneath it
 const FAULT_BREATH := 0.07      ## ...and the chance a genuinely broken lamp does too
+const NIGHT_BEAT_LAST := 0.55   ## night bangs and whispers, by the last night: this much of the first night's gap
 
 var next_event := 6.0
 var watcher: ShadowFigure = null
@@ -469,7 +471,7 @@ func _start_night() -> void:
 	if is_instance_valid(stalker):
 		stalker.queue_free()
 	stalker = null
-	next_event = randf_range(12.0, 25.0)
+	next_event = randf_range(12.0, 25.0) * _night_gap()
 	if Game.night_power_out:
 		Sfx.play("powerdown", -2.0)
 	if not Game.is_quiet_night():
@@ -518,11 +520,15 @@ func _night_tick(delta: float) -> void:
 		return          # asleep: nothing to hear
 	next_event -= delta
 	if next_event <= 0.0:
-		next_event = randf_range(9.0, 22.0)
+		next_event = randf_range(9.0, 22.0) * _night_gap()
 		if randf() < 0.5:
 			_bang()
 		else:
 			_whisper()
+
+## How much of the first night's gap between bangs and whispers is left tonight.
+func _night_gap() -> float:
+	return lerpf(1.0, NIGHT_BEAT_LAST, Game.night_ramp())
 
 func _end_night() -> void:
 	if is_instance_valid(stalker):
