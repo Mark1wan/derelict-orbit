@@ -97,7 +97,7 @@ func _ready() -> void:
 ## or a desktop - so the materials it built may be the wrong ones. main._begin calls this again
 ## when the mode is settled, and a palette built for the other mode is thrown away here.
 func regenerate(seed_: int) -> void:
-	if pal == null or pal.retro != Game.retro:
+	if pal == null:
 		pal = Palette.new()
 	if root:
 		remove_child(root)
@@ -619,10 +619,6 @@ func _prop(piece: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
 		var key: String = Palette.KIT_MAP.get(names[s], "metal")
 		mi.set_surface_override_material(s, pal.get_mat(key))
 	pivot.add_child(mi)
-	if Game.retro:
-		# a drifting crate 25 m down a corridor is a handful of pixels and a draw call each: a
-		# generated deck can otherwise put every prop it has in one doorway view
-		mi.visibility_range_end = 26.0
 
 	# one box collider, so a prop is something you can grab and pull off
 	var body := StaticBody3D.new()
@@ -751,12 +747,7 @@ func _build_washroom() -> void:
 
 func _dust(center: Vector3, extents: Vector3, amount := 36) -> void:
 	var p := CPUParticles3D.new()
-	# every mote is a blended quad, and blended pixels are what a tiler charges most for: PS1 mode
-	# keeps the drifting dust (it is half of what sells zero-G) at a third of the count, and only
-	# while you are in the room with it
-	p.amount = maxi(8, amount / 3) if Game.retro else amount
-	if Game.retro:
-		p.visibility_range_end = 12.0
+	p.amount = amount
 	p.lifetime = 16.0
 	p.preprocess = 16.0
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX

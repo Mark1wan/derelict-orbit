@@ -15,14 +15,11 @@ var desk_btn: Button
 var touch_btn: Button
 var touch_ui: TouchControls
 var touch_device := false
-var _ps1_by_hand := false        # the PS1 switch was set on the title screen: do not override it
 var _power_was_off := false
 
-## The headset's eye buffers: a fraction of the size the browser recommends (PS1 mode is the low
-## end), and how hard their edges are foveated in either look (0 not at all, 1 as hard as the
-## browser goes).
-const XR_SCALE := 0.6
-const XR_SCALE_MODERN := 0.85
+## The headset's eye buffers: a fraction of the size the browser recommends, and how hard their
+## edges are foveated (0 not at all, 1 as hard as the browser goes).
+const XR_SCALE := 0.85
 const XR_FOVEATION := 1.0
 const XR_HZ := 72.0              # the physics ticks at this too: see _on_session_started
 
@@ -1209,19 +1206,6 @@ func _make_ui() -> void:
 	gfx.toggled.connect(func(on: bool) -> void: Game.low_quality = on)
 	gfx.visible = touch_device
 	box.add_child(gfx)
-	# PS1 mode: the frame budget and the look are the same switch (scripts/ps1.gd). Off on a
-	# desktop, on for a phone, and ENTER VR turns it on unless this has been unticked by hand.
-	Game.retro = Game.default_retro(false, touch_device)
-	var ps1 := CheckButton.new()
-	ps1.text = "PS1 mode: vertex lighting, chunky pixels (always on in VR - it is what holds 72 Hz)"
-	ps1.button_pressed = Game.retro
-	ps1.toggled.connect(func(on: bool) -> void:
-		Game.retro = on
-		_ps1_by_hand = true
-		if player.started:
-			_apply_quality())
-	ps1.visible = Game.forced_retro() < 0
-	box.add_child(ps1)
 	var help := Label.new()
 	if touch_device:
 		help.text = "Hold the phone sideways. Left thumb: thrusters. Right side: drag to look.\nPress and hold a wall to grab it, then drag to pull yourself. Two fingers twist to roll.\nUSE works a terminal with the right tool. The belt buttons swap what is in your hand."
@@ -1264,22 +1248,16 @@ func _on_session_supported(session_mode: String, supported: bool) -> void:
 		status.text = "No immersive VR available in this browser."
 
 func _enter_vr() -> void:
-	# a headset draws everything twice at high resolution: PS1 mode is the default there unless
-	# somebody deliberately turned it off on the title screen
-	if not _ps1_by_hand and Game.forced_retro() < 0:
-		Game.retro = true
 	webxr.session_mode = "immersive-vr"
 	webxr.requested_reference_space_types = "local-floor, local"
 	webxr.required_features = "local"
 	webxr.optional_features = "local-floor"
 	# Pixels are what a Quest 3 runs out of first: two eye buffers, 72 times a second, through a
-	# browser. PS1 mode renders 0.6 of each eye's width - 36% of the pixels - and the headset's own
-	# compositor scales it back up, which is the chunky upscale the look wants anyway. Foveation
-	# draws the edges of each eye coarser still, where the lens blurs them regardless.
+	# browser. Each eye renders at XR_SCALE of its width and the headset's own compositor scales it
+	# back up. Foveation draws the edges of each eye coarser still, where the lens blurs them anyway.
 	if OS.has_feature("web"):
-		var size := XR_SCALE if Game.retro else XR_SCALE_MODERN
-		print("[xr] eye buffers at %.2f, foveation %.2f: %s" % [size, XR_FOVEATION,
-			JavaScriptBridge.eval(XR_LAYER_JS % [size, XR_FOVEATION], true)])
+		print("[xr] eye buffers at %.2f, foveation %.2f: %s" % [XR_SCALE, XR_FOVEATION,
+			JavaScriptBridge.eval(XR_LAYER_JS % [XR_SCALE, XR_FOVEATION], true)])
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
@@ -1292,10 +1270,6 @@ func _on_session_started() -> void:
 		if absf(float(hz) - XR_HZ) < 0.5:
 			webxr.set_display_refresh_rate(float(hz))
 			break
-	# no multisampling in the headset: at 0.6 scale the edges are meant to be hard, and the
-	# resolve is pure cost on a tiler drawing everything twice
-	if Game.retro:
-		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 	ui.visible = false
 	_begin(true)
 
@@ -1327,12 +1301,9 @@ func _start_touch() -> void:
 ## 2500), no MSAA, a smaller shadow map for the flashlight, and fewer windows lit by the sun.
 func _apply_quality() -> void:
 	var vp := get_viewport()
-	if Game.low_quality or Game.retro:
+	if Game.low_quality:
 		var wide := float(get_window().size.x)
-		# PS1 mode renders even smaller than low graphics and lets the upscale do the rest: a
-		# 960-pixel-wide buffer is about what the console drew, and it is a quarter of the pixels
-		var across := 960.0 if Game.retro else 1100.0
-		vp.scaling_3d_scale = clampf(across / wide, 0.3, 1.0) if wide > 1.0 else 0.6
+		vp.scaling_3d_scale = clampf(1100.0 / wide, 0.3, 1.0) if wide > 1.0 else 0.6
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.positional_shadow_atlas_size = 1024
 	else:
@@ -1344,13 +1315,8 @@ func _begin(xr: bool) -> void:
 	Game.xr = xr
 	if not xr:
 		_apply_quality()
-	# the deck was built at load, before this was known: PS1 mode changes every material on it
-	if station.pal == null or station.pal.retro != Game.retro:
+	if station.pal == null:
 		station.regenerate(Game.layout_seed)
-	if Game.orbit != null:
-		Game.orbit.apply_quality()
-	# the terminals, the tools, the airlock, the suit: built outside Palette, cheapened here
-	Ps1.cheapen_tree(self)
 	player.begin(xr)
 	player.teleport_head_to(station.start_point())
 	Sfx.set_ambient("hum")

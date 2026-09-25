@@ -415,30 +415,16 @@ class Merger:
 		for n: String in tools:
 			var st: SurfaceTool = tools[n]
 			var g: String = group_of[n]
-			# PS1 mode: the static groups all draw from one texture page, so they merge into one
-			# surface and one draw call. The group's own texture repeat is baked into the UVs here
-			# (the material's uv_scale is 1 for the page) and its quarter goes in UV2.
-			var target := g
-			var page := Vector2.ZERO
-			var uv_repeat := 1.0
-			if Game.retro and Palette.ATLAS_PAGE.has(g):
-				target = Palette.ATLAS_GROUP
-				page = Palette.ATLAS_PAGE[g]
-				uv_repeat = Palette.ATLAS_UV[g]
 			st.deindex()
-			# tangents are for normal maps, and PS1 mode reads none - so do not carry four more
-			# floats per vertex across the bus for every hull chunk
-			if Palette.TEXTURED_GROUPS.has(g) and not Game.retro:
+			if Palette.TEXTURED_GROUPS.has(g):
 				st.generate_tangents()
 			var arr: Array = st.commit_to_arrays()
 			var pos: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			if pos.is_empty():
 				continue
-			if not acc.has(target):
-				acc[target] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "uv2": PackedVector2Array(), "col": PackedColorArray(), "solid": PackedVector3Array()}
-			var a: Dictionary = acc[target]
-			# a group that carries no collider of its own (stripes, light strips) must not drag the
-			# chunk's collider along when it merges into the page
+			if not acc.has(g):
+				acc[g] = {"pos": PackedVector3Array(), "nrm": PackedVector3Array(), "tan": PackedFloat32Array(), "uv": PackedVector2Array(), "col": PackedColorArray(), "solid": PackedVector3Array()}
+			var a: Dictionary = acc[g]
 			if solid_of.get(n, true) and not no_collide.has(g):
 				a["solid"].append_array(pos)
 			a["pos"].append_array(pos)
@@ -449,15 +435,8 @@ class Merger:
 			if arr[Mesh.ARRAY_TEX_UV] != null:
 				uvs = arr[Mesh.ARRAY_TEX_UV]
 			if uvs.size() != pos.size():
-				uvs.resize(pos.size())          # a group without UVs (flat metals) takes the page's corner
-			if uv_repeat != 1.0:
-				for i in uvs.size():
-					uvs[i] *= uv_repeat
+				uvs.resize(pos.size())          # a group without UVs (flat metals)
 			a["uv"].append_array(uvs)
-			var pages := PackedVector2Array()
-			pages.resize(pos.size())
-			pages.fill(page)
-			a["uv2"].append_array(pages)
 			var cols := PackedColorArray()
 			cols.resize(pos.size())
 			cols.fill(tint_of[n])
@@ -471,8 +450,6 @@ class Merger:
 			arrays[Mesh.ARRAY_COLOR] = a["col"]
 			if a["uv"].size() == a["pos"].size():
 				arrays[Mesh.ARRAY_TEX_UV] = a["uv"]
-			if Game.retro and g == Palette.ATLAS_GROUP and a["uv2"].size() == a["pos"].size():
-				arrays[Mesh.ARRAY_TEX_UV2] = a["uv2"]
 			if a["tan"].size() == a["pos"].size() * 4:
 				arrays[Mesh.ARRAY_TANGENT] = a["tan"]
 			var mesh := ArrayMesh.new()

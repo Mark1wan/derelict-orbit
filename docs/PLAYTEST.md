@@ -77,15 +77,9 @@ handles. In a station with no floor those are the route, not the scenery. The co
   find a stretch where you cannot, that is a wall the fitting placer found no room on - worth
   knowing about.
 - **Frame rate** in the rooms with the most fittings (power plant, server room) and looking down a
-  long corridor through a doorway, which is the worst frame a deck has. **PS1 mode** is on by
-  default in the headset - the title screen's first checkbox - and is what the frame budget is
-  built around; if you turn it off in a headset, expect it to struggle. If it struggles *with* it
-  on, docs/PERFORMANCE.md says what to try next and how to measure it.
-- **PS1 mode, what to check**: text on the terminals and name plates still readable at arm's
-  length; the amber glow on a loose tool still findable in the dark; hazard stripes still yellow
-  and still on the floor edges; no bright seam lines where a wall's plating repeats. Everything
-  you can grab, use or be caught by is unchanged - if something is missing rather than chunkier,
-  that is a bug.
+  long corridor through a doorway, which is the worst frame a deck has. The browser console
+  should print `[xr] eye buffers at 0.85, foveation 1.00: ok` on entering VR. If it struggles,
+  docs/PERFORMANCE.md says what to try next and how to measure it.
 
 ## Desktop, without a headset
 

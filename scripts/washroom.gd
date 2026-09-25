@@ -255,7 +255,6 @@ func _hang_bundle(height: float) -> void:
 	# hanging as if from a thread, a little off true, turned any old way
 	bundle.rotation = Vector3(rng.randf_range(-0.12, 0.12), rng.randf() * TAU, rng.randf_range(-0.12, 0.12))
 	_bundle_t = 0.0
-	Ps1.cheapen_tree(bundle)
 
 func _clear_bundle() -> void:
 	if bundle != null and is_instance_valid(bundle):

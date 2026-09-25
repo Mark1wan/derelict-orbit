@@ -300,10 +300,9 @@ func _make_laser() -> MeshInstance3D:
 
 ## The flashlight and the wrench, both on the belt. Everything else is somewhere on the deck.
 ## The beam's shadow map re-renders everything in the cone every frame - the single most expensive
-## thing on a Quest, so it is desktop-only, and off on low graphics and in PS1 mode (which never
-## had shadow maps either).
+## thing on a Quest, so it is desktop-only, and off on low graphics.
 func _shadow_allowed() -> bool:
-	return started and not xr_active and not Game.low_quality and not Game.retro
+	return started and not xr_active and not Game.low_quality
 
 func _give_starting_kit() -> void:
 	flash_item = Item.make(Item.FLASHLIGHT)
