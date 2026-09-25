@@ -15,10 +15,6 @@ uniform vec3 sun_dir = vec3(0.0, 0.34, -0.94);    // unit, from the station towa
 uniform mat3 earth_basis = mat3(1.0);             // world -> Earth-fixed frame: tilt and spin
 uniform float sun_visible : hint_range(0.0, 1.0) = 1.0;
 uniform float star_gain = 0.85;
-// PS1 mode: the Earth is the one thing on screen with no geometry to hide behind, so every pixel
-// of it pays for this shader twice in a headset. lofi drops the second detail octave, the ocean
-// glint and the limb's second scattering term - the planet still reads as the planet.
-uniform bool lofi = false;
 
 const float TAU_ = 6.28318531;
 const float PI_ = 3.14159265;
@@ -48,7 +44,7 @@ void sky() {
 		// the ground below is magnified far past the texture: tile detail over it at two scales
 		vec2 duv = uv * vec2(40.0, 20.0);
 		vec3 dt = texture(detail, duv).rgb;
-		vec3 dt2 = lofi ? dt : texture(detail, duv * 5.3 + vec2(0.37, 0.11)).rgb;
+		vec3 dt2 = texture(detail, duv * 5.3 + vec2(0.37, 0.11)).rgb;
 		float cloud = smoothstep(0.45, 0.85, min(day.r, min(day.g, day.b)));
 		day *= mix(mix(0.8, 1.2, mix(dt.r, dt2.r, 0.5)), 0.7 + 0.45 * mix(dt.b, dt2.b, 0.4), cloud);
 		float l = dot(N, sun_dir);
@@ -57,10 +53,8 @@ void sky() {
 		vec3 towns = vec3(1.0, 0.72, 0.38) * pop * (dt.g * 0.7 + dt2.g * 0.6) * 2.2;
 		col += towns * (1.0 - smoothstep(-0.12, 0.04, l));
 		// sun glint on open water
-		if (!lofi) {
-			float water = clamp((day.b - day.r) * 4.0, 0.0, 1.0);
-			col += vec3(1.0, 0.92, 0.78) * pow(max(dot(reflect(d, N), sun_dir), 0.0), 80.0) * water * dayf * 0.9;
-		}
+		float water = clamp((day.b - day.r) * 4.0, 0.0, 1.0);
+		col += vec3(1.0, 0.92, 0.78) * pow(max(dot(reflect(d, N), sun_dir), 0.0), 80.0) * water * dayf * 0.9;
 		// looking through more air near the edge of the disc
 		float rim = pow(1.0 - clamp(dot(N, -d), 0.0, 1.0), 3.0);
 		col += vec3(0.25, 0.5, 1.0) * rim * smoothstep(-0.25, 0.35, l) * 0.8;

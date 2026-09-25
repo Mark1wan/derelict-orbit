@@ -219,7 +219,6 @@ scripts/player.gd      zero-G CharacterBody3D: grab-and-pull locomotion, thruste
 scripts/item.gd        the flashlight and the repair tools (built in code): hand / belt / loose, zero-G drift
 scripts/tool_belt.gd   four holsters at the waist that follow the body's heading
 scripts/holo_panel.gd  the crew terminal: tasks and stats as a hologram from the left wrist (Y / TAB)
-scripts/ps1.gd         PS1 mode: the vertex-lit, snapped, affine, one-texture-page look that holds 72 Hz
 scripts/comms.gd       autoload: the uplink - when Earth calls, what is due back, the night carriers
 scripts/comms_station.gd  the comms console: prints the message as it is spoken, hold to transmit
 scripts/washroom.gd    the washroom's working stall: its door, and the night's toilet trip (black, the bundle)
@@ -327,46 +326,32 @@ DERELICT_AUTOTEST=nights godot --headless --path .    # the odds, a quiet night,
 DERELICT_AUTOTEST=layouts godot --headless --path .   # 300 deck plans: every one has the rooms it needs
 ```
 
-## PS1 mode, and holding 72 Hz on a Quest 3
+## Holding 72 Hz on a Quest 3
 
 The headset is the tightest machine this runs on: a browser, one wasm thread, every frame drawn twice, 13.8 ms
-each. **PS1 mode** is how it keeps up, and it is not a filter over the top - the look *is* the optimisation. Every
-trick in `scripts/ps1.gd` is one a 1996 console used, for the same reason it helps here:
+each. What keeps it inside that:
 
-| | why it is cheap | why it looks like 1996 |
-|---|---|---|
-| vertex lighting | a corridor lit by four lamps costs four sums per vertex, not four per pixel | Gouraud shading |
-| one texture page | plating, grating, hazard stripes and painted metal share one image, so the static hull is one draw call per chunk | texture pages are exactly what the hardware had |
-| 0.6 render scale per eye | 36 % of the pixels of a native eye buffer | the console drew about 320x240 |
-| point-sampled 128 px art, no normal maps, no triplanar | one texture read a pixel instead of three or four, and no tangents on the bus | chunky texels, flat painted metal |
-| vertex snapping, affine texture mapping | free - it happens in the vertex shader | the wobble, and textures that swim across a floor |
-
-It is on by default in a headset and on phones, off on a desktop, and it is the first checkbox on the title
-screen either way (`?ps1=1` / `?ps1=0` in the URL forces it). Nothing about it changes the game: same deck, same
-rooms, same props, same fittings to grab, same lights, same stalker.
+- **Smaller, foveated eye buffers.** Each eye renders at 0.85 of the recommended width with fixed foveation at
+  full, so the edges of each eye (which the lens blurs anyway) are shaded coarser still. Godot 4.7's WebXR has no
+  setting for either, so `main.gd` wraps the browser's WebXR layer factory before the session starts
+  (`XR_LAYER_JS`); the browser console prints `[xr] eye buffers at 0.85, foveation 1.00: ok` when it took.
+- **Bolted wall fittings merge into the chunk mesh of the wall they hang on** (about two hundred draw calls of
+  extinguishers, handholds and lockers, now free - and they keep their own forgiving grab boxes, so a hand still
+  catches a rail the way it did).
+- **No flashlight shadow map in the headset**, and at most three sunlit windows.
+- **Nothing blended over the whole view unless it is showing**: the fade and the spin vignette are hidden while clear.
 
 Measured on one deck (`DERELICT_SEED=4242`), 44 viewpoints by day and night:
 
 | | worst frame | mean | texture memory |
 |---|---|---|---|
 | before | 563 draws | 242 | 51.8 MB |
-| now, modern look | 401 draws | 167 | 52.8 MB |
-| now, PS1 mode | 213 draws | 88 | 41.8 MB |
-
-And draw calls are only half of it: PS1 mode also draws 36 % of the pixels per eye, lights per
-vertex instead of per pixel, and reads one texture per pixel instead of three or four.
-
-One of the wins lands in both modes: **bolted wall fittings merge into the chunk mesh of the wall they hang on**
-(about two hundred draw calls of extinguishers, handholds and lockers, now free - and they keep their own
-forgiving grab boxes, so a hand still catches a rail the way it did). PS1 mode also drops the flashlight's shadow map (the single most expensive
-thing in a frame), MSAA, and two thirds of the dust, and culls dust at 12 m and loose props at 26 m.
-It does not touch the sunlit windows: light through a window is most of what a shift looks like,
-and it costs a sum per vertex now.
+| now | 401 draws | 167 | 52.8 MB |
 
 Run the probe on any machine - draw calls and memory do not depend on the GPU measuring them:
 
 ```
-DERELICT_SEED=4242 DERELICT_PS1=1 DERELICT_PERF=1 xvfb-run -a godot --path . --quit-after 2400
+DERELICT_SEED=4242 DERELICT_PERF=1 xvfb-run -a godot --path . --quit-after 2400
 ```
 
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for what it prints, where the time went, and what to try next if a
@@ -374,7 +359,8 @@ headset is still short.
 
 - The loading stage after "ENTER VR" / "Play" walks the camera through every room behind the black fade so all
   shaders compile before you can see anything.
-- Shadow atlas is 1024 on mobile (`project.godot`). Physics runs at 72 Hz to match the headset's refresh.
+- Shadow atlas is 1024 on mobile (`project.godot`). Physics runs at 72 Hz, and the session asks the headset for
+  72 Hz to match (`main.gd:_on_session_started`).
 
 ## Ideas for next iterations
 
