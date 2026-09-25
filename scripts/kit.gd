@@ -139,8 +139,13 @@ const SKIP := {"corridor_door": {"Door_Panel": true, "Glass_Port": true}}
 ## room_eva's airlock hatch is a closed door painted on a solid back wall. With `hatch` the door
 ## and the wall behind it are cut away (HATCH_LO..HATCH_HI in the room's frame), the wall rebuilt
 ## around the hole, and the airlock chamber (airlock.gd) is bolted on behind it.
+##
+## HATCH_LO.z reaches in front of the recess, not just to the back wall: behind the painted door the
+## kit has a Hull_Dark backing box (z 5.06..5.36) filling the doorway exactly, plus a Hull_Light
+## mullion at z 5.36..5.50. Cutting only from the wall face left those standing - an open hole with a
+## solid plate in front of it, so the hatch read as shut and the chamber could not be entered.
 const OUTER_EPS := 0.03
-const HATCH_LO := Vector3(-1.34, 0.42, 5.37)
+const HATCH_LO := Vector3(-1.34, 0.42, 5.05)
 const HATCH_HI := Vector3(1.34, 3.08, 6.05)
 const HATCH_SKIP := {"Door_Panel": true, "Glass_Window": true}
 

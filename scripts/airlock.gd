@@ -19,7 +19,7 @@ extends Node3D
 enum State { PRESSURIZED, DEPRESSURIZING, VACUUM, REPRESSURIZING }
 
 const AXIS_Y := 1.75            # the chamber's axis runs out of the hatch at this height
-const Z_FRAME := 5.37           # back of the hatch frame in the room wall
+const Z_FRAME := 5.05           # front of the hatch recess, where Kit cuts the hole
 const Z_WALL := 6.0             # outer face of the room's back wall
 const Z_OUT := 10.0             # the outer hatch
 const APOTHEM := 2.05           # chamber interior

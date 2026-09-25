@@ -965,6 +965,16 @@ func _autotest_eva() -> void:
 	player.teleport_head_to(al.room_point())
 	al.debug_cycle()
 	assert(al.state == Airlock.State.PRESSURIZED, "the airlock should not cycle with you outside the chamber")
+	# the inner hatch must be walkable, not just cycleable: the steps below teleport into the chamber,
+	# so nothing else here notices when the kit leaves the doorway bricked up (Kit.HATCH_LO).
+	var space := get_viewport().world_3d.direct_space_state
+	for h: float in [0.6, 1.2, 1.75, 2.4]:
+		for side: float in [-0.9, 0.0, 0.9]:
+			var from := al.to_global(Vector3(side, h, 3.0))
+			var to := al.to_global(Vector3(side, h, Airlock.Z_OUT - 0.5))
+			var q := PhysicsRayQueryParameters3D.create(from, to)
+			q.collision_mask = 1
+			assert(space.intersect_ray(q).is_empty(), "the inner hatch is blocked at x %.1f, y %.1f - the chamber cannot be walked into" % [side, h])
 	player.teleport_head_to(al.centre())
 	await get_tree().physics_frame
 	al.debug_cycle()
