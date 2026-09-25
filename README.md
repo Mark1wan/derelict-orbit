@@ -337,7 +337,7 @@ trick in `scripts/ps1.gd` is one a 1996 console used, for the same reason it hel
 |---|---|---|
 | vertex lighting | a corridor lit by four lamps costs four sums per vertex, not four per pixel | Gouraud shading |
 | one texture page | plating, grating, hazard stripes and painted metal share one image, so the static hull is one draw call per chunk | texture pages are exactly what the hardware had |
-| 0.6 render scale per eye | 36 % of the pixels of a native eye buffer | the console drew about 320x240 |
+| 0.6 render scale per eye, foveated edges | 36 % of the pixels of a full eye buffer, fewer again toward the edges | the console drew about 320x240 |
 | point-sampled 128 px art, no normal maps, no triplanar | one texture read a pixel instead of three or four, and no tangents on the bus | chunky texels, flat painted metal |
 | vertex snapping, affine texture mapping | free - it happens in the vertex shader | the wobble, and textures that swim across a floor |
 
@@ -374,7 +374,11 @@ headset is still short.
 
 - The loading stage after "ENTER VR" / "Play" walks the camera through every room behind the black fade so all
   shaders compile before you can see anything.
-- Shadow atlas is 1024 on mobile (`project.godot`). Physics runs at 72 Hz to match the headset's refresh.
+- Shadow atlas is 1024 on mobile (`project.godot`). Physics runs at 72 Hz, and the session asks the headset for
+  72 Hz to match (`main.gd:_on_session_started`).
+- The eye buffers are made smaller and foveated by wrapping the browser's WebXR layer factory
+  (`main.gd:XR_LAYER_JS`): Godot 4.7's WebXR has no setting for either, and until that wrapper the
+  headset drew every eye at full size.
 
 ## Ideas for next iterations
 

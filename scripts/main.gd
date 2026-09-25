@@ -18,6 +18,47 @@ var touch_device := false
 var _ps1_by_hand := false        # the PS1 switch was set on the title screen: do not override it
 var _power_was_off := false
 
+## The headset's eye buffers: a fraction of the size the browser recommends, and how hard their
+## edges are foveated (0 not at all, 1 as hard as the browser goes). PS1 mode is the low end of both.
+const XR_SCALE := 0.6
+const XR_SCALE_MODERN := 0.85
+const XR_FOVEATION := 1.0
+const XR_FOVEATION_MODERN := 0.5
+const XR_HZ := 72.0              # the physics ticks at this too: see _on_session_started
+
+## Godot's WebXR (4.7) makes its projection layer with no scale factor and no foveation, and has no
+## setting for either - so every eye was drawn at full size. This wraps the browser's own layer
+## factory before the session starts, so the layer Godot asks for comes out at `scale`, foveated.
+const XR_LAYER_JS := """
+(function (scale, foveation) {
+	var B = window.XRWebGLBinding;
+	if (!B || !B.prototype.createProjectionLayer) {
+		return 'no WebXR layers';
+	}
+	var p = B.prototype;
+	if (!p._derelictCreate) {
+		p._derelictCreate = p.createProjectionLayer;
+	}
+	p.createProjectionLayer = function (init) {
+		var o = Object.assign({}, init || {});
+		o.scaleFactor = scale;
+		var layer;
+		try {
+			layer = p._derelictCreate.call(this, o);
+		} catch (e) {
+			layer = p._derelictCreate.call(this, init);
+		}
+		try {
+			if ('fixedFoveation' in layer) {
+				layer.fixedFoveation = foveation;
+			}
+		} catch (e) {}
+		return layer;
+	};
+	return 'ok';
+})(%s, %s)
+"""
+
 func _ready() -> void:
 	# playtest shortcut straight to the spacewalk day: ?eva in the URL, or DERELICT_EVA=1
 	if OS.has_environment("DERELICT_EVA"):
@@ -1232,14 +1273,26 @@ func _enter_vr() -> void:
 	webxr.required_features = "local"
 	webxr.optional_features = "local-floor"
 	# Pixels are what a Quest 3 runs out of first: two eye buffers, 72 times a second, through a
-	# browser. PS1 mode renders 0.6 of each eye's native width - 36% of the pixels - and the
-	# headset's own compositor scales it back up, which is the chunky upscale the look wants anyway.
-	webxr.render_target_size_multiplier = 0.6 if Game.retro else 0.85
+	# browser. PS1 mode renders 0.6 of each eye's width - 36% of the pixels - and the headset's own
+	# compositor scales it back up, which is the chunky upscale the look wants anyway. Foveation
+	# draws the edges of each eye coarser still, where the lens blurs them regardless.
+	if OS.has_feature("web"):
+		var size := XR_SCALE if Game.retro else XR_SCALE_MODERN
+		var fov := XR_FOVEATION if Game.retro else XR_FOVEATION_MODERN
+		print("[xr] eye buffers at %.2f, foveation %.2f: %s" % [size, fov,
+			JavaScriptBridge.eval(XR_LAYER_JS % [size, fov], true)])
 	if not webxr.initialize():
 		status.text = "Failed to start the VR session."
 
 func _on_session_started() -> void:
 	get_viewport().use_xr = true
+	# Ask for 72 Hz. It is the frame budget everything here is measured against, and the physics
+	# ticks at 72: a headset presenting at 90 would get a frame with no physics step in it every
+	# few frames, and the body would judder along the corridor however fast the frame was drawn.
+	for hz: Variant in webxr.get_available_display_refresh_rates():
+		if absf(float(hz) - XR_HZ) < 0.5:
+			webxr.set_display_refresh_rate(float(hz))
+			break
 	# no multisampling in the headset: at 0.6 scale the edges are meant to be hard, and the
 	# resolve is pure cost on a tiler drawing everything twice
 	if Game.retro:

@@ -90,6 +90,7 @@ var wrist: HoloPanel              # the crew terminal hologram: tasks, clock, fu
 var _menu_prev := false
 var hud_label: Label3D
 var fade_mat: StandardMaterial3D
+var _fade: MeshInstance3D         # hidden while clear: a see-through quad over the whole view still costs a blend per pixel
 var fade_target := 1.0
 var fade_speed := 1.5
 
@@ -129,6 +130,7 @@ var _rot_burn := false
 var _rot_snap_ready := true
 var _vignette := 0.0
 var vignette_mat: ShaderMaterial
+var _vig: MeshInstance3D
 
 # the EVA suit (mission days): air, the tether, and whether we are out in it
 var suit_on := false
@@ -220,6 +222,7 @@ func _build_attachments() -> void:
 
 	# fade quad glued to the camera (CanvasLayer UI is not visible in XR)
 	var fade := MeshInstance3D.new()
+	_fade = fade
 	var qm := QuadMesh.new()
 	qm.size = Vector2(4, 4)
 	fade.mesh = qm
@@ -236,6 +239,7 @@ func _build_attachments() -> void:
 
 	# comfort vignette: the edges of the view close in while the body spins
 	var vig := MeshInstance3D.new()
+	_vig = vig
 	var vq := QuadMesh.new()
 	vq.size = Vector2(0.8, 0.8)
 	vig.mesh = vq
@@ -927,11 +931,16 @@ func _process(delta: float) -> void:
 	var c := fade_mat.albedo_color
 	c.a = move_toward(c.a, fade_target, delta * fade_speed)
 	fade_mat.albedo_color = c
+	# the fade and the vignette cover the whole view: in a headset each is a blended pass over every
+	# pixel of both eyes, so they are only drawn while there is something to see
+	_fade.visible = c.a > 0.0
 	if xr_active and not Game.comfort_snap:
 		_vignette = maxf(_vignette - delta * 1.5, clampf(ang_vel.length() / 0.9, 0.0, 1.0) * 0.8)
 	else:
 		_vignette = maxf(_vignette - delta * 3.0, 0.0)
-	vignette_mat.set_shader_parameter("strength", _vignette)
+	_vig.visible = _vignette > 0.0
+	if _vig.visible:
+		vignette_mat.set_shader_parameter("strength", _vignette)
 	if started and (suit_on or tether.latched):
 		var aim_from := right.global_position if xr_active else camera.global_position
 		var aim_dir := -(right.global_transform.basis.z if xr_active else camera.global_transform.basis.z)

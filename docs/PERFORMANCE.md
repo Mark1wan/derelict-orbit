@@ -68,7 +68,8 @@ Then the per-pixel work, all of it PS1 mode:
 | | why it is cheap | why it is period-correct |
 |---|---|---|
 | vertex lighting | a corridor lit by four lamps costs four sums per vertex, not four per pixel | Gouraud shading is the look |
-| 0.6 render scale per eye | 36% of the pixels of a native eye buffer | the console drew about 320x240 |
+| 0.6 render scale per eye | 36% of the pixels of a full-size eye buffer | the console drew about 320x240 |
+| foveated eye buffers | the edges of each eye, which the lens blurs anyway, are shaded coarser | - |
 | no MSAA in the headset | no resolve, on a tiler drawing everything twice | there was no antialiasing |
 | point-sampled 128 px textures | a quarter of the bandwidth and the memory | chunky texels are the point |
 | no normal maps, no tangents | one texture read per pixel, four fewer floats per vertex | there were no normal maps |
@@ -93,6 +94,30 @@ A flat diffuse surface does lose something real: the specular highlight a metal 
 comes back as `gain` in the shader, in proportion to how metallic the material was, which is why
 the station reads at about the brightness it did before.
 
+## The one that never landed
+
+Since the first performance pass the headset drew every eye at full size. `_enter_vr` set
+`webxr.render_target_size_multiplier`, but Godot 4.7's `WebXRInterface` has no such property (it
+belongs to `OpenXRInterface`). A release export skips the bad assignment without a word; a debug
+export stops `_enter_vr` on it, before the session is even asked for. Either way the 0.6 scale in
+the table above was never applied, and nothing here measures the headset, so nothing noticed.
+
+Godot's WebXR creates its projection layer itself (`createProjectionLayer`, in
+`library_godot_webxr.js`) and passes neither a scale factor nor foveation. So `main.gd` wraps the
+browser's `XRWebGLBinding.prototype.createProjectionLayer` just before the session starts: the
+layer Godot asks for comes out at `XR_SCALE` of the recommended size, with `fixedFoveation` set.
+The browser console prints `[xr] eye buffers at 0.60, foveation 1.00: ok` when it took. Anything
+other than `ok` means the browser has no WebXR layers, and the layer is drawn at full size.
+
+Two more things only a headset was paying for:
+
+- **The fade and the comfort vignette** are quads glued to the camera across the whole view. Both
+  stayed visible when clear, so every frame paid for two blended passes over every pixel of both
+  eyes. They are hidden now while there is nothing on them.
+- **72 Hz, asked for.** The physics ticks at 72. A browser presenting at 90 fits a frame with no
+  physics step every few frames, and the body stutters along the corridor however fast each frame
+  draws. `_on_session_started` asks the session for 72 Hz when the headset offers it.
+
 ## What was deliberately not done
 
 - **No gameplay was cut.** Same deck size, same rooms, same props, same fittings to grab, same
@@ -108,8 +133,9 @@ the station reads at about the brightness it did before.
 
 In this order, measure between each:
 
-1. `webxr.render_target_size_multiplier` in `main.gd:_enter_vr` - 0.6 is the PS1 default, 0.5 is
-   still legible.
+1. `XR_SCALE` at the top of `main.gd` - 0.6 is the PS1 default, 0.5 is still legible. Check the
+   browser console for `[xr] eye buffers ... ok` first: if the layer wrapper did not take, nothing
+   else on this list will be enough.
 2. Corridor lights: `Station._place_lights` puts one every two cells. Every three is dimmer and
    cheaper.
 3. `Ps1.SNAP_XR` - coarser snapping hides a lower render scale.
