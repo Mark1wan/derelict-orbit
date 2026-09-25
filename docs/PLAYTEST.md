@@ -98,6 +98,25 @@ DERELICT_SHOTS=/tmp/kestrel-shots godot --path .    # jump the camera through ev
 DERELICT_AUTOTEST=1 godot --headless --path . --quit-after 6000    # the whole loop, no window
 ```
 
+## Windows, without a headset or a web server
+
+The repo also carries a **Windows Desktop (flat)** export preset. It produces a single
+self-contained `DerelictOrbit.exe` (the pck is embedded), which runs by double-clicking - no
+local server, no browser, no HTTPS. That is the quickest route to a flat playtest on Windows.
+
+```
+godot --headless --path . --export-release "Windows Desktop (flat)" build/windows/DerelictOrbit.exe
+```
+
+The build is unsigned, so SmartScreen shows an unknown-publisher warning: *More info → Run anyway*.
+
+**It has no VR.** The headset path is WebXR (`scripts/main.gd` looks for the `WebXR` interface and
+falls back to desktop when it is absent), so a native executable can only ever be the flat version.
+For the headset, use the web build above.
+
+Desktop controls are the flat ones in *Desktop, without a headset* above. Note that **Esc releases the
+mouse rather than quitting** - click back into the window to recapture it.
+
 ## On a phone - what to check
 
 Open https://games.biocrafted.xyz/derelict-orbit/ directly (not inside the hub window), turn the phone sideways
