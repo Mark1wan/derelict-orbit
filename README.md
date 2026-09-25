@@ -341,13 +341,17 @@ each. What keeps it inside that:
   catches a rail the way it did).
 - **No flashlight shadow map in the headset**, and at most three sunlit windows.
 - **Nothing blended over the whole view unless it is showing**: the fade and the spin vignette are hidden while clear.
+- **Only the modules you can see are drawn** (`scripts/deck_cull.gd`): a walk through the plan's openings
+  from where your head is, redone every time it moves 4 cm. Built to draw too much rather than too little:
+  a lamp stays on while anything in its range is in view, so no light changes on a wall you can see.
 
-Measured on one deck (`DERELICT_SEED=4242`), 44 viewpoints by day and night:
+Measured on one deck (`DERELICT_SEED=4242`), every room, doorway and corridor by day and night:
 
-| | worst frame | mean | texture memory |
+| | worst frame inside | mean | texture memory |
 |---|---|---|---|
-| before | 563 draws | 242 | 51.8 MB |
-| now | 401 draws | 167 | 52.8 MB |
+| first pass | 563 draws | 242 | 51.8 MB |
+| fittings merged, no beam shadow | 283 draws | 167 | 52.8 MB |
+| drawing only what can be seen | 166 draws | 101 | 52.8 MB |
 
 Run the probe on any machine - draw calls and memory do not depend on the GPU measuring them:
 

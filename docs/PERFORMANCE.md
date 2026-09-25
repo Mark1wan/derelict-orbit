@@ -29,16 +29,21 @@ frame rate and whether the GPU or the CPU is the one running out.
 
 ## Where it went
 
-One deck (`DERELICT_SEED=4242`), 44 viewpoints - every room, doorway and corridor, by day and then
-at night with the flashlight on:
+One deck (`DERELICT_SEED=4242`), every room, doorway and corridor, by day and then at night with the
+flashlight on (44 viewpoints for the first two rows; 58 since the deck gained the comms room and the
+washroom):
 
-| | worst frame | mean | texture memory | deck meshes |
-|---|---|---|---|---|
-| before | 563 draws | 242 | 51.8 MB | 156 |
-| after | 401 draws | 167 | 52.8 MB | 106 |
+| | worst frame inside | mean | texture memory |
+|---|---|---|---|
+| first pass | 563 draws | 242 | 51.8 MB |
+| fittings merged, no beam shadow | 283 draws | 167 | 52.8 MB |
+| drawing only what can be seen | 166 draws | 101 | 52.8 MB |
 
-The worst frame is a night one and moves around a little between runs: the thing that walks at
-night is a rig of forty-odd parts, and whether it is in shot changes the count.
+Worst frame *inside* leaves out the probe's last viewpoint, the whole deck from above and outside
+the hull, where nothing is culled (306 draws before, 260 now). Looking through a doorway gains the
+most: the gym's went from 270 draws to 63, the power plant's from 283 to 135. The numbers move a
+little between runs: the thing that walks at night is a rig of forty-odd parts, and whether it is in
+shot changes the count.
 
 **Bolted fittings merge into the wall they are bolted to.** A deck hangs a hundred-odd
 extinguishers, handholds, lockers and rails on its walls, and each was a node with two or three
